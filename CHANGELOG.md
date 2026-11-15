@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.31.1 — 2026-11-14
+
+- ⌘E toggles the README even while the editor has focus. The editor used to take it for Find with Selection.
+- A plugin shortcut that clashes with one cuckcode already uses no longer shows in its button's tooltip, since it doesn't work.
+
 ## 1.31.0 — 2026-11-14
 
 - Notifications when Claude is done or needs your input now work without any setup. They were silent unless you'd set Claude's notification channel by hand. macOS asks once whether cuckcode may show them.

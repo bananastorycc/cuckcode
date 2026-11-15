@@ -11,6 +11,9 @@ import type { Theme } from '../../shared/types'
 
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() }
 
+// ⌘E is Toggle README. Monaco's Find with Selection would swallow it whenever the editor has focus.
+monaco.editor.addKeybindingRule({ keybinding: monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyE, command: '-actions.findWithSelection' })
+
 // Token colors come from plugins (addThemeRules); the base themes color the basic languages.
 const COLORS: Record<Theme, { base: 'vs' | 'vs-dark'; colors: monaco.editor.IColors }> = {
   light: {

@@ -22,6 +22,8 @@ interface Plugin {
 const statuses: PluginStatus[] = []
 const loaded: Plugin[] = []
 const apis = new Map<string, unknown>()
+// `${plugin}:${command}` whose accelerator the menu dropped, so the renderer doesn't show it as a hint.
+const dropped = new Set<string>()
 let ready: Promise<void> = Promise.resolve()
 let dir = ''
 
@@ -143,7 +145,7 @@ export async function renderers(): Promise<LoadedPlugin[]> {
     loaded.map(async (p) => ({
       id: p.manifest.id,
       name: p.manifest.name,
-      commands: p.manifest.commands ?? [],
+      commands: (p.manifest.commands ?? []).map((c) => (dropped.has(`${p.manifest.id}:${c.id}`) ? { ...c, accelerator: undefined } : c)),
       renderer: await read(p.dir, p.manifest.renderer),
       style: await read(p.dir, p.manifest.style)
     }))
@@ -155,7 +157,8 @@ export function commands(): { plugin: string; id: string; title: string; acceler
 }
 
 // Menu rebuilds report the same clash again; it's kept once.
-export function reportShortcut(plugin: string, message: string): void {
+export function dropShortcut(plugin: string, command: string, message: string): void {
+  dropped.add(`${plugin}:${command}`)
   const s = statuses.find((x) => x.id === plugin)
   if (s && !s.error?.includes(message)) s.error = s.error ? `${s.error}; ${message}` : message
 }

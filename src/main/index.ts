@@ -186,7 +186,7 @@ function buildMenu(): void {
   const pluginItems = plugins.commands().map((c) => {
     let accelerator = c.accelerator
     if (accelerator && taken.has(normal(accelerator))) {
-      plugins.reportShortcut(c.plugin, `${accelerator} is taken, so ${c.title} has no shortcut`)
+      plugins.dropShortcut(c.plugin, c.id, `${accelerator} is taken, so ${c.title} has no shortcut`)
       accelerator = undefined
     }
     if (accelerator) taken.add(normal(accelerator))

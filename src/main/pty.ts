@@ -38,7 +38,7 @@ const RUN = {
 // OSC 777 notification, which Terminal.tsx turns into the tab dot and a macOS notification. Hooks
 // run detached, without /dev/tty, so they write to the terminal of their parent, claude.
 const osc = (body: string): string =>
-  `t=$(ps -o tty= -p $PPID | tr -d ' ') && printf '\\033]777;notify;Claude;${body}\\007' > "/dev/$t" 2>/dev/null || true`
+  `t=$(ps -o tty= -p $PPID | tr -d ' ') && printf '\\033]777;notify;Claude;${body}\\007' 2>/dev/null > "/dev/$t" || true`
 const HOOKS = JSON.stringify({
   hooks: {
     Stop: [{ hooks: [{ type: 'command', command: osc('Claude is done') }] }],
