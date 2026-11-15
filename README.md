@@ -161,6 +161,8 @@ The Agents section runs agents: real login shells (via `node-pty`) running a pro
 
 An agent is a name, a command, and a few switches for what cuckcode does with it. **Add** under the list starts one from a preset, and plugins can add presets of their own. Nothing depends on which preset an agent came from: every field stays editable.
 
+<img src="docs/screenshots/settings-agents.png" alt="Settings › Agents: a Claude Code agent with every switch on, a codex and a junie Command agent with Notify on, the preset buttons, and the commit command under Git" width="640">
+
 - **Notify:** a bell or an OSC 9 / OSC 777 notification from the agent lights up the project's tab green and sends a macOS notification (unless you're already looking at it); clicking it brings you back. macOS asks once whether cuckcode may show notifications, and Settings › General turns them off.
 - **Keep awake:** while the agent prints, cuckcode keeps the Mac from idle-sleeping, so a long task isn't cut off halfway. The display can still sleep, and closing the lid still sleeps. It lets go about 30 seconds after the agent goes quiet.
 - **@ mentions:** files dragged onto the agent, and ⌥⌘K's selection, go in as `@path#L12-20`. Off: as a quoted path. ⌥⌘K goes to the agent in front when it has mentions on, else to the first that does.
@@ -174,7 +176,7 @@ The presets:
 - **Claude Code** (a fresh install's agent): `claude`, with every switch on. It passes `$CUCKCODE_PLAYGROUND` with `--append-system-prompt`, and through `--settings` gives Claude Code hooks that run `$CUCKCODE_NOTIFY` when it finishes or needs your input.
 - **Command:** an empty command with Notify on, for anything else (`codex`, `junie --auth-license=<id>`, `oterm`, …).
 
-Usage meters for Claude Code's plan and Junie's AI credits are a plugin, [cuckcode-meters](#plugins), which shows them in the Agents title bar.
+Usage meters for Claude Code's plan and Junie's AI credits are a plugin, [cuckcode-meters](https://github.com/bananastorycc/cuckcode-meters), which shows them in the Agents title bar.
 
 When an agent exits you land in a shell in the same folder. The toolbar button (or any key) restarts it.
 
