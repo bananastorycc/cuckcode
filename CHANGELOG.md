@@ -2,6 +2,14 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.29.2 — 2026-11-14
+
+- Saving can no longer leave a half-written file if the app or Mac dies mid-save. Symlinks, permissions and read-only files behave as before. The same goes for Replace All, settings, scratch notes and playground answers.
+- Live updates (diff, file tree, git status) come back on their own if a project's file watcher fails, or once a missing project folder reappears.
+- Search no longer shows the previous project's results for a moment after switching tabs.
+- Closing a project frees what was kept for it; reopened, it starts fresh.
+- Two Claude agents starting in one project at once no longer both add `.cuckcode/` to `.git/info/exclude`.
+
 ## 1.29.1 — 2026-11-14
 
 - Typing in a terminal can't get stuck if saving open files before a prompt fails.

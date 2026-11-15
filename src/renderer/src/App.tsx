@@ -347,6 +347,13 @@ export default function App(): React.JSX.Element {
     void saveAll()
     for (const id of [...agents.map((a) => a.id), SHELL_ID]) window.api.ptyKill(`${id}:${path}`)
     statuses.current.delete(path)
+    // Its views, playground versions, plugin data and notification state go too: reopened, it starts fresh.
+    lastNotified.current.delete(path)
+    clearDone(path)
+    setView(({ [path]: _, ...v }) => v)
+    setPlayVersions((r) => withoutPath(r, path))
+    setPlayUnseen((s) => new Set([...s].filter((k) => pathOf(k) !== path)))
+    setData((x) => withoutPath(x, path))
     // Reopening it later starts fresh on the first agent, without respawning the agents just killed.
     setTerms(({ [path]: _, ...t }) => t)
     setStarted((s) => new Set([...s].filter((id) => id.slice(id.indexOf(':') + 1) !== path)))
@@ -728,6 +735,11 @@ const pickConfig = (s: Config): Config => ({
   agents: s.agents,
   plugins: s.plugins
 })
+
+// Per-project keys are `${slot or plugin id}:${path}`; neither part before the path has a colon.
+const pathOf = (key: string): string => key.slice(key.indexOf(':') + 1)
+const withoutPath = <T,>(r: Record<string, T>, path: string): Record<string, T> =>
+  Object.fromEntries(Object.entries(r).filter(([k]) => pathOf(k) !== path))
 
 const mapValues = <A, B>(r: Record<string, A>, f: (a: A) => B): Record<string, B> =>
   Object.fromEntries(Object.entries(r).map(([k, v]) => [k, f(v)]))

@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import type { Worker } from 'node:worker_threads'
 import type { Agent, Bounds, GitOp, MenuCommand, PaneDir, Settings, ChangedFile, SearchQuery, SearchResult } from '../shared/types'
 import { MAX_SLOTS, SHELL_ID } from '../shared/types'
+import { writeAtomic } from './atomic'
 import * as git from './git'
 import { browse, mediaResponse } from './media'
 import * as playground from './playground'
@@ -121,14 +122,12 @@ function saveSettings(next: Settings): void {
   if (menuKey(next) !== menuWas) buildMenu()
   if (saveQueued) return
   saveQueued = true
-  // Write, then rename over: dying mid-write must not leave an empty file (and no projects).
-  const tmp = `${settingsFile}.tmp`
+  // Atomic: dying mid-write must not leave an empty file (and no projects).
   saving = saving
     .then(() => {
       saveQueued = false
-      return writeFile(tmp, JSON.stringify(settings, null, 2))
+      return writeAtomic(settingsFile, JSON.stringify(settings, null, 2))
     })
-    .then(() => rename(tmp, settingsFile))
     .catch(() => {})
 }
 
@@ -429,7 +428,8 @@ function registerIpc(): void {
   ipcMain.handle('search:replace', (_e, root: string, q: SearchQuery, replacement: string, paths: string[]) =>
     replaceAll(root, q, replacement, paths)
   )
-  ipcMain.handle('fs:write', (_e, path: string, content: string) => writeFile(path, content, 'utf8'))
+  // Atomic, so a crash mid-save can't leave the file half written.
+  ipcMain.handle('fs:write', (_e, path: string, content: string) => writeAtomic(path, content))
   ipcMain.handle('fs:create', async (_e, path: string) => {
     await mkdir(dirname(path), { recursive: true })
     await writeFile(path, '', { flag: 'wx' })
@@ -467,11 +467,8 @@ function registerIpc(): void {
   ipcMain.handle('junieBalance', (_e, license: string) => junieBalance(license))
   ipcMain.on('app:reveal', (_e, path: string) => shell.showItemInFolder(path))
   ipcMain.handle('scratch:read', () => readFile(scratchFile, 'utf8').catch(() => ''))
-  // Write, then rename over, like settings: dying mid-write must not empty the notes.
-  ipcMain.handle('scratch:write', async (_e, text: string) => {
-    await writeFile(`${scratchFile}.tmp`, text, 'utf8')
-    await rename(`${scratchFile}.tmp`, scratchFile)
-  })
+  // Atomic, like settings: dying mid-write must not empty the notes.
+  ipcMain.handle('scratch:write', (_e, text: string) => writeAtomic(scratchFile, text))
 }
 
 app.whenReady().then(async () => {

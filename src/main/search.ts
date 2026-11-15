@@ -1,7 +1,8 @@
-import { readFile, stat, writeFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { replaceIn, toRegExp } from '../shared/search'
 import type { SearchMatch, SearchQuery, SearchResult } from '../shared/types'
+import { writeAtomic } from './atomic'
 import { isBinary, listFiles, run } from './git'
 
 const MAX_MATCHES = 2000
@@ -128,6 +129,6 @@ export async function replacements(root: string, q: SearchQuery, replacement: st
 }
 
 export async function write(root: string, r: Replaced): Promise<number> {
-  await Promise.all(r.files.map((f) => writeFile(join(root, f.path), f.text, 'utf8')))
+  await Promise.all(r.files.map((f) => writeAtomic(join(root, f.path), f.text)))
   return r.count
 }

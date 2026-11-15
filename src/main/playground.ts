@@ -1,7 +1,8 @@
-import { appendFile, mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readdir, readFile, stat } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 import type { PlaygroundSlot } from '../shared/types'
 import { MAX_SLOTS } from '../shared/types'
+import { writeAtomic } from './atomic'
 import { run } from './git'
 
 // Per-project folders, one per configured slot, that Claude fills with a page (image reviews,
@@ -49,7 +50,7 @@ export async function version(project: string, slot: number): Promise<number | n
 export const validName = (name: string): boolean => /^[\w.-]+$/.test(name)
 
 // Pages save on every keystroke, so writes to one file queue up in order (overlapping writeFiles
-// interleave into garbage), and each lands whole by rename, so a reader never sees half of one.
+// interleave into garbage), and each lands whole, so a reader never sees half of one.
 const queues = new Map<string, Promise<void>>()
 
 export const validSlot = (slot: number): boolean => Number.isInteger(slot) && slot >= 1 && slot <= MAX_SLOTS
@@ -60,8 +61,7 @@ export function save(project: string, slot: number, name: string, text: string):
   const file = join(data, `${name}.json`)
   const write = async (): Promise<void> => {
     await mkdir(data, { recursive: true })
-    await writeFile(`${file}.tmp`, text, 'utf8')
-    await rename(`${file}.tmp`, file)
+    await writeAtomic(file, text)
   }
   const next = (queues.get(file) ?? Promise.resolve()).then(write, write)
   queues.set(file, next)
@@ -69,8 +69,20 @@ export function save(project: string, slot: number, name: string, text: string):
   return next
 }
 
-// Keeps .cuckcode/ out of git status without touching any tracked file.
-export async function exclude(project: string): Promise<void> {
+// Keeps .cuckcode/ out of git status without touching any tracked file. Two claude agents
+// starting in one project at once share one check, or both would append the line.
+const excluding = new Map<string, Promise<void>>()
+
+export function exclude(project: string): Promise<void> {
+  let pending = excluding.get(project)
+  if (!pending) {
+    pending = addExclude(project).finally(() => excluding.delete(project))
+    excluding.set(project, pending)
+  }
+  return pending
+}
+
+async function addExclude(project: string): Promise<void> {
   try {
     let file = (await run(project, ['rev-parse', '--git-path', 'info/exclude'])).trim()
     if (!isAbsolute(file)) file = join(project, file)

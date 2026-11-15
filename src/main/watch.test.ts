@@ -9,7 +9,7 @@ describe('isRelevant', () => {
   })
 
   it('drops noise', () => {
-    for (const p of ['node_modules/x/index.js', 'pkg/node_modules/y', '.git/objects/ab/cdef', '.git/index.lock', 'vendor/sub/.git/HEAD', 'a/.DS_Store', '.cuckcode/playground/1/data/a.json.tmp', '.cuckcode/playground/10/data/answers.json']) {
+    for (const p of ['node_modules/x/index.js', 'pkg/node_modules/y', '.git/objects/ab/cdef', '.git/index.lock', 'vendor/sub/.git/HEAD', 'a/.DS_Store', '.cuckcode/playground/1/data/a.json.tmp', '.cuckcode/playground/10/data/answers.json', 'src/.a.ts.123-0.cuckcode-tmp']) {
       expect(isRelevant(p)).toBe(false)
     }
   })

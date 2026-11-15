@@ -22,7 +22,9 @@ const FLAGS: [Flag, LucideIcon, string][] = [
 export default function Search({ root, tick, focus, onOpen }: Props): React.JSX.Element {
   const [q, setQ] = useState<SearchQuery>({ text: '', regex: false, caseSensitive: false, word: false })
   const [replacement, setReplacement] = useState('')
-  const [result, setResult] = useState<SearchResult | null>(null)
+  // Tagged with its root: after a tab switch, the last project's hits must not show (or open) here.
+  const [found, setFound] = useState<{ root: string; result: SearchResult } | null>(null)
+  const result = found?.root === root ? found.result : null
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const input = useRef<HTMLInputElement>(null)
@@ -35,14 +37,14 @@ export default function Search({ root, tick, focus, onOpen }: Props): React.JSX.
   // Debounced, and rerun on file changes so results (and replaces) stay fresh. One at a time:
   // while Claude writes, changes land faster than a big repo scans, and scans would pile up in main.
   useEffect(() => {
-    if (!root || !q.text) return setResult(null)
+    if (!root || !q.text) return setFound(null)
     let live = true
     const t = setTimeout(() => {
       searching.current = searching.current.then(() =>
         live
           ? window.api.search(root, q).then(
-              (r) => live && setResult(r),
-              () => live && setResult(null)
+              (r) => live && setFound({ root, result: r }),
+              () => live && setFound(null)
             )
           : undefined
       )
