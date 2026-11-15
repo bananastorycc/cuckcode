@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.35.4 — 2026-11-14
+
+- The Claude usage meter shows your usage credits again when there's a per-model weekly limit too: per-model limits now give way first in a narrow pane.
+
 ## 1.35.3 — 2026-11-14
 
 - A playground's Done, or ⌥⌘K, reaches Claude even when it wasn't running yet: the message waits until Claude's prompt is up instead of getting lost while it starts.

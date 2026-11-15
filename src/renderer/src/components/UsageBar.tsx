@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { JunieBalance, JuniePool, Usage } from '../../../shared/types'
+import type { JunieBalance, JuniePool, Usage, UsageLimit } from '../../../shared/types'
 
 // Plan usage for the Agents section's title bar. One poll for the whole app; the
 // endpoints are rate limited, so it's every few minutes, and on coming back to the window.
@@ -84,22 +84,26 @@ export default function UsageBar({ usage }: { usage: Usage | null }): React.JSX.
   }, [])
   if (!usage) return null
   const { credits } = usage
+  // Per-model limits go last, so a narrow pane drops them before the credit spend.
+  const main = usage.limits.filter((l) => l.label === 'session' || l.label === 'week')
+  const scoped = usage.limits.filter((l) => !main.includes(l))
+  const limit = (l: UsageLimit): React.JSX.Element => (
+    <span
+      key={l.label}
+      className="flex items-center gap-1"
+      title={l.resetsAt ? `${l.label}: resets ${new Date(l.resetsAt).toLocaleString()}` : l.label}
+    >
+      {l.label}
+      <Meter percent={l.percent} />
+      <span className={tone(l.percent)}>{l.percent}%</span>
+      {l.resetsAt && <span className="opacity-60">{until(l.resetsAt)}</span>}
+    </span>
+  )
   return (
     // Items that don't fit wrap onto a second line that's clipped away, so a narrow pane drops
     // whole items from the end instead of cutting one in half.
     <div className="flex h-4 min-w-0 flex-wrap items-center justify-end gap-x-2.5 overflow-hidden whitespace-nowrap font-mono leading-4">
-      {usage.limits.map((l) => (
-        <span
-          key={l.label}
-          className="flex items-center gap-1"
-          title={l.resetsAt ? `${l.label}: resets ${new Date(l.resetsAt).toLocaleString()}` : l.label}
-        >
-          {l.label}
-          <Meter percent={l.percent} />
-          <span className={tone(l.percent)}>{l.percent}%</span>
-          {l.resetsAt && <span className="opacity-60">{until(l.resetsAt)}</span>}
-        </span>
-      ))}
+      {main.map(limit)}
       {credits && (
         <span
           className="flex items-center gap-1"
@@ -113,6 +117,7 @@ export default function UsageBar({ usage }: { usage: Usage | null }): React.JSX.
           </span>
         </span>
       )}
+      {scoped.map(limit)}
     </div>
   )
 }
