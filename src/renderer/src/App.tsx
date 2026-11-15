@@ -481,6 +481,23 @@ export default function App(): React.JSX.Element {
     requestAnimationFrame(() => pasteInto(`${claude.id}:${active}`, `@${path}${lines} `))
   }
 
+  // A playground page's Done: back to the workspace, and tell the project's claude (the first
+  // claude agent) to read the answers, as if typed there. The Enter goes separately, after the
+  // paste, or Claude takes it as part of the pasted text.
+  const playDone = (slot: number): void => {
+    const claude = agents.find((a) => a.type === 'claude')
+    if (!active || !claude) return
+    const id = `${claude.id}:${active}`
+    const name = config.playgrounds[slot - 1]?.name || `playground ${slot}`
+    setView((v) => ({ ...v, [active]: undefined }))
+    setTerms((t) => ({ ...t, [active]: claude.id }))
+    setStarted((s) => (s.has(id) ? s : new Set(s).add(id)))
+    requestAnimationFrame(() => {
+      if (!pasteInto(id, `I'm done in the ${name}: read .cuckcode/playground/${slot}/data/answers.json and act on it.`)) return
+      setTimeout(() => window.api.ptyWrite(id, '\r'), 150)
+    })
+  }
+
   return (
     <div className="flex h-full flex-col">
       <Header
@@ -619,6 +636,7 @@ export default function App(): React.JSX.Element {
                   name={config.playgrounds[playing - 1].name || `playground ${playing}`}
                   version={playVersions[`${playing}:${active}`] ?? null}
                   theme={theme}
+                  onDone={() => playDone(playing)}
                 />
               </div>
             )}

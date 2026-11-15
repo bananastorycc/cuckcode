@@ -13,7 +13,7 @@ Playground pages are built from blocks. A page names its blocks and their conten
 
 - `kicker`: a small label above the title. `intro`: Markdown under it.
 - `width`: `'wide'` (1280px) or `'full'`; the default is 920px.
-- `submit`: the Done button's label, or `false` to drop it (pages with nothing to answer).
+- `submit`: the Done button's label, or `false` to drop it (pages with nothing to answer). Done saves, closes the playground and sends the project's Claude a message to read the answers.
 - `answers`: the data file's name (default `answers`, i.e. `data/answers.json`).
 
 Answers are saved 300ms after each change, as `{ "<block id>": answer, "_done": "<ISO time>" }`. `_done` is set when the user presses Done. Restored on reload, so Claude can rewrite the page while the user works. A block without an `id` gets `<type><n>` (by position), so give an id to every block whose answer you'll read.

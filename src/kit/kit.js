@@ -819,13 +819,15 @@
     document.body.classList.add('k-body')
     const done = spec.submit === false ? null : h('button', { class: 'k-btn primary' }, spec.submit || 'Done')
     const doneAt = h('span', { class: 'k-muted small' })
-    const stamp = () => (doneAt.textContent = answers._done ? `Sent ${new Date(answers._done).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Tell Claude you're done.` : '')
+    const stamp = () => (doneAt.textContent = answers._done ? `Sent to Claude at ${new Date(answers._done).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : '')
     if (done)
       done.onclick = () => {
         answers._done = new Date().toISOString()
         persist().then(() => {
           stamp()
-          toast("Saved. Tell Claude you're done and it'll read your answers.", 'ok')
+          // In cuckcode this hands over to Claude; elsewhere (the showcase) it just says so.
+          if (window.cuckcode?.done) window.cuckcode.done()
+          else toast('Saved. In a playground, this sends your answers to Claude.', 'ok')
         })
       }
     stamp()

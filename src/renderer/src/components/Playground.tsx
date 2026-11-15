@@ -8,29 +8,31 @@ interface Props {
   // When the page last changed; null when Claude hasn't made one.
   version: number | null
   theme: Theme
+  // The page's Done button: tell Claude.
+  onDone: () => void
 }
 
-interface SaveMessage {
-  cuckcode: 'save'
-  id: number
-  name: string
-  text: string
-}
+type Message = { cuckcode: 'save'; id: number; name: string; text: string } | { cuckcode: 'done' }
 
 // A slot's .cuckcode/playground/<slot>/index.html, which Claude writes. The page saves answers
-// through window.cuckcode (injected by media.ts), relayed here because only this side has the api.
-export default function Playground({ project, slot, name, version, theme }: Props): React.JSX.Element {
+// through window.cuckcode (injected by media.ts), relayed here because only this side has the api;
+// its Done button lands here too.
+export default function Playground({ project, slot, name, version, theme, onDone }: Props): React.JSX.Element {
   const frame = useRef<HTMLIFrameElement>(null)
   // The kit's showcase: every block, so you can see what Claude can put here.
   const [showcase, setShowcase] = useState(false)
   const target = useRef({ project, slot })
   target.current = { project, slot }
+  const done = useRef(onDone)
+  done.current = onDone
 
   useEffect(() => {
     const onMessage = (e: MessageEvent): void => {
       const win = frame.current?.contentWindow
-      const d = e.data as SaveMessage | null
-      if (!win || e.source !== win || d?.cuckcode !== 'save') return
+      const d = e.data as Message | null
+      if (!win || e.source !== win) return
+      if (d?.cuckcode === 'done') return done.current()
+      if (d?.cuckcode !== 'save') return
       const reply = (error?: string): void => win.postMessage({ cuckcode: 'saved', id: d.id, error }, '*')
       window.api.playSave(target.current.project, target.current.slot, String(d.name), String(d.text)).then(
         () => reply(),

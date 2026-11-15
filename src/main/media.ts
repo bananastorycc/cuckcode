@@ -36,7 +36,7 @@ export async function browse(dir: string): Promise<BrowseEntry[]> {
   return entries.filter((e): e is BrowseEntry => e !== null)
 }
 
-// Gives playground pages window.cuckcode; saves go through the parent (the renderer) to main.
+// Gives playground pages window.cuckcode; saves and done go through the parent (the renderer).
 const BRIDGE = `<script>
 window.cuckcode = (() => {
   let n = 0
@@ -56,6 +56,8 @@ window.cuckcode = (() => {
         waiting.set(id, [ok, fail])
         parent.postMessage({ cuckcode: 'save', id, name, text: JSON.stringify(data, null, 2) }, '*')
       }),
+    // The user finished: cuckcode tells Claude, in words of its own (the page can't pick them).
+    done: () => parent.postMessage({ cuckcode: 'done' }, '*'),
     load: (name) =>
       fetch(root + 'data/' + encodeURIComponent(name) + '.json', { cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : null))
