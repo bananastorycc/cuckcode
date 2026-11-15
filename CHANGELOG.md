@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.35.1 — 2026-11-14
+
+- The focused section's orange frame shows on all four sides. Its left edge used to hide under the divider line.
+
 ## 1.35.0 — 2026-11-14
 
 - A playground page's Done button now hands over to Claude: it saves your answers, closes the playground and tells Claude to read them.

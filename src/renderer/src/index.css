@@ -297,3 +297,8 @@ html {
   border: 1px solid var(--accent);
   pointer-events: none;
 }
+/* Each content overlay is its own z-index 1 layer, under the separator lines dockview draws at
+   z-index 5 on the left of every column but the first, which hid that edge of the frame. */
+.cc-dock .dv-render-overlay:focus-within {
+  z-index: 6;
+}
