@@ -41,12 +41,14 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
     for (const p of plugins) check(p.path, true)
   }, [])
 
-  useEffect(() => {
-    if (!selected || selected in readmes) return
-    window.api.readme(selected).then(
-      (r) => setReadmes((x) => ({ ...x, [selected]: r })),
-      () => setReadmes((x) => ({ ...x, [selected]: null }))
+  const loadReadme = (path: string): void => {
+    window.api.readme(path).then(
+      (r) => setReadmes((x) => ({ ...x, [path]: r })),
+      () => setReadmes((x) => ({ ...x, [path]: null }))
     )
+  }
+  useEffect(() => {
+    if (selected && !(selected in readmes)) loadReadme(selected)
   }, [selected])
 
   useEffect(() => {
@@ -86,7 +88,7 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
     try {
       await window.api.pluginUpdate(path)
       setChanged(true)
-      setReadmes(({ [path]: _, ...rest }) => rest)
+      loadReadme(path)
     } catch (err) {
       setError(String((err as Error).message).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
     } finally {
