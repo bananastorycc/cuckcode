@@ -6,6 +6,15 @@ It's deliberately small: Electron, Monaco, xterm and git, with no language serve
 
 Website: [cuckcode.cc](https://cuckcode.cc). Changes in each release: [CHANGELOG.md](CHANGELOG.md).
 
+![cuckcode: the file tree and git panel on the left, a live diff of the file Claude is editing in the middle, Claude Code on the right](docs/screenshots/workspace.png)
+
+What's different from a terminal next to an editor:
+
+- **The diff is live.** Every file Claude touches shows up in the git panel and diffs against HEAD as it's written, images and video included. Typing in the diff edits the file.
+- **Claude can show you things.** In a [playground](#playgrounds), Claude builds a page for what's easier to look at than read: design options side by side, a plan to tick off, a form of questions. Your answers go straight back to it.
+- **Your edits and Claude's don't collide.** Pressing Enter in a terminal saves your open files first, so Claude always reads what's on screen.
+- **One window for every project.** Each project tab keeps its own agents, terminal, diff and git panel. Commit or sync them all at once.
+
 ## Platform support
 
 | Platform | Status |
@@ -61,7 +70,7 @@ Quitting (⌘Q, or closing the window) saves any unsaved edits, kills every term
 
 | Key | Action |
 | --- | --- |
-| ⌘T | Open project |
+| ⌘T | Open project, or paste a git remote to clone it |
 | ⇧⌘W | Close project (asks first: it kills its terminals) |
 | ⌘N | New file, next to the open file (or in the selected folder) |
 | ⌘O | Go to file: fuzzy-find any file in the project (↑/↓ + ↩, Esc to cancel) |
@@ -90,6 +99,10 @@ Plugins add their own shortcuts, listed under View. Dark mode is in Settings.
 
 **Folders:** ← / → step through the lightbox, Space plays/pauses a video, Esc closes it, ⌫ goes up a folder.
 
+## Projects
+
+⌘T lists the folders in your projects folder (the first ⌘T asks where that is) and opens the one you pick as a new tab. Paste a git remote instead and cuckcode clones it there. An empty remote gets a fresh repo: `git init` on `main`, an empty first commit, and a push that sets the upstream, so committing and syncing work from the start.
+
 ## Layout
 
 The workspace is made of seven sections: Files, Search, Editor, Terminal, Agents, Git and Scratch. Each is a tab. Drag a tab onto another group to stack them, onto a group's edge to split it, or drag the borders to resize. Whatever you arrange is kept: quitting and reopening brings it back exactly, sizes included.
@@ -110,6 +123,9 @@ Click any file in the tree to open it — changed files are colored by status (m
 
 Images (`.png` `.jpg` `.gif` `.webp` `.avif` `.svg`) and video (`.mp4` `.mov` `.webm`) get a side-by-side HEAD vs. working-tree viewer instead of a text diff; videos play in sync. A past commit's changes show the same way, parent vs. that commit.
 
+<img src="docs/screenshots/image-diff.png" alt="A changed logo.png shown side by side: HEAD on the left, the working tree on the right" width="500">
+
+
 Edits save on ⌘S, when you press Enter in a terminal (so Claude always reads what's on screen and can't be overwritten by it later; an agent prompt that saved anything shows a note listing the files), when you leave the file (open another, close the project), and on quit; there's no save-as-you-type and no prompt. Unsaved files show ●, and are also saved before a commit, a branch switch, or a rename. To undo, discard the change in git.
 
 ## Search
@@ -124,6 +140,10 @@ Edits save on ⌘S, when you press Enter in a terminal (so Claude always reads w
 
 **History** pages through HEAD's log; expand a commit to see its files and open any one's diff against its parent.
 
+The **branch picker** (click the branch name) switches or creates branches, and its Remote section shows where each remote points, edits its URL, or adds `origin` to a repo that has none.
+
+Two buttons above the commit box act on **every open project** at once: ✨ commits each repo with changes, each with its own Claude-written message, and the sync button syncs them all. They're a quick way to leave everything committed and pushed before you walk away.
+
 ## Settings
 
 ⌘, (or the gear in the header) opens Settings. Every change saves at once.
@@ -133,12 +153,13 @@ Edits save on ⌘S, when you press Enter in a terminal (so Claude always reads w
 - **Panels:** README and Folders on or off, and the folders Folders lists.
 - **Playgrounds**, **Web pages**, **Agents**, **Plugins:** see below.
 - **Sync:** your settings, theme and saved layouts as one `cuckcode-config.json`. Export… and Import… move it by hand. Or give it a git repo (use a private one: agent commands and licenses are in the file): cuckcode clones it, pulls at launch, and commits and pushes a few seconds after each change. When you first connect, a repo that already has the file replaces this machine's settings, and an empty one starts from them. When two machines change the same setting, the one that syncs last wins. Installed plugins, open projects and the repo URL itself stay on each machine, and paths under your home folder are written as `~/…`.
+- **Reset:** put the layout back to Default, or every setting back to a fresh install's. Open projects, installed plugins and the config repo stay.
 
 ## Agents
 
 The Agents section runs agents: real login shells (via `node-pty`) running a program, with a dropdown in its title bar to switch between them. The Terminal section is a separate plain shell in the same folder. List as many agents as you like, in the order you want them. The first one starts with each project, and the rest start the first time you pick them. Each has a name and a type:
 
-- **Claude Code** runs `claude` and tells it about your playgrounds (through `--append-system-prompt`). When Claude finishes or needs your input, that project's tab gets a dot and you get a macOS notification (unless you're already looking at it); clicking it brings you back. cuckcode sets this up itself, through Claude Code hooks it passes with `--settings`. macOS asks once whether cuckcode may show notifications, and Settings › General turns them off. ⌥⌘K sends the editor selection to the first Claude agent. With usage meters on, the Agents title bar shows your plan usage and any extra credit spend.
+- **Claude Code** runs `claude` and tells it about your playgrounds (through `--append-system-prompt`). When Claude finishes or needs your input, that project's tab lights up green and you get a macOS notification (unless you're already looking at it); clicking it brings you back. cuckcode sets this up itself, through Claude Code hooks it passes with `--settings`. macOS asks once whether cuckcode may show notifications, and Settings › General turns them off. ⌥⌘K sends the editor selection to the first Claude agent. With usage meters on, the Agents title bar shows your plan usage and any extra credit spend.
 - **Junie** runs `junie --auth-license=<license id>`. Add one per license. With usage meters on, it shows the license's monthly AI credits, the account's top-up credits, and when the monthly ones refill.
 - **Command** runs any command line, such as `oterm`.
 
@@ -146,13 +167,27 @@ The Agents section runs agents: real login shells (via `node-pty`) running a pro
 
 When an agent exits you land in a shell in the same folder. The toolbar button (or any key) restarts it.
 
+While a Claude agent is working, cuckcode keeps the Mac from idle-sleeping, so a long task isn't cut off halfway. The display can still sleep, and closing the lid still sleeps. It lets go about 30 seconds after Claude goes quiet.
+
 ## Playgrounds
 
-Up to ten playgrounds per project, each with a name (Settings › Playgrounds). Claude is told about each one, and uses it on its own whenever showing beats describing. It drops a page in `.cuckcode/playground/<n>/index.html` and ⌥⌘<n> shows it over the whole workspace.
+A playground is a page Claude builds for you to look at or fill in, when showing beats describing. Claude is told about your playgrounds when it starts and uses them on its own, without being asked. You say "show me three directions for the sky card"; Claude writes a page into `.cuckcode/playground/<n>/index.html`, and the playground's icon in the header lights up. ⌥⌘<n> shows it over the whole workspace.
 
-Pages are built from the playground kit (`src/kit`, served at `media://kit/`): blocks for choices, image and video reviews, forms, plans, triage boards, tables, live design tuning, image annotation, charts, progress and Markdown reports. A page is a few lines naming its blocks, which keeps it cheap for Claude to write, and it follows cuckcode's theme. Answers autosave to `data/answers.json`. Pressing Done on the page closes the playground and tells the project's Claude to read them. The Templates button in a playground shows every block live, and [`src/kit/README.md`](src/kit/README.md) documents them. Pages can also be plain HTML, with `window.cuckcode.save/load` to keep answers. A dot on a playground's icon means Claude updated it while you weren't looking. With no playgrounds, Claude isn't told about any.
+![A playground page Claude built: three mockups of a card side by side, each with pros and cons, one picked, and a note added](docs/screenshots/playground.png)
 
-## Folders and web pages
+You pick, tick, drag or type. Answers save as you go (to `data/answers.json` next to the page), and when you press **Done** the playground closes and Claude is told to read them, so it carries on from your choice:
+
+<img src="docs/screenshots/playground-done.png" alt="After Done: Claude reports that it restyled the card in the picked direction, with the note applied" width="480">
+
+Pages are built from the playground kit (`src/kit`, served at `media://kit/`): blocks for choices, image and video reviews, forms, plans, triage boards, tables, live design tuning, image annotation, charts, progress and Markdown reports. A page is a few lines naming its blocks, which keeps it cheap for Claude to write, and it follows cuckcode's light or dark theme. The **Templates** button in a playground shows every block live, and [`src/kit/README.md`](src/kit/README.md) documents them. Pages can also be plain HTML, with `window.cuckcode.save/load` to keep answers.
+
+![The Templates page's Tune tab: sliders, a toggle, a font picker and a text field driving a live card preview](docs/screenshots/playground-templates.png)
+
+Settings › Playgrounds names them, up to ten per project. With none, Claude isn't told about any.
+
+## README, folders and web pages
+
+**README** (⌘E) shows the project's README, rendered, in place of the editor. It's the project folder's README, or the repo root's when the folder has none, and it updates as the file changes.
 
 **Folders** (⌘B) is a full-window thumbnail browser over the folders you add, for looking through images and video outside of git.
 
