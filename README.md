@@ -105,7 +105,7 @@ Plugins add their own shortcuts, listed under View. The theme is in Settings: Au
 
 ## Layout
 
-The workspace is made of seven sections: Files, Search, Editor, Terminal, Agents, Git and Scratch. Each is a tab. Drag a tab onto another group to stack them, onto a group's edge to split it, or drag the borders to resize. Whatever you arrange is kept: quitting and reopening brings it back exactly, sizes included.
+The workspace is made of seven sections: Files, Search, Editor, Terminal, Agents, Git and Scratch. Each is a tab. A section alone in its group shows only a thin strip where its tab bar would be; hover it to bring up the tab. Drag a tab onto another group (or onto the middle of a section) to stack them, onto a group's edge to split it, or drag the borders to resize. Whatever you arrange is kept: quitting and reopening brings it back exactly, sizes included.
 
 Settings › Layout switches between layouts:
 

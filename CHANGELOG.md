@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.40.0 — 2026-11-15
+
+- A section alone in its group no longer spends a row on a tab bar: a thin strip stays, and hovering it shows the tab to drag. Stack another section there and the tab bar comes back.
+
 ## 1.39.0 — 2026-11-15
 
 - Closing a project (⇧⌘W), resetting settings or the layout, and removing a plugin now ask in cuckcode's own dialog instead of a macOS sheet. Esc cancels, Return confirms.

@@ -296,6 +296,33 @@ html {
   display: none;
 }
 
+/* A section alone in its group has nothing to switch to, so its tab bar shrinks to a thin strip
+   that shows the tab on hover, over the section's top edge: it can still be dragged away, and
+   dropping another section on it brings the bar back. dockview sizes the content from the bar's
+   real height, so the strip is all it takes; the tab overflows it, and the group must let it. */
+.cc-dock .dv-groupview:has(> .dv-single-tab) {
+  overflow: visible;
+}
+.cc-dock .dv-tabs-and-actions-container.dv-single-tab {
+  position: relative;
+  z-index: 7;
+  height: 6px;
+  overflow: visible;
+}
+.cc-dock .dv-single-tab > * {
+  height: var(--dv-tabs-and-actions-container-height);
+  background-color: var(--panel);
+  border-bottom: 1px solid var(--line);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s;
+}
+.cc-dock .dv-single-tab:hover > * {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0.15s;
+}
+
 /* The section you're in (⌃⌘arrows move it) gets an accent frame. An overlay, so the editor's and
    terminal's backgrounds can't paint over it and nothing shifts. On the section's own element:
    dockview renders panel content in an overlay outside its group, tab bar and all. */
