@@ -28,10 +28,24 @@ const sessions = new Map<string, Session>()
 // land in a normal shell in the same directory. Everything configured reaches the command
 // through the environment, which spares quoting it in.
 const RUN = {
-  claude: 'claude --append-system-prompt "$CUCKCODE_PLAYGROUND"',
+  claude: 'claude --settings "$CUCKCODE_HOOKS" --append-system-prompt "$CUCKCODE_PLAYGROUND"',
   junie: 'junie --auth-license="$CUCKCODE_LICENSE"',
   command: 'eval "$CUCKCODE_COMMAND"'
 }
+
+// Claude only signals "done" or "needs input" in terminals it recognizes (or with
+// preferredNotifChannel set), and it doesn't know this one. These hooks signal it themselves: an
+// OSC 777 notification, which Terminal.tsx turns into the tab dot and a macOS notification. Hooks
+// run detached, without /dev/tty, so they write to the terminal of their parent, claude.
+const osc = (body: string): string =>
+  `t=$(ps -o tty= -p $PPID | tr -d ' ') && printf '\\033]777;notify;Claude;${body}\\007' > "/dev/$t" 2>/dev/null || true`
+const HOOKS = JSON.stringify({
+  hooks: {
+    Stop: [{ hooks: [{ type: 'command', command: osc('Claude is done') }] }],
+    // Not idle_prompt: that's a reminder a minute after Stop already said so.
+    Notification: [{ matcher: 'permission_prompt|elicitation_dialog', hooks: [{ type: 'command', command: osc('Claude needs your input') }] }]
+  }
+})
 
 function spawn(id: string, cols: number, rows: number, send: Sink, config: Config): Session {
   const shell = process.env.SHELL || '/bin/zsh'
@@ -48,6 +62,7 @@ function spawn(id: string, cols: number, rows: number, send: Sink, config: Confi
       env.CUCKCODE_PLAYGROUND = playground.prompt(cwd, slots)
       playground.exclude(cwd)
     }
+    if (agent.type === 'claude') env.CUCKCODE_HOOKS = HOOKS
     if (agent.type === 'junie') env.CUCKCODE_LICENSE = agent.license ?? ''
     if (agent.type === 'command') env.CUCKCODE_COMMAND = agent.command ?? ''
     args = [...args, '-c', `${RUN[agent.type]}; exec "$SHELL" -l`]

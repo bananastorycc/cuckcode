@@ -128,7 +128,7 @@ Edits save on ⌘S, when you press Enter in a terminal (so Claude always reads w
 
 ⌘, (or the gear in the header) opens Settings. Every change saves at once.
 
-- **General:** dark mode; the projects folder ⌘T opens from (the first ⌘T asks for it); usage meters.
+- **General:** dark mode; the projects folder ⌘T opens from (the first ⌘T asks for it); notifications (on by default); usage meters.
 - **Layout:** the presets and your saved layouts (see [Layout](#layout)).
 - **Panels:** README and Folders on or off, and the folders Folders lists.
 - **Playgrounds**, **Web pages**, **Agents**, **Plugins:** see below.
@@ -137,7 +137,7 @@ Edits save on ⌘S, when you press Enter in a terminal (so Claude always reads w
 
 The Agents section runs agents: real login shells (via `node-pty`) running a program, with a dropdown in its title bar to switch between them. The Terminal section is a separate plain shell in the same folder. List as many agents as you like, in the order you want them. The first one starts with each project, and the rest start the first time you pick them. Each has a name and a type:
 
-- **Claude Code** runs `claude` and tells it about your playgrounds (through `--append-system-prompt`). When Claude finishes or needs input in a background tab, that tab gets a dot and you get a macOS notification; clicking it brings you back. This needs `claude config set --global preferredNotifChannel terminal_bell`. ⌥⌘K sends the editor selection to the first Claude agent. With usage meters on, the Agents title bar shows your plan usage and any extra credit spend.
+- **Claude Code** runs `claude` and tells it about your playgrounds (through `--append-system-prompt`). When Claude finishes or needs your input, that project's tab gets a dot and you get a macOS notification (unless you're already looking at it); clicking it brings you back. cuckcode sets this up itself, through Claude Code hooks it passes with `--settings`. macOS asks once whether cuckcode may show notifications, and Settings › General turns them off. ⌥⌘K sends the editor selection to the first Claude agent. With usage meters on, the Agents title bar shows your plan usage and any extra credit spend.
 - **Junie** runs `junie --auth-license=<license id>`. Add one per license. With usage meters on, it shows the license's monthly AI credits, the account's top-up credits, and when the monthly ones refill.
 - **Command** runs any command line, such as `oterm`.
 

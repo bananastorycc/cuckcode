@@ -112,6 +112,7 @@ export interface PluginRef {
 export interface Config {
   projectsDir: string // where ⌘T opens from and new clones go; '' until chosen
   meters: boolean // Claude usage and Junie credit meters (read from the Keychain)
+  notifications: boolean // a macOS notification when a claude agent is done or needs input
   readme: boolean
   folders: { enabled: boolean; dirs: string[] }
   playgrounds: PlaygroundSlot[]

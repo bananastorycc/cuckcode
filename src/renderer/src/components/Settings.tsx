@@ -58,6 +58,12 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
               </button>
             </Row>
             <Toggle
+              label="Notifications"
+              hint="A macOS notification when Claude is done or needs your input, unless you're already looking at that project."
+              checked={config.notifications}
+              onChange={(v) => set('notifications', v)}
+            />
+            <Toggle
               label="Usage meters"
               hint="Claude plan usage and Junie credits in the agent title bar. Reads your logins from the Keychain."
               checked={config.meters}

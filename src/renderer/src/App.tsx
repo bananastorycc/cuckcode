@@ -86,6 +86,8 @@ export default function App(): React.JSX.Element {
   viewRef.current = view
   const playVersionsRef = useRef(playVersions)
   playVersionsRef.current = playVersions
+  const configRef = useRef(config)
+  configRef.current = config
   const slotsRef = useRef(config.playgrounds.length)
   slotsRef.current = config.playgrounds.length
 
@@ -410,6 +412,8 @@ export default function App(): React.JSX.Element {
     if (path === activeRef.current && document.hasFocus()) return
     lastNotified.current.set(path, now)
     setDone((d) => new Set(d).add(path))
+    // Off in settings: the tab still lights up.
+    if (!configRef.current.notifications) return
     const n = new Notification(projectName(path), { body: message || 'Your agent is waiting for you' })
     n.onclick = () => {
       window.api.focus()
@@ -718,6 +722,7 @@ const RECENT_MAX = 12
 const EMPTY: Config = {
   projectsDir: '',
   meters: false,
+  notifications: false,
   readme: false,
   folders: { enabled: false, dirs: [] },
   playgrounds: [],
@@ -729,6 +734,7 @@ const EMPTY: Config = {
 const pickConfig = (s: Config): Config => ({
   projectsDir: s.projectsDir,
   meters: s.meters,
+  notifications: s.notifications,
   readme: s.readme,
   folders: s.folders,
   playgrounds: s.playgrounds,

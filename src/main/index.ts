@@ -43,6 +43,7 @@ const DEFAULTS: Settings = {
   recent: [],
   projectsDir: '', // unset: ⌘T asks for it the first time
   meters: true,
+  notifications: true,
   readme: true,
   folders: { enabled: true, dirs: [] },
   playgrounds: [{ name: 'playground' }],
@@ -87,6 +88,7 @@ function parse(raw: any): Settings {
     window: ['x', 'y', 'width', 'height'].every((k) => Number.isFinite(raw.window?.[k])) ? raw.window : undefined,
     projectsDir: isStr(raw.projectsDir) && raw.projectsDir.startsWith('/') ? raw.projectsDir : d.projectsDir,
     meters: typeof raw.meters === 'boolean' ? raw.meters : d.meters,
+    notifications: typeof raw.notifications === 'boolean' ? raw.notifications : d.notifications,
     readme: typeof raw.readme === 'boolean' ? raw.readme : d.readme,
     folders: {
       enabled: typeof raw.folders?.enabled === 'boolean' ? raw.folders.enabled : d.folders.enabled,
