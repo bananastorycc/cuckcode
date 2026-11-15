@@ -28,10 +28,10 @@ const TYPES: { type: AgentType; label: string }[] = [
   { type: 'command', label: 'Command' }
 ]
 
-// Ids key PTYs, so they're made once and never follow later renames.
 // ipcRenderer.invoke wraps it: "Error invoking remote method 'x': Error: <message>"
 const message = (err: unknown): string => String((err as Error).message ?? err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 
+// Ids key PTYs, so they're made once and never follow later renames.
 const newId = (name: string): string => `${name.toLowerCase().replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '') || 'agent'}-${Date.now().toString(36)}`
 
 // Full-window, over everything. Every change saves at once.

@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.35.2 — 2026-11-14
+
+- A playground's Done only tells Claude once your answers have saved. If saving fails, the page says why and Claude isn't sent to read answers that aren't there.
+- Switching projects right after typing in a playground no longer saves that last edit into the other project's playground.
+
 ## 1.35.1 — 2026-11-14
 
 - The focused section's orange frame shows on all four sides. Its left edge used to hide under the divider line.

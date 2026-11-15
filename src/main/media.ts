@@ -54,7 +54,7 @@ window.cuckcode = (() => {
       new Promise((ok, fail) => {
         const id = ++n
         waiting.set(id, [ok, fail])
-        parent.postMessage({ cuckcode: 'save', id, name, text: JSON.stringify(data, null, 2) }, '*')
+        parent.postMessage({ cuckcode: 'save', id, root, name, text: JSON.stringify(data, null, 2) }, '*')
       }),
     // The user finished: cuckcode tells Claude, in words of its own (the page can't pick them).
     done: () => parent.postMessage({ cuckcode: 'done' }, '*'),

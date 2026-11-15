@@ -64,7 +64,7 @@ The installed app is a thin launcher (`boot/index.js`) around your git checkout.
 
 Rerun `npm run app` only when the Electron version in `package.json` changes. The app tells you when that happens.
 
-Quitting (⌘Q, or closing the window) saves any unsaved edits, kills every terminal, and exits within a few seconds. It doesn't ask anything. Nothing is pulled or pushed on the way out, and nothing keeps running in the background.
+Quitting (⌘Q, or closing the window) saves any unsaved edits, kills every terminal, and exits within a few seconds. It doesn't ask anything. Nothing is pulled or pushed on the way out (a synced config change is only committed), and nothing keeps running in the background.
 
 ## Keybindings
 
@@ -152,7 +152,7 @@ Two buttons above the commit box act on **every open project** at once: ✨ comm
 - **Layout:** the presets and your saved layouts (see [Layout](#layout)).
 - **Panels:** README and Folders on or off, and the folders Folders lists.
 - **Playgrounds**, **Web pages**, **Agents**, **Plugins:** see below.
-- **Sync:** your settings, theme and saved layouts as one `cuckcode-config.json`. Export… and Import… move it by hand. Or give it a git repo (use a private one: agent commands and licenses are in the file): cuckcode clones it, pulls at launch, and commits and pushes a few seconds after each change. When you first connect, a repo that already has the file replaces this machine's settings, and an empty one starts from them. When two machines change the same setting, the one that syncs last wins. Installed plugins, open projects and the repo URL itself stay on each machine, and paths under your home folder are written as `~/…`.
+- **Sync:** your settings, theme and saved layouts as one `cuckcode-config.json`. Export… and Import… move it by hand. Or give it a git repo (use a private one: agent commands and licenses are in the file): cuckcode clones it, pulls at launch, and commits and pushes a few seconds after each change; the ↻ button next to it syncs now, and the line under it shows the last sync or what went wrong. A change made just before quitting is committed on the way out and pushed at the next launch. When you first connect, a repo that already has the file replaces this machine's settings, and an empty one starts from them. When two machines change the same setting, the one that syncs last wins. Installed plugins, open projects and the repo URL itself stay on each machine, and paths under your home folder are written as `~/…`.
 - **Reset:** put the layout back to Default, or every setting back to a fresh install's. Open projects, installed plugins and the config repo stay.
 
 ## Agents
@@ -175,7 +175,7 @@ A playground is a page Claude builds for you to look at or fill in, when showing
 
 ![A playground page Claude built: three mockups of a card side by side, each with pros and cons, one picked, and a note added](docs/screenshots/playground.png)
 
-You pick, tick, drag or type. Answers save as you go (to `data/answers.json` next to the page), and when you press **Done** the playground closes and Claude is told to read them, so it carries on from your choice:
+You pick, tick, drag or type. Answers save as you go (to `data/answers.json` next to the page), and when you press **Done** (once they've saved) the playground closes and your first Claude agent is told to read them, so it carries on from your choice:
 
 <img src="docs/screenshots/playground-done.png" alt="After Done: Claude reports that it restyled the card in the picked direction, with the note applied" width="480">
 
@@ -233,7 +233,7 @@ One notepad, shared by every project tab, autosaving to app data rather than int
 
 Open projects, which tab is active, each project's open file, everything in Settings, and the recently-closed list all survive a quit and come back on the next launch. Which agent each project had in front doesn't: every project reopens on the first agent. With no project open, the welcome screen lists recently closed projects to reopen one or all of them.
 
-Settings live in `~/Library/Application Support/cuckcode/cuckcode-settings.json` and the scratchpad in `cuckcode-scratch.txt` beside it.
+Settings live in `~/Library/Application Support/cuckcode/cuckcode-settings.json`, the scratchpad in `cuckcode-scratch.txt` beside it, and the config repo's clone (with [Sync](#settings)) in `config-repo/`.
 
 ## Development
 

@@ -159,10 +159,12 @@
       () => {
         chip.textContent = 'Saved'
         chip.dataset.state = 'ok'
+        return true
       },
       (e) => {
         chip.textContent = `Not saved: ${e.message}`
         chip.dataset.state = 'error'
+        return false
       }
     )
   }
@@ -823,7 +825,9 @@
     if (done)
       done.onclick = () => {
         answers._done = new Date().toISOString()
-        persist().then(() => {
+        persist().then((saved) => {
+          // Claude would read answers that aren't there; the chip says why.
+          if (!saved) return
           stamp()
           // In cuckcode this hands over to Claude; elsewhere (the showcase) it just says so.
           if (window.cuckcode?.done) window.cuckcode.done()

@@ -460,8 +460,9 @@ function registerIpc(): void {
   // To the Trash, so a misclick is recoverable.
   ipcMain.handle('fs:trash', (_e, path: string) => shell.trashItem(path))
   ipcMain.handle('play:version', (_e, project: string, slot: number) => playground.version(project, slot))
+  // The project comes from the page's own URL, so only open ones are written to.
   ipcMain.handle('play:save', (_e, project: string, slot: number, name: string, text: string) =>
-    playground.save(project, slot, name, text)
+    settings.projects.includes(project) ? playground.save(project, slot, name, text) : Promise.reject(new Error('Not an open project.'))
   )
   ipcMain.handle('readme', (_e, dir: string) => readme(dir))
   ipcMain.handle('browse:list', (_e, dir: string) => browse(dir))

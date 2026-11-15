@@ -12,7 +12,7 @@ interface Props {
   onDone: () => void
 }
 
-type Message = { cuckcode: 'save'; id: number; name: string; text: string } | { cuckcode: 'done' }
+type Message = { cuckcode: 'save'; id: number; root: string; name: string; text: string } | { cuckcode: 'done' }
 
 // A slot's .cuckcode/playground/<slot>/index.html, which Claude writes. The page saves answers
 // through window.cuckcode (injected by media.ts), relayed here because only this side has the api;
@@ -21,8 +21,6 @@ export default function Playground({ project, slot, name, version, theme, onDone
   const frame = useRef<HTMLIFrameElement>(null)
   // The kit's showcase: every block, so you can see what Claude can put here.
   const [showcase, setShowcase] = useState(false)
-  const target = useRef({ project, slot })
-  target.current = { project, slot }
   const done = useRef(onDone)
   done.current = onDone
 
@@ -34,7 +32,10 @@ export default function Playground({ project, slot, name, version, theme, onDone
       if (d?.cuckcode === 'done') return done.current()
       if (d?.cuckcode !== 'save') return
       const reply = (error?: string): void => win.postMessage({ cuckcode: 'saved', id: d.id, error }, '*')
-      window.api.playSave(target.current.project, target.current.slot, String(d.name), String(d.text)).then(
+      // The page's own slot, not the current one: switching projects runs the old page's last
+      // save (on pagehide) after the props already point at the new project.
+      const [, id, slot] = String(d.root).split('/')
+      window.api.playSave(decodeURIComponent(id ?? ''), Number(slot), String(d.name), String(d.text)).then(
         () => reply(),
         (err: Error) => reply(err.message)
       )
