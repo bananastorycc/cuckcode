@@ -132,6 +132,7 @@ Edits save on ⌘S, when you press Enter in a terminal (so Claude always reads w
 - **Layout:** the presets and your saved layouts (see [Layout](#layout)).
 - **Panels:** README and Folders on or off, and the folders Folders lists.
 - **Playgrounds**, **Web pages**, **Agents**, **Plugins:** see below.
+- **Sync:** your settings, theme and saved layouts as one `cuckcode-config.json`. Export… and Import… move it by hand. Or give it a git repo (use a private one: agent commands and licenses are in the file): cuckcode clones it, pulls at launch, and commits and pushes a few seconds after each change. When you first connect, a repo that already has the file replaces this machine's settings, and an empty one starts from them. When two machines change the same setting, the one that syncs last wins. Installed plugins, open projects and the repo URL itself stay on each machine, and paths under your home folder are written as `~/…`.
 
 ## Agents
 

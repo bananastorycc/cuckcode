@@ -1,0 +1,49 @@
+import { describe, expect, it } from 'vitest'
+import type { Settings } from '../shared/types'
+import { fromFile, toFile } from './configfile'
+
+const base: Settings = {
+  projects: ['/Users/a/p'],
+  active: '/Users/a/p',
+  theme: 'dark',
+  files: {},
+  recent: [],
+  projectsDir: '/Users/a/code',
+  meters: true,
+  notifications: false,
+  readme: true,
+  folders: { enabled: true, dirs: ['/Users/a/Pictures', '/Volumes/x'] },
+  playgrounds: [{ name: 'playground' }],
+  webPages: [],
+  agents: [{ id: 'claude', name: 'claude', type: 'claude' }],
+  plugins: [{ path: '/Users/a/plugins/p', enabled: true }],
+  configRepo: 'git@example.com:a/c.git',
+  layout: null,
+  layouts: []
+}
+
+describe('config file', () => {
+  it('leaves out what belongs to this machine and writes home paths as ~', () => {
+    const out = JSON.parse(toFile(base, '/Users/a'))
+    expect(out).not.toHaveProperty('projects')
+    expect(out).not.toHaveProperty('plugins')
+    expect(out).not.toHaveProperty('configRepo')
+    expect(out.projectsDir).toBe('~/code')
+    expect(out.folders.dirs).toEqual(['~/Pictures', '/Volumes/x'])
+  })
+
+  it('reads back into another home, keeping local keys', () => {
+    const local = { ...base, theme: 'light' as const, plugins: [], configRepo: '' }
+    const next = fromFile(JSON.parse(toFile(base, '/Users/a')), local, '/Users/b')
+    expect(next.projectsDir).toBe('/Users/b/code')
+    expect(next.folders).toEqual({ enabled: true, dirs: ['/Users/b/Pictures', '/Volumes/x'] })
+    expect(next.theme).toBe('dark')
+    expect(next.plugins).toEqual([])
+    expect(next.configRepo).toBe('')
+    expect(next.projects).toEqual(base.projects)
+  })
+
+  it('rejects anything else', () => {
+    for (const raw of [null, [], 'x', { foo: 1 }]) expect(() => fromFile(raw, base)).toThrow()
+  })
+})

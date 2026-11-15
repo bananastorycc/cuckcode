@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { Api, MenuCommand } from '../shared/types'
+import type { Api, MenuCommand, Settings, SyncStatus } from '../shared/types'
 
 // One IPC listener per channel, fanned out by PTY id, instead of every terminal
 // filtering every chunk.
@@ -70,6 +70,10 @@ const api: Api = {
   relaunch: () => ipcRenderer.send('app:relaunch'),
   usage: () => ipcRenderer.invoke('usage'),
   junieBalance: (license) => ipcRenderer.invoke('junieBalance', license),
+  exportConfig: () => ipcRenderer.invoke('config:export'),
+  importConfig: () => ipcRenderer.invoke('config:import'),
+  syncNow: () => ipcRenderer.send('config:syncNow'),
+  syncStatus: () => ipcRenderer.invoke('config:syncStatus'),
 
   onPtyData: router('pty:data'),
   onPtyExit: router('pty:exit'),
@@ -79,6 +83,8 @@ const api: Api = {
     return () => ipcRenderer.removeListener('fs:change', fn)
   },
   onMenu: (cb) => listen<MenuCommand>('menu', cb),
+  onRemoteConfig: (cb) => listen<Settings>('config:remote', cb),
+  onSyncStatus: (cb) => listen<SyncStatus>('config:status', cb),
   onFlush: (cb) => listen('app:flush', () => void cb().finally(() => ipcRenderer.send('app:flushed')))
 }
 

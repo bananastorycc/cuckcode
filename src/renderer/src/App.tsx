@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FolderOpen, X } from 'lucide-react'
 import changelog from '../../../CHANGELOG.md?raw'
-import type { ChangedFile, Config, GitStatus, MenuCommand, PaneDir, SavedLayout, Theme } from '../../shared/types'
+import type { ChangedFile, Config, GitStatus, MenuCommand, PaneDir, SavedLayout, Settings as AllSettings, Theme } from '../../shared/types'
 import { SHELL_ID } from '../../shared/types'
 import AgentMenu from './components/AgentMenu'
 import CodePane, { saveAll, selection, type Reveal } from './components/CodePane'
@@ -301,10 +301,21 @@ export default function App(): React.JSX.Element {
     setConfig(next)
   }
 
-  // Settings back to a fresh install's, except the installed plugins: dropping them would orphan their folders.
+  // Settings from an imported file or the config repo. The session (projects, files, the dock) is untouched.
+  const applySettings = (s: AllSettings): void => {
+    changeConfig(pickConfig(s))
+    setTheme(s.theme)
+    setLayouts(s.layouts)
+  }
+  const applyRef = useRef(applySettings)
+  applyRef.current = applySettings
+  useEffect(() => window.api.onRemoteConfig((s) => applyRef.current(s)), [])
+
+  // Settings back to a fresh install's, except what's wired to this machine: the installed
+  // plugins (dropping them would orphan their folders) and the config repo.
   const resetAll = async (): Promise<void> => {
     const d = await window.api.defaults()
-    changeConfig({ ...pickConfig(d), plugins: config.plugins })
+    changeConfig({ ...pickConfig(d), plugins: config.plugins, configRepo: config.configRepo })
     setTheme(d.theme)
     setLayouts(d.layouts)
     apply(PRESETS[0])
@@ -696,6 +707,7 @@ export default function App(): React.JSX.Element {
               onClose={toggleSettings}
               onPlugins={togglePlugins}
               onReset={resetAll}
+              onImport={applySettings}
             />
           </div>
         )}
@@ -728,7 +740,8 @@ const EMPTY: Config = {
   playgrounds: [],
   webPages: [],
   agents: [],
-  plugins: []
+  plugins: [],
+  configRepo: ''
 }
 
 const pickConfig = (s: Config): Config => ({
@@ -740,7 +753,8 @@ const pickConfig = (s: Config): Config => ({
   playgrounds: s.playgrounds,
   webPages: s.webPages,
   agents: s.agents,
-  plugins: s.plugins
+  plugins: s.plugins,
+  configRepo: s.configRepo
 })
 
 // Per-project keys are `${slot or plugin id}:${path}`; neither part before the path has a colon.

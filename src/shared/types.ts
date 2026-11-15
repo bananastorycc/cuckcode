@@ -119,6 +119,7 @@ export interface Config {
   webPages: WebPage[]
   agents: Agent[] // in the agent dropdown's order; the first is each project's default
   plugins: PluginRef[]
+  configRepo: string // a git remote the config file syncs through; '' = off
 }
 
 export const MAX_SLOTS = 10
@@ -183,6 +184,13 @@ export interface JunieBalance {
   monthly: JuniePool // the license's own allowance, refilled every 30 days
   topUp: JuniePool // bought credits: one pool for the whole account, the same on both licenses
   resetsAt: string | null // when the license's monthly credits next refill
+}
+
+// The config repo's last sync. at: ms.
+export interface SyncStatus {
+  state: 'off' | 'syncing' | 'ok' | 'error'
+  message: string
+  at: number
 }
 
 export type MenuCommand =
@@ -276,12 +284,21 @@ export interface Api {
   // null when signed out or the request fails.
   usage: () => Promise<Usage | null>
   junieBalance: (license: string) => Promise<JunieBalance | null>
+  // The portable config file: written to / read from a file the user picks. Export resolves
+  // false when cancelled; import to the new settings, or null when cancelled, and rejects on a bad file.
+  exportConfig: () => Promise<boolean>
+  importConfig: () => Promise<Settings | null>
+  syncNow: () => void
+  syncStatus: () => Promise<SyncStatus>
 
   onPtyData: (id: string, cb: (data: string) => void) => () => void
   onPtyExit: (id: string, cb: () => void) => () => void
   // paths: what changed, relative to the project; null when the watcher couldn't say.
   onFsChange: (cb: (project: string, paths: string[] | null) => void) => () => void
   onMenu: (cb: (cmd: MenuCommand) => void) => () => void
+  // The config repo brought in settings from another machine.
+  onRemoteConfig: (cb: (settings: Settings) => void) => () => void
+  onSyncStatus: (cb: (status: SyncStatus) => void) => () => void
   // Quitting waits for cb (saving unsaved edits) before exiting.
   onFlush: (cb: () => Promise<void>) => () => void
 }

@@ -6,6 +6,8 @@ import type { Worker } from 'node:worker_threads'
 import type { Agent, Bounds, GitOp, MenuCommand, PaneDir, Settings, ChangedFile, SearchQuery, SearchResult } from '../shared/types'
 import { MAX_SLOTS, SHELL_ID } from '../shared/types'
 import { writeAtomic } from './atomic'
+import * as configfile from './configfile'
+import * as configsync from './configsync'
 import * as git from './git'
 import { browse, mediaResponse } from './media'
 import * as playground from './playground'
@@ -50,6 +52,7 @@ const DEFAULTS: Settings = {
   webPages: [],
   agents: [{ id: 'claude', name: 'claude', type: 'claude' }],
   plugins: [],
+  configRepo: '',
   layout: null,
   layouts: []
 }
@@ -100,11 +103,15 @@ function parse(raw: any): Settings {
     webPages: list(raw.webPages, (p) => (isStr(p.name) && isStr(p.url) ? { name: p.name, url: p.url } : null), MAX_SLOTS),
     agents: Array.isArray(raw.agents) ? agents : d.agents,
     plugins: list(raw.plugins, (p) => (isStr(p.path) ? { path: p.path, enabled: p.enabled !== false } : null)),
+    configRepo: isStr(raw.configRepo) ? raw.configRepo.trim() : d.configRepo,
     layout: raw.layout && typeof raw.layout === 'object' ? raw.layout : null,
     layouts: list(raw.layouts, (l) => (isStr(l.name) && l.layout && typeof l.layout === 'object' ? { name: l.name, layout: l.layout } : null))
   }
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+// A config file's text over the current settings. Throws on a file that isn't one.
+const fromConfigFile = (text: string): Settings => parse(configfile.fromFile(JSON.parse(text), settings))
 
 async function loadSettings(): Promise<void> {
   try {
@@ -120,8 +127,11 @@ let saving = Promise.resolve()
 let saveQueued = false
 function saveSettings(next: Settings): void {
   const menuWas = menuKey(settings)
+  const repoWas = settings.configRepo
   settings = next
   if (menuKey(next) !== menuWas) buildMenu()
+  if (next.configRepo !== repoWas) configsync.connect(next.configRepo)
+  else configsync.changed()
   if (saveQueued) return
   saveQueued = true
   // Atomic: dying mid-write must not leave an empty file (and no projects).
@@ -470,6 +480,20 @@ function registerIpc(): void {
   })
   ipcMain.handle('usage', () => usage())
   ipcMain.handle('junieBalance', (_e, license: string) => junieBalance(license))
+  ipcMain.handle('config:export', async () => {
+    const r = await dialog.showSaveDialog(win!, { defaultPath: join(app.getPath('documents'), 'cuckcode-config.json') })
+    if (r.canceled || !r.filePath) return false
+    await writeAtomic(r.filePath, configfile.toFile(settings))
+    return true
+  })
+  ipcMain.handle('config:import', async () => {
+    const r = await dialog.showOpenDialog(win!, { properties: ['openFile'], filters: [{ name: 'cuckcode config', extensions: ['json'] }] })
+    if (r.canceled) return null
+    saveSettings(fromConfigFile(await readFile(r.filePaths[0], 'utf8')))
+    return settings
+  })
+  ipcMain.on('config:syncNow', () => configsync.now())
+  ipcMain.handle('config:syncStatus', () => configsync.current())
   ipcMain.on('app:reveal', (_e, path: string) => shell.showItemInFolder(path))
   ipcMain.handle('scratch:read', () => readFile(scratchFile, 'utf8').catch(() => ''))
   // Atomic, like settings: dying mid-write must not empty the notes.
@@ -480,6 +504,16 @@ app.whenReady().then(async () => {
   // The installed bundle's own version froze when `npm run app` last ran; the repo's is the real one.
   app.setAboutPanelOptions({ applicationVersion: __VERSION__, version: `Electron ${process.versions.electron}` })
   await loadSettings()
+  configsync.setUp(join(app.getPath('userData'), 'config-repo'), {
+    local: () => configfile.toFile(settings),
+    // Main takes it too, so a page that hasn't loaded yet starts with it.
+    onRemote: (text) => {
+      saveSettings(fromConfigFile(text))
+      send('config:remote', settings)
+    },
+    onStatus: (status) => send('config:status', status)
+  })
+  configsync.connect(settings.configRepo)
   protocol.handle('media', mediaResponse)
   registerIpc()
   buildMenu()
@@ -533,6 +567,7 @@ app.on('before-quit', (e) => {
   Promise.all([
     request('app:flush', 'app:flushed', undefined, 3000),
     Promise.race([pty.killAll(), cap(3000)]),
+    Promise.race([configsync.flush(), cap(3000)]),
     saving
   ]).finally(() => {
     if (relaunch) app.relaunch()

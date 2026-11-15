@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.33.0 — 2026-11-14
+
+- Settings › Sync exports your settings, theme and saved layouts to a file and imports them back, to move them to another machine.
+- Or give it a git repo: cuckcode pulls your settings at launch and commits and pushes each change, so every machine stays in step.
+
 ## 1.32.0 — 2026-11-14
 
 - The section you're in has an orange frame, so you can see where focus is and where ⌃⌘arrows move it.

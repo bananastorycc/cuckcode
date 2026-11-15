@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { ArrowDown, ArrowUp, Plus, Puzzle, Save, Trash2, X } from 'lucide-react'
-import type { Agent, AgentType, Config, SavedLayout, Theme } from '../../../shared/types'
+import { useEffect, useState } from 'react'
+import { ArrowDown, ArrowUp, Plus, Puzzle, RefreshCw, Save, Trash2, X } from 'lucide-react'
+import type { Agent, AgentType, Config, SavedLayout, Settings as AllSettings, SyncStatus, Theme } from '../../../shared/types'
 import { MAX_SLOTS } from '../../../shared/types'
 import { apply, current, load, PRESETS, valid } from '../layout'
 import { tildify } from './Header'
@@ -15,6 +15,7 @@ interface Props {
   onClose: () => void
   onPlugins: () => void
   onReset: () => void
+  onImport: (settings: AllSettings) => void
 }
 
 const field = 'min-w-0 select-text rounded-sm border border-line bg-bg px-2 py-1 font-mono text-xs text-fg outline-hidden focus:border-accent'
@@ -28,10 +29,13 @@ const TYPES: { type: AgentType; label: string }[] = [
 ]
 
 // Ids key PTYs, so they're made once and never follow later renames.
+// ipcRenderer.invoke wraps it: "Error invoking remote method 'x': Error: <message>"
+const message = (err: unknown): string => String((err as Error).message ?? err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+
 const newId = (name: string): string => `${name.toLowerCase().replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '') || 'agent'}-${Date.now().toString(36)}`
 
 // Full-window, over everything. Every change saves at once.
-export default function Settings({ config, theme, onTheme, layouts, onLayouts, onChange, onClose, onPlugins, onReset }: Props): React.JSX.Element {
+export default function Settings({ config, theme, onTheme, layouts, onLayouts, onChange, onClose, onPlugins, onReset, onImport }: Props): React.JSX.Element {
   const set = <K extends keyof Config>(key: K, value: Config[K]): void => onChange({ ...config, [key]: value })
 
   const pickInto = async (apply: (dir: string) => void): Promise<void> => {
@@ -162,7 +166,15 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
             </button>
           </Section>
 
-          <Section title="Reset" hint="Back to how a fresh install starts. Open projects stay open, and installed plugins stay installed.">
+          <Section
+            title="Sync"
+            hint="Your settings, theme and saved layouts as one file, to move to another machine or keep in git. Installed plugins, open projects and the repo below stay on this machine."
+          >
+            <ConfigFile onImport={onImport} />
+            <ConfigRepo url={config.configRepo} onChange={(v) => set('configRepo', v)} />
+          </Section>
+
+          <Section title="Reset" hint="Back to how a fresh install starts. Open projects stay open, installed plugins stay installed, and the config repo stays connected.">
             <div className="flex gap-2">
               <button
                 className="btn hover:text-del"
@@ -178,7 +190,7 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
                 className="btn hover:text-del"
                 onClick={() =>
                   confirm(
-                    'Reset all settings to their defaults? Agents, playgrounds, web pages, folders, saved layouts, the projects folder and dark mode all go back to a fresh install, and removed agents\' terminals close. This can\'t be undone.'
+                    'Reset all settings to their defaults? Agents, playgrounds, web pages, folders, saved layouts, the projects folder and dark mode all go back to a fresh install (and to the config repo, if you sync), and removed agents\' terminals close. This can\'t be undone.'
                   ) && onReset()
                 }
               >
@@ -257,6 +269,83 @@ function Layouts({ layouts, onLayouts, onPicked }: LayoutsProps): React.JSX.Elem
           <Save className="h-3.5 w-3.5" />
         </button>
       </Row>
+    </>
+  )
+}
+
+function ConfigFile({ onImport }: { onImport: (settings: AllSettings) => void }): React.JSX.Element {
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null)
+  const run = async (step: () => Promise<string | null>): Promise<void> => {
+    try {
+      const text = await step()
+      if (text) setNote({ ok: true, text })
+    } catch (err) {
+      setNote({ ok: false, text: message(err) })
+    }
+  }
+  return (
+    <Row label="File">
+      <button className="btn shrink-0" onClick={() => run(async () => ((await window.api.exportConfig()) ? 'Exported.' : null))}>
+        Export…
+      </button>
+      <button
+        className="btn shrink-0"
+        onClick={() =>
+          run(async () => {
+            const s = await window.api.importConfig()
+            if (!s) return null
+            onImport(s)
+            return 'Imported.'
+          })
+        }
+      >
+        Import…
+      </button>
+      {note && <span className={`truncate ${note.ok ? 'text-muted' : 'text-del'}`}>{note.text}</span>}
+    </Row>
+  )
+}
+
+// Saved when you leave the field: each new URL means a fresh clone.
+function ConfigRepo({ url, onChange }: { url: string; onChange: (url: string) => void }): React.JSX.Element {
+  const [draft, setDraft] = useState(url)
+  useEffect(() => setDraft(url), [url])
+  const [status, setStatus] = useState<SyncStatus | null>(null)
+  useEffect(() => {
+    void window.api.syncStatus().then(setStatus)
+    return window.api.onSyncStatus(setStatus)
+  }, [])
+  const commit = (): void => {
+    const next = draft.trim()
+    if (next !== url) onChange(next)
+  }
+  const shown = url && status && status.state !== 'off'
+  return (
+    <>
+      <Row
+        label="Git repo"
+        hint="Pulls the file at launch, and commits and pushes it a few seconds after each change. When you first connect, a repo that already has the file replaces this machine's settings; an empty one starts from them. Use a private repo: agent commands and licenses are in the file."
+      >
+        <input
+          className={`flex-1 ${field}`}
+          value={draft}
+          placeholder="git@github.com:you/cuckcode-config.git"
+          spellCheck={false}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && commit()}
+        />
+        {url && (
+          <button className="btn shrink-0" disabled={status?.state === 'syncing'} onClick={() => window.api.syncNow()} title="Pull and push now">
+            <RefreshCw className={`h-3.5 w-3.5 ${status?.state === 'syncing' ? 'animate-spin' : ''}`} />
+          </button>
+        )}
+      </Row>
+      {shown && (
+        <p className={`select-text whitespace-pre-wrap break-words pl-35 ${status.state === 'error' ? 'text-del' : 'text-muted'}`}>
+          {status.state === 'syncing' ? 'Syncing…' : status.state === 'ok' ? `Synced at ${new Date(status.at).toLocaleTimeString()}` : status.message}
+        </p>
+      )}
     </>
   )
 }
