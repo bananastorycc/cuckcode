@@ -42,7 +42,7 @@ export function JunieBar({ balance }: { balance: JunieBalance | null }): React.J
   if (!balance) return null
   const { monthly, topUp, resetsAt } = balance
   return (
-    <div className="flex h-4 min-w-0 flex-wrap items-center justify-end gap-x-2.5 overflow-hidden whitespace-nowrap font-mono leading-4">
+    <div className="flex h-4 min-w-0 items-center justify-end-safe gap-x-2 overflow-hidden whitespace-nowrap font-mono leading-4">
       <span className="flex items-center gap-1" title="This license's monthly AI credits">
         monthly
         <PoolLeft pool={monthly} />
@@ -84,7 +84,7 @@ export default function UsageBar({ usage }: { usage: Usage | null }): React.JSX.
   }, [])
   if (!usage) return null
   const { credits } = usage
-  // Per-model limits go last, so a narrow pane drops them before the credit spend.
+  // Per-model limits go last, so a narrow pane clips them before the credit spend.
   const main = usage.limits.filter((l) => l.label === 'session' || l.label === 'week')
   const scoped = usage.limits.filter((l) => !main.includes(l))
   const limit = (l: UsageLimit): React.JSX.Element => (
@@ -100,9 +100,9 @@ export default function UsageBar({ usage }: { usage: Usage | null }): React.JSX.
     </span>
   )
   return (
-    // Items that don't fit wrap onto a second line that's clipped away, so a narrow pane drops
-    // whole items from the end instead of cutting one in half.
-    <div className="flex h-4 min-w-0 flex-wrap items-center justify-end gap-x-2.5 overflow-hidden whitespace-nowrap font-mono leading-4">
+    // Right-aligned while it fits; when it doesn't, safe alignment starts it at the left and the
+    // end is clipped, so the bar uses all the room it has.
+    <div className="flex h-4 min-w-0 items-center justify-end-safe gap-x-2 overflow-hidden whitespace-nowrap font-mono leading-4">
       {main.map(limit)}
       {credits && (
         <span

@@ -434,9 +434,9 @@ export default function App(): React.JSX.Element {
   }
 
   const topTabs = (
-    <div className="mr-3 flex min-w-0 flex-1 items-center gap-4">
+    <div className="mr-2 flex min-w-0 flex-1 items-center gap-2">
       <AgentMenu agents={agents} value={top?.id ?? ''} onChange={(id) => active && setTerms((t) => ({ ...t, [active]: id }))} />
-      <div className="ml-auto min-w-0">
+      <div className="flex min-w-0 flex-1 justify-end">
         {config.meters && top?.type === 'claude' && <UsageBar usage={usage} />}
         {config.meters && top?.type === 'junie' && <JunieBar balance={junie} />}
       </div>
