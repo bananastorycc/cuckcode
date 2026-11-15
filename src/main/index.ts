@@ -40,7 +40,7 @@ const DEFAULTS: Settings = {
   theme: 'light',
   files: {},
   recent: [],
-  projectsDir: join(homedir(), 'repos'),
+  projectsDir: '', // unset: ⌘T asks for it the first time
   meters: true,
   readme: true,
   folders: { enabled: true, dirs: [] },
@@ -389,8 +389,11 @@ function registerIpc(): void {
     const r = await dialog.showOpenDialog(win!, { properties: ['openDirectory', 'createDirectory'] })
     return r.canceled ? null : r.filePaths[0]
   })
-  ipcMain.handle('repos:list', () => repos.list(settings.projectsDir))
-  ipcMain.handle('repos:setUp', (_e, remote: string, name: string) => repos.setUp(settings.projectsDir, remote, name))
+  ipcMain.handle('repos:list', (_e, dir: string) => (dir.startsWith('/') ? repos.list(dir) : []))
+  ipcMain.handle('repos:setUp', (_e, dir: string, remote: string, name: string) => {
+    if (!dir.startsWith('/')) throw new Error('No projects folder set.')
+    return repos.setUp(dir, remote, name)
+  })
   ipcMain.on('app:watch', (_e, projects: string[]) => setWatched(projects, (dir, paths) => send('fs:change', dir, paths)))
 
   ipcMain.handle('pty:start', (_e, id: string, cols: number, rows: number) => pty.start(id, cols, rows, ptySink, () => settings))

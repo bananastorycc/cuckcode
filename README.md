@@ -128,7 +128,7 @@ Edits save on ⌘S, when you press Enter in a terminal (so Claude always reads w
 
 ⌘, (or the gear in the header) opens Settings. Every change saves at once.
 
-- **General:** dark mode; the projects folder ⌘T opens from (default `~/repos`); usage meters.
+- **General:** dark mode; the projects folder ⌘T opens from (the first ⌘T asks for it); usage meters.
 - **Layout:** the presets and your saved layouts (see [Layout](#layout)).
 - **Panels:** README and Folders on or off, and the folders Folders lists.
 - **Playgrounds**, **Web pages**, **Agents**, **Plugins:** see below.

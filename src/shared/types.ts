@@ -110,7 +110,7 @@ export interface PluginRef {
 
 // What the Settings screen edits.
 export interface Config {
-  projectsDir: string // where ⌘T opens from and new clones go
+  projectsDir: string // where ⌘T opens from and new clones go; '' until chosen
   meters: boolean // Claude usage and Junie credit meters (read from the Keychain)
   readme: boolean
   folders: { enabled: boolean; dirs: string[] }
@@ -212,11 +212,11 @@ export interface Api {
   defaults: () => Promise<Settings>
   // A folder from the open dialog, or null.
   pickFolder: () => Promise<string | null>
-  // The folders in the projects folder (absolute paths).
-  repos: () => Promise<string[]>
-  // Clones remote into <projects folder>/name, or, when it's empty, inits there and pushes a first commit
+  // The folders in dir, the projects folder (absolute paths).
+  repos: (dir: string) => Promise<string[]>
+  // Clones remote into dir/name, or, when it's empty, inits there and pushes a first commit
   // to main. Resolves to the new folder; rejects with git's error.
-  setUpRepo: (remote: string, name: string) => Promise<string>
+  setUpRepo: (dir: string, remote: string, name: string) => Promise<string>
   focus: () => void
   watch: (projects: string[]) => void
 

@@ -4,7 +4,8 @@ import { tildify } from './Header'
 
 interface Props {
   open: number // bumps on ⌘T
-  dir: string // the projects folder
+  dir: string // the projects folder; '' until chosen
+  onDir: (dir: string) => void
   exclude: string[] // already open as tabs
   onPick: (path: string) => void
 }
@@ -15,7 +16,8 @@ const nameOf = (remote: string): string =>
   remote.replace(/\/+$/, '').replace(/\.git$/, '').split(/[/:]/).pop()?.replace(/[^\w.-]/g, '-') ?? ''
 
 // ⌘T: the folders in the projects folder that aren't open yet. A pasted git remote adds a new one there.
-export default function ProjectPicker({ open, dir, exclude, onPick }: Props): React.JSX.Element | null {
+// The first ⌘T asks for that folder; it's kept in settings after that.
+export default function ProjectPicker({ open, dir, onDir, exclude, onPick }: Props): React.JSX.Element | null {
   const where = tildify(dir)
   const [shown, setShown] = useState(false)
   const [query, setQuery] = useState('')
@@ -33,19 +35,23 @@ export default function ProjectPicker({ open, dir, exclude, onPick }: Props): Re
     setQuery('')
     setIndex(0)
     setError('')
+  }, [open])
+
+  useEffect(() => {
+    if (!open || !dir) return
     let live = true
-    window.api.repos().then(
+    window.api.repos(dir).then(
       (r) => live && setRepos(r),
       () => live && setRepos([])
     )
     return () => {
       live = false
     }
-  }, [open])
+  }, [open, dir])
 
   useEffect(() => {
     if (shown) input.current?.focus()
-  }, [shown])
+  }, [shown, dir])
 
   const remote = isRemote(query.trim()) ? query.trim() : ''
 
@@ -78,9 +84,9 @@ export default function ProjectPicker({ open, dir, exclude, onPick }: Props): Re
     setBusy(true)
     setError('')
     try {
-      const dir = await window.api.setUpRepo(remote, name)
+      const made = await window.api.setUpRepo(dir, remote, name)
       setShown(false)
-      onPick(dir)
+      onPick(made)
     } catch (err) {
       // ipcRenderer.invoke wraps it: "Error invoking remote method 'x': Error: <message>"
       setError((err as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
@@ -99,6 +105,30 @@ export default function ProjectPicker({ open, dir, exclude, onPick }: Props): Re
       else if (results[index]) pick(results[index])
     } else return
     e.preventDefault()
+  }
+
+  const choose = async (): Promise<void> => {
+    const picked = await window.api.pickFolder()
+    if (picked) onDir(picked)
+  }
+
+  if (!dir) {
+    return (
+      <div className="absolute inset-0 z-50 flex justify-center" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+        <div
+          className="mt-16 flex h-fit w-[560px] max-w-[90%] flex-col gap-2 rounded-md border border-line bg-panel p-3 text-xs shadow-lg"
+          onKeyDown={(e) => e.key === 'Escape' && close()}
+        >
+          <div className="text-sm">Where do your projects live?</div>
+          <div className="text-muted">
+            ⌘T opens projects from this folder, and pasted git remotes are cloned into it. You can change it later in Settings.
+          </div>
+          <button ref={(b) => b?.focus()} className="btn ml-auto" onClick={choose}>
+            Choose folder…
+          </button>
+        </div>
+      </div>
+    )
   }
 
   const field = 'select-text rounded-sm border border-line bg-bg px-2 py-1 font-mono text-xs outline-hidden focus:border-accent'

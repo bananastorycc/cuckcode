@@ -690,7 +690,13 @@ export default function App(): React.JSX.Element {
             <Plugins plugins={config.plugins} onChange={(plugins) => setConfig((c) => ({ ...c, plugins }))} onClose={() => setOverlay(null)} />
           </div>
         )}
-        <ProjectPicker open={picking} dir={config.projectsDir} exclude={projects} onPick={(path) => open([path])} />
+        <ProjectPicker
+          open={picking}
+          dir={config.projectsDir}
+          onDir={(projectsDir) => setConfig((c) => ({ ...c, projectsDir }))}
+          exclude={projects}
+          onPick={(path) => open([path])}
+        />
       </div>
     </div>
   )

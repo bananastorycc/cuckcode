@@ -24,8 +24,8 @@ const api: Api = {
   save: (settings) => ipcRenderer.send('app:save', settings),
   defaults: () => ipcRenderer.invoke('app:defaults'),
   pickFolder: () => ipcRenderer.invoke('app:pickFolder'),
-  repos: () => ipcRenderer.invoke('repos:list'),
-  setUpRepo: (remote, name) => ipcRenderer.invoke('repos:setUp', remote, name),
+  repos: (dir) => ipcRenderer.invoke('repos:list', dir),
+  setUpRepo: (dir, remote, name) => ipcRenderer.invoke('repos:setUp', dir, remote, name),
   focus: () => ipcRenderer.send('app:focus'),
   watch: (projects) => ipcRenderer.send('app:watch', projects),
 

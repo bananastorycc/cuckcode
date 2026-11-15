@@ -52,7 +52,7 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
           <Section title="General">
             <Toggle label="Dark mode" checked={theme === 'dark'} onChange={onTheme} />
             <Row label="Projects folder" hint="Where ⌘T opens projects from, and where pasted git remotes are cloned.">
-              <span className="truncate font-mono">{tildify(config.projectsDir)}</span>
+              <span className="truncate font-mono">{config.projectsDir ? tildify(config.projectsDir) : 'Not set'}</span>
               <button className="btn ml-auto shrink-0" onClick={() => pickInto((dir) => set('projectsDir', dir))}>
                 Choose…
               </button>
