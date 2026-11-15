@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.29.0 — 2026-11-14
+
+- Playgrounds now fill the whole workspace instead of only the code pane.
+
 ## 1.28.0 — 2026-11-14
 
 - The projects folder no longer defaults to `~/repos`. The first ⌘T asks where your projects live and remembers it. Change it any time in Settings.

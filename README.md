@@ -147,7 +147,7 @@ When an agent exits you land in a shell in the same folder. The toolbar button (
 
 ## Playgrounds
 
-Up to ten playgrounds per project, each with a name (Settings › Playgrounds). Claude is told about each one and drops a page in `.cuckcode/playground/<n>/index.html`: a review form, an image gallery, a small tool. ⌥⌘<n> shows it over the code pane. The page gets `window.cuckcode.save/load` to keep answers that Claude reads back afterward. A dot on a playground's icon means Claude updated it while you weren't looking. With no playgrounds, Claude isn't told about any.
+Up to ten playgrounds per project, each with a name (Settings › Playgrounds). Claude is told about each one and drops a page in `.cuckcode/playground/<n>/index.html`: a review form, an image gallery, a small tool. ⌥⌘<n> shows it over the whole workspace. The page gets `window.cuckcode.save/load` to keep answers that Claude reads back afterward. A dot on a playground's icon means Claude updated it while you weren't looking. With no playgrounds, Claude isn't told about any.
 
 ## Folders and web pages
 

@@ -25,7 +25,7 @@ import WebPage from './components/WebPage'
 import { apply, hosts, mount, PRESETS, SECTIONS, type Section } from './layout'
 import { loadPlugins, runCommand, setCurrent, setOpenFile, usePlugins, type Registered } from './plugins'
 
-// What's shown: a playground slot (from 1) or the README over the code pane, or a plugin's
+// What's shown: the README over the code pane, or a playground slot (from 1) or a plugin's
 // view (`plugin:<id>`) over the whole workspace.
 type View = number | 'readme' | `plugin:${string}`
 
@@ -65,8 +65,8 @@ export default function App(): React.JSX.Element {
   const [layoutSaves, bumpLayout] = useReducer((n: number) => n + 1, 0)
   const [layouts, setLayouts] = useState<SavedLayout[]>([])
   const dockEl = useRef<HTMLDivElement>(null)
-  // Per project: what's shown over the code pane. Per `${slot}:${path}`: the playground page's
-  // version, and whether it changed since last shown.
+  // Per project: what's shown over the code pane or workspace. Per `${slot}:${path}`: the
+  // playground page's version, and whether it changed since last shown.
   const [view, setView] = useState<Record<string, View | undefined>>({})
   const [playVersions, setPlayVersions] = useState<Record<string, number | null>>({})
   const [playUnseen, setPlayUnseen] = useState<Set<string>>(new Set())
@@ -504,8 +504,8 @@ export default function App(): React.JSX.Element {
             {createPortal(<Search root={status?.root ?? ''} tick={tick} focus={searchFocus} onOpen={openAt} />, hosts.search)}
             {createPortal(
               <>
-                {/* Hidden, not unmounted, under the playground or readme: the editor is created once. */}
-                <div className={`h-full ${playing || reading ? 'invisible' : ''}`}>
+                {/* Hidden, not unmounted, under the readme: the editor is created once. */}
+                <div className={`h-full ${reading ? 'invisible' : ''}`}>
                   <CodePane
                     root={status?.root ?? ''}
                     file={file}
@@ -517,16 +517,6 @@ export default function App(): React.JSX.Element {
                     onOpen={openFile}
                   />
                 </div>
-                {playing && (
-                  <div className="absolute inset-0">
-                    <Playground
-                      project={active}
-                      slot={playing}
-                      name={config.playgrounds[playing - 1].name || `playground ${playing}`}
-                      version={playVersions[`${playing}:${active}`] ?? null}
-                    />
-                  </div>
-                )}
                 {reading && (
                   <div className="absolute inset-0">
                     <Readme project={active} root={status?.root ?? ''} tick={tick} />
@@ -594,8 +584,18 @@ export default function App(): React.JSX.Element {
                 focusSoon('editor')
               }}
             />
-            {/* Over the whole workspace, not just the code pane: the graph wants the room.
+            {/* Over the whole workspace, not just the code pane: they want the room.
                 Everything underneath stays mounted. */}
+            {playing && (
+              <div className="absolute inset-0 z-30">
+                <Playground
+                  project={active}
+                  slot={playing}
+                  name={config.playgrounds[playing - 1].name || `playground ${playing}`}
+                  version={playVersions[`${playing}:${active}`] ?? null}
+                />
+              </div>
+            )}
             {pluginView && (
               <div className="absolute inset-0 z-30">
                 {pluginView.view!.render({ data: dataOf(pluginView.id), openFile })}

@@ -5,7 +5,7 @@ import { MAX_SLOTS } from '../shared/types'
 import { run } from './git'
 
 // Per-project folders, one per configured slot, that Claude fills with a page (image reviews,
-// forms, previews) cuckcode shows over the code pane. Answers the page saves land in data/,
+// forms, previews) cuckcode shows over the whole workspace. Answers the page saves land in data/,
 // where Claude reads them back.
 
 export const playDir = (project: string, slot: number): string => join(project, '.cuckcode', 'playground', String(slot))
@@ -19,7 +19,7 @@ export function prompt(project: string, slots: PlaygroundSlot[]): string {
   const which = one
     ? `It is called "${slotName(slots[0], 0)}"; its folder is ${dir}.`
     : `There are ${slots.length} of them, each its own folder (<n> below): ${slots.map((s, i) => `${i + 1} = "${slotName(s, i)}"`).join(', ')}. Use the one whose name fits the task, or 1 when none does.`
-  return `You are running inside cuckcode, an app that shows a "playground" next to this terminal: a web view for anything you want the user to see or interact with (image or video galleries, review/approval forms, previews, small tools). Use it whenever showing beats describing, without being asked. ${which}
+  return `You are running inside cuckcode, an app that shows a "playground" that fills the window in place of this terminal: a web view for anything you want the user to see or interact with (image or video galleries, review/approval forms, previews, small tools). Use it whenever showing beats describing, without being asked. ${which}
 
 - Write the page to ${dir}/index.html, with any assets beside it (copy or symlink images/videos in; reference them by relative path). Plain HTML/CSS/JS, no build step. It reloads whenever its files change, and the user opens it from its button in the header (a dot appears there when you update it). Tell the user when there's something to look at.
 - The page gets window.cuckcode: \`await cuckcode.save(name, data)\` writes data as JSON to ${dir}/data/<name>.json, and \`await cuckcode.load(name)\` returns it (or null). Save on every change and restore with load on page load, so nothing typed is lost to a reload. Never write to data/ yourself while the user is filling it in.
