@@ -7,7 +7,7 @@ import type { PluginRef, Settings } from '../shared/types'
 // the plugins installed from a URL (as URLs) and (beside them, as `scratch`) the scratchpad.
 // Plugin folders you added yourself and the sync repo are wired to this machine; projects, the
 // window and the session stay home too.
-const KEYS = ['theme', 'projectsDir', 'notifications', 'commitCommand', 'readme', 'folders', 'playgrounds', 'webPages', 'agents', 'plugins', 'layouts'] as const
+const KEYS = ['theme', 'projectsDir', 'notifications', 'commitCommand', 'confirmAllRepos', 'readme', 'folders', 'playgrounds', 'webPages', 'agents', 'plugins', 'layouts'] as const
 
 // Paths under home travel as ~/…, so they land in the same place for a different user name.
 const tilde = (p: string, home: string): string => (p === home || p.startsWith(`${home}/`) ? `~${p.slice(home.length)}` : p)

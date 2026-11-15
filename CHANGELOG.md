@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.42.0 — 2026-11-15
+
+- ✨ commit all and sync all ask before running, saying what they'll do. Tick Don't ask again to skip it; Settings › Git › Confirm all-repo actions turns it back on.
+
 ## 1.41.0 — 2026-11-15
 
 - Agents are now any command plus switches for what cuckcode does with them: Notify, Keep awake, @ mentions, ⇧↩ newline and Playground. Add one from a preset (Claude Code, or a plain command) and change anything. Agents set up before this version need adding again: Claude Code is a preset, and Junie is a Command agent running `junie --auth-license=<id>`.

@@ -166,6 +166,12 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
                 </button>
               )}
             </Row>
+            <Toggle
+              label="Confirm all-repo actions"
+              hint="Ask before ✨ commit all and sync all run on every open repo."
+              checked={config.confirmAllRepos}
+              onChange={(v) => set('confirmAllRepos', v)}
+            />
           </Section>
 
           <Section title="Plugins" hint="Extra features from git repos, such as language support. Install, update and remove them on their own page.">

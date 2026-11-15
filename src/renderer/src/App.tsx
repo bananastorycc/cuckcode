@@ -625,6 +625,8 @@ export default function App(): React.JSX.Element {
                 cwd={active}
                 projects={projects}
                 ai={!!config.commitCommand.trim()}
+                confirmAllRepos={config.confirmAllRepos}
+                onDontConfirm={() => setConfig((c) => ({ ...c, confirmAllRepos: false }))}
                 status={status}
                 selected={file}
                 tab={gitTab}
@@ -775,6 +777,7 @@ const EMPTY: Config = {
   projectsDir: '',
   notifications: false,
   commitCommand: '',
+  confirmAllRepos: true,
   readme: false,
   folders: { enabled: false, dirs: [] },
   playgrounds: [],
@@ -788,6 +791,7 @@ const pickConfig = (s: Config): Config => ({
   projectsDir: s.projectsDir,
   notifications: s.notifications,
   commitCommand: s.commitCommand,
+  confirmAllRepos: s.confirmAllRepos,
   readme: s.readme,
   folders: s.folders,
   playgrounds: s.playgrounds,

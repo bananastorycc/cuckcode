@@ -147,7 +147,7 @@ Edits save on ⌘S, when you press Enter in a terminal (so the agent always read
 
 The **branch picker** (click the branch name) switches or creates branches, and its Remote section shows where each remote points, edits its URL, or adds `origin` to a repo that has none.
 
-Two buttons above the commit box act on **every open project** at once: ✨ commits each repo with changes, each with its own AI-written message, and the sync button syncs them all. They're a quick way to leave everything committed and pushed before you walk away.
+Two buttons above the commit box act on **every open project** at once: ✨ commits each repo with changes, each with its own AI-written message, and the sync button syncs them all. They're a quick way to leave everything committed and pushed before you walk away. Each asks first, saying what it will do; tick **Don't ask again** to skip that from then on, and turn **Confirm all-repo actions** back on in Settings › Git.
 
 ## Settings
 

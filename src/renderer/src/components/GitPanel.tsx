@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, RefreshCw, Sparkles } from 'lucide-react'
 import type { ChangedFile, GitOp, GitStatus } from '../../../shared/types'
 import BranchMenu from './BranchMenu'
 import { saveAll, saveFile } from './CodePane'
-import { ask } from './Confirm'
+import { ask, askFull } from './Confirm'
 import { contextMenu } from './ContextMenu'
 import { CODE_COLOR } from './FileTree'
 import { projectName } from './Header'
@@ -16,6 +16,8 @@ interface Props {
   cwd: string
   projects: string[]
   ai: boolean // a commit command is set, so the AI buttons show
+  confirmAllRepos: boolean
+  onDontConfirm: () => void
   status: GitStatus | null
   selected: ChangedFile | null
   tab: GitTab
@@ -26,7 +28,7 @@ interface Props {
   onDiscarded: (path: string) => void
 }
 
-export default function GitPanel({ cwd, projects, ai, status, selected, tab, onTab, onSelect, onChanged, onDiscarded }: Props): React.JSX.Element {
+export default function GitPanel({ cwd, projects, ai, confirmAllRepos, onDontConfirm, status, selected, tab, onTab, onSelect, onChanged, onDiscarded }: Props): React.JSX.Element {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState<GitOp | null>(null)
   const files = status?.files ?? []
@@ -102,7 +104,7 @@ export default function GitPanel({ cwd, projects, ai, status, selected, tab, onT
           </div>
         )}
         <div className="flex h-8 min-w-0 max-w-full grow items-center justify-end gap-2 pl-2">
-          <AllRepos projects={projects} ai={ai} onChanged={onChanged} />
+          <AllRepos projects={projects} ai={ai} confirm={confirmAllRepos} onDontConfirm={onDontConfirm} onChanged={onChanged} />
           {status?.branch && <BranchMenu cwd={cwd} branch={status.branch} onChanged={onChanged} />}
         </div>
       </div>
@@ -185,11 +187,37 @@ type BulkOp = 'aicommit' | 'sync'
 
 // Commit / sync every open project at once, as a sanity check before walking away.
 // Each repo gets its own message, written by the commit command.
-function AllRepos({ projects, ai, onChanged }: { projects: string[]; ai: boolean; onChanged: () => void }): React.JSX.Element {
+interface AllReposProps {
+  projects: string[]
+  ai: boolean
+  confirm: boolean
+  onDontConfirm: () => void
+  onChanged: () => void
+}
+
+const WARNING: Record<BulkOp, { title: string; detail: string; action: string }> = {
+  aicommit: {
+    title: 'Commit all open repos?',
+    detail: 'Every open repo with changes gets all of them committed, each with a message your commit command writes.',
+    action: 'Commit All'
+  },
+  sync: {
+    title: 'Sync all open repos?',
+    detail: 'Every open repo runs git pull --rebase --autostash, then git push.',
+    action: 'Sync All'
+  }
+}
+
+function AllRepos({ projects, ai, confirm, onDontConfirm, onChanged }: AllReposProps): React.JSX.Element {
   const [busy, setBusy] = useState<BulkOp | null>(null)
 
   const run = async (op: BulkOp): Promise<void> => {
     if (busy) return
+    if (confirm) {
+      const a = await askFull({ ...WARNING[op], dontAsk: true })
+      if (!a.yes) return
+      if (a.dontAsk) onDontConfirm()
+    }
     setBusy(op)
     try {
       await saveAll()

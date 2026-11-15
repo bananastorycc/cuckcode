@@ -11,6 +11,7 @@ const base: Settings = {
   recent: [],
   projectsDir: '/Users/a/code',
   commitCommand: 'x',
+  confirmAllRepos: true,
   notifications: false,
   readme: true,
   folders: { enabled: true, dirs: ['/Users/a/Pictures', '/Volumes/x'] },

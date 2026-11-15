@@ -5,30 +5,42 @@ interface Ask {
   detail?: string
   action: string // the confirming button's label
   danger?: boolean // the action destroys something: tinted in --del
+  dontAsk?: boolean // offer a "Don't ask again" checkbox
+}
+
+interface Answer {
+  yes: boolean
+  dontAsk: boolean // ticked, and confirmed
 }
 
 interface Pending extends Ask {
-  answer: (yes: boolean) => void
+  answer: (a: Answer) => void
 }
 
 let show: ((p: Pending) => void) | null = null
 
 // An in-app replacement for window.confirm, which Electron draws as a native sheet. Resolves
-// false if nothing is mounted to ask, or another question replaces this one.
-export function ask(q: Ask): Promise<boolean> {
-  return new Promise((answer) => (show ? show({ ...q, answer }) : answer(false)))
+// no if nothing is mounted to ask, or another question replaces this one.
+export function askFull(q: Ask): Promise<Answer> {
+  return new Promise((answer) => (show ? show({ ...q, answer }) : answer({ yes: false, dontAsk: false })))
+}
+
+export async function ask(q: Ask): Promise<boolean> {
+  return (await askFull(q)).yes
 }
 
 export default function Confirm(): React.JSX.Element | null {
   const [pending, setPending] = useState<Pending | null>(null)
+  const [dontAsk, setDontAsk] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   const restore = useRef<Element | null>(null)
 
   useEffect(() => {
     show = (p) =>
       setPending((prev) => {
-        prev?.answer(false)
+        prev?.answer({ yes: false, dontAsk: false })
         if (!prev) restore.current = document.activeElement
+        setDontAsk(false)
         return p
       })
     return () => {
@@ -43,7 +55,7 @@ export default function Confirm(): React.JSX.Element | null {
   if (!pending) return null
 
   const done = (yes: boolean): void => {
-    pending.answer(yes)
+    pending.answer({ yes, dontAsk: yes && dontAsk })
     setPending(null)
     if (restore.current instanceof HTMLElement) restore.current.focus()
   }
@@ -71,7 +83,13 @@ export default function Confirm(): React.JSX.Element | null {
           <div className="text-sm font-bold text-fg">{pending.title}</div>
           {pending.detail && <div className="mt-1.5 leading-relaxed text-muted">{pending.detail}</div>}
         </div>
-        <div className="flex justify-end gap-1.5 border-t border-line bg-bg/40 px-3 py-2">
+        <div className="flex items-center justify-end gap-1.5 border-t border-line bg-bg/40 px-3 py-2">
+          {pending.dontAsk && (
+            <label className="mr-auto flex cursor-pointer items-center gap-1.5 text-muted">
+              <input type="checkbox" className="accent-accent" checked={dontAsk} onChange={(e) => setDontAsk(e.target.checked)} />
+              Don't ask again
+            </label>
+          )}
           <button className="btn text-muted" onClick={() => done(false)}>
             Cancel <kbd className="text-[10px] opacity-60">esc</kbd>
           </button>

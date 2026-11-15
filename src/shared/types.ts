@@ -120,6 +120,7 @@ export interface Config {
   // Writes AI commit messages: run by sh with the changes on stdin, the instructions in
   // $CUCKCODE_COMMIT_PROMPT; prints the message. '' hides the AI buttons.
   commitCommand: string
+  confirmAllRepos: boolean // AI commit all / sync all ask first
   readme: boolean
   folders: { enabled: boolean; dirs: string[] }
   playgrounds: PlaygroundSlot[]
