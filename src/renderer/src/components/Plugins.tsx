@@ -55,8 +55,10 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
     if (selected && !plugins.some((p) => p.path === selected)) setSelected(plugins[0]?.path ?? null)
   }, [plugins, selected])
 
-  const add = (path: string): void => {
-    if (!plugins.some((p) => p.path === path)) onChange([...plugins, { path, enabled: true }])
+  const add = (path: string, url?: string): void => {
+    // Installing a URL that's already cloned there takes the clone and notes its URL, so it syncs.
+    if (!plugins.some((p) => p.path === path)) onChange([...plugins, { path, ...(url ? { url } : {}), enabled: true }])
+    else if (url) onChange(plugins.map((p) => (p.path === path ? { ...p, url } : p)))
     setSelected(path)
     setChanged(true)
     check(path, false)
@@ -68,7 +70,7 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
     setBusy('install')
     setError('')
     try {
-      add(await window.api.pluginInstall(u))
+      add(await window.api.pluginInstall(u), u)
       setUrl('')
     } catch (err) {
       setError(String((err as Error).message).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))

@@ -46,13 +46,17 @@ export function setUp(d: string, h: Hooks): void {
 }
 
 // At launch and whenever the repo setting changes. '' turns syncing off (the clone stays).
-export function connect(next: string): void {
+// Settles once the first sync is done.
+export function connect(next: string): Promise<void> {
   url = next
   clearTimeout(timer)
   dirty = false
   last = null
-  if (!url) return report('off')
-  void enqueue(sync)
+  if (!url) {
+    report('off')
+    return Promise.resolve()
+  }
+  return enqueue(sync)
 }
 
 // After every settings save: schedules a push if the file would change.

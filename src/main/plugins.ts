@@ -3,15 +3,15 @@ import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import type { LoadedPlugin, MainHost, MainPlugin, PluginInfo, PluginManifest, PluginStatus } from '../shared/plugin'
-import { MANIFEST } from '../shared/plugin'
+import { folderName, MANIFEST } from '../shared/plugin'
 import type { PluginRef } from '../shared/types'
 import { shellEnv } from './env'
 import { run as git } from './git'
 
 // Plugins are git repos. Installing clones one into cuckcode's own plugins folder (`dir`, set by
-// index.ts); a folder you cloned yourself works too. Once per launch: pull (fast-forward only,
-// clean trees only), build if stale, then activate main sides in dependency order. Everything is
-// async; a broken plugin only reports its error.
+// index.ts); a folder you cloned yourself works too. Once per launch: clone the ones a config
+// sync brought in, pull (fast-forward only, clean trees only), build if stale, then activate main
+// sides in dependency order. Everything is async; a broken plugin only reports its error.
 
 interface Plugin {
   dir: string
@@ -24,7 +24,7 @@ const loaded: Plugin[] = []
 const apis = new Map<string, unknown>()
 // `${plugin}:${command}` whose accelerator the menu dropped, so the renderer doesn't show it as a hint.
 const dropped = new Set<string>()
-let ready: Promise<void> = Promise.resolve()
+let ready: Promise<void> = new Promise(() => {}) // until start
 let dir = ''
 
 export const setDir = (d: string): void => void (dir = d)
@@ -72,17 +72,34 @@ async function manifest(dir: string): Promise<PluginManifest> {
   return { ...m, name: typeof m.name === 'string' ? m.name : m.id, requires: m.requires ?? [], commands: m.commands ?? [] }
 }
 
-export function start(refs: PluginRef[]): Promise<void> {
-  ready = loadAll(refs)
+// Loads once `after` settles (the launch's config sync, which can bring new plugins), reading
+// the refs then.
+export function start(after: Promise<unknown>, refs: () => PluginRef[]): Promise<void> {
+  ready = after.then(() => loadAll(refs()))
   return ready
 }
 
+const exists = (p: string): Promise<boolean> => stat(p).then(() => true, () => false)
+
 async function loadAll(refs: PluginRef[]): Promise<void> {
+  const statusOf = new Map(refs.map((ref) => [ref, { path: ref.path, enabled: ref.enabled } as PluginStatus]))
+  statuses.push(...statusOf.values())
+  // Installed on another machine: cloned here first, all at once.
+  await Promise.all(
+    refs
+      .filter((ref) => ref.enabled && ref.url)
+      .map(async (ref) => {
+        if (await exists(ref.path)) return
+        await clone(ref.url!, ref.path).then(
+          () => (statusOf.get(ref)!.note = 'Installed from your synced config'),
+          (err: Error) => (statusOf.get(ref)!.error = err.message)
+        )
+      })
+  )
   const found: (Plugin & { status: PluginStatus })[] = []
   for (const ref of refs) {
-    const status: PluginStatus = { path: ref.path, enabled: ref.enabled }
-    statuses.push(status)
-    if (!ref.enabled) continue
+    const status = statusOf.get(ref)!
+    if (!ref.enabled || status.error) continue
     try {
       const m = await manifest(ref.path)
       Object.assign(status, { id: m.id, name: m.name })
@@ -94,7 +111,7 @@ async function loadAll(refs: PluginRef[]): Promise<void> {
   }
   await Promise.all(
     found.map(async (p) => {
-      p.status.note = await pullQuietly(p.dir)
+      p.status.note = (await pullQuietly(p.dir)) || p.status.note
       // A pull can change the manifest (new bundles, commands, requirements).
       if (p.status.note) p.manifest = await manifest(p.dir).catch(() => p.manifest)
       await build(p.dir, p.manifest).catch((err: Error) => {
@@ -172,25 +189,33 @@ export async function invoke(id: string, name: string, args: unknown[]): Promise
 
 // --- git ---
 
-// git@host:me/cuckcode-thing.git -> cuckcode-thing
-const nameOf = (url: string): string =>
-  url.replace(/\/+$/, '').replace(/\.git$/, '').split(/[/:]/).pop()?.replace(/[^\w.-]/g, '-') ?? ''
-
-// Clones into the plugins folder and checks it is a plugin. Resolves to the new folder.
-export async function install(url: string): Promise<string> {
-  const name = nameOf(url.trim())
-  if (!name || name.startsWith('.')) throw new Error(`Can't tell a folder name from ${url}`)
-  const target = join(dir, name)
-  if (await stat(target).then(() => true, () => false)) throw new Error(`${name} is already installed`)
+// Clones url into target and checks it is a plugin.
+async function clone(url: string, target: string): Promise<void> {
   await mkdir(dir, { recursive: true })
   try {
-    await git(dir, ['clone', '-q', '--', url.trim(), name], 600_000)
+    await git(dir, ['clone', '-q', '--', url, target], 600_000)
     await manifest(target)
   } catch (err) {
     // A half-made clone would block the retry with "already installed".
     await rm(target, { recursive: true, force: true })
     throw new Error((err as Error).message.includes(MANIFEST) ? `Not a cuckcode plugin: no valid ${MANIFEST}` : (err as Error).message)
   }
+}
+
+// Clones into the plugins folder. Resolves to the folder. A clone of the same URL already there
+// (left by a removal synced from another machine) is reused.
+export async function install(url: string): Promise<string> {
+  url = url.trim()
+  const name = folderName(url)
+  if (!name || name.startsWith('.')) throw new Error(`Can't tell a folder name from ${url}`)
+  const target = join(dir, name)
+  if (await exists(target)) {
+    const origin = await git(target, ['remote', 'get-url', 'origin']).then((r) => r.trim(), () => '')
+    if (origin !== url) throw new Error(`${name} is already installed`)
+    await manifest(target)
+    return target
+  }
+  await clone(url, target)
   return target
 }
 

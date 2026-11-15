@@ -36,6 +36,7 @@ if (!app.isReady()) {
 const settingsFile = join(app.getPath('userData'), 'cuckcode-settings.json')
 // One scratchpad shared by every project; it lives with the settings, never in a repo.
 const scratchFile = join(app.getPath('userData'), 'cuckcode-scratch.txt')
+const pluginsDir = join(app.getPath('userData'), 'plugins')
 // A fresh install: claude and one playground, nothing else configured.
 const DEFAULTS: Settings = {
   projects: [],
@@ -110,7 +111,7 @@ function parse(raw: any): Settings {
       : d.playgrounds,
     webPages: list(raw.webPages, (p) => (isStr(p.name) && isStr(p.url) ? { name: p.name, url: p.url } : null), MAX_SLOTS),
     agents: Array.isArray(raw.agents) ? agents : d.agents,
-    plugins: list(raw.plugins, (p) => (isStr(p.path) ? { path: p.path, enabled: p.enabled !== false } : null)),
+    plugins: list(raw.plugins, (p) => (isStr(p.path) ? { path: p.path, ...(isStr(p.url) ? { url: p.url } : {}), enabled: p.enabled !== false } : null)),
     configRepo: isStr(raw.configRepo) ? raw.configRepo.trim() : d.configRepo,
     layout: raw.layout && typeof raw.layout === 'object' ? raw.layout : null,
     layouts: list(raw.layouts, (l) => (isStr(l.name) && l.layout && typeof l.layout === 'object' ? { name: l.name, layout: l.layout } : null))
@@ -132,7 +133,7 @@ function saveScratch(text: string): Promise<void> {
 // file that isn't one, before changing anything.
 function adopt(text: string): void {
   const raw = JSON.parse(text)
-  const next = parse(configfile.fromFile(raw, settings))
+  const next = parse(configfile.fromFile(raw, settings, pluginsDir))
   const notes = configfile.scratchOf(raw)
   // The scratchpad first, so the settings save finds the file in step with the repo.
   if (notes !== null && notes !== scratch) {
@@ -161,7 +162,7 @@ function saveSettings(next: Settings): void {
   const repoWas = settings.configRepo
   settings = next
   if (menuKey(next) !== menuWas) buildMenu()
-  if (next.configRepo !== repoWas) configsync.connect(next.configRepo)
+  if (next.configRepo !== repoWas) void configsync.connect(next.configRepo)
   else configsync.changed()
   if (saveQueued) return
   saveQueued = true
@@ -550,13 +551,14 @@ app.whenReady().then(async () => {
     },
     onStatus: (status) => send('config:status', status)
   })
-  configsync.connect(settings.configRepo)
+  const synced = configsync.connect(settings.configRepo)
   protocol.handle('media', mediaResponse)
   registerIpc()
   buildMenu()
-  // Their menu items arrive once they've loaded.
-  plugins.setDir(join(app.getPath('userData'), 'plugins'))
-  plugins.start(settings.plugins).then(buildMenu)
+  // After the launch's sync, so plugins installed on another machine load here too, but never
+  // held up long by a slow network. Their menu items arrive once they've loaded.
+  plugins.setDir(pluginsDir)
+  plugins.start(Promise.race([synced, new Promise((resolve) => setTimeout(resolve, 10_000))]), () => settings.plugins).then(buildMenu)
   createWindow()
 })
 

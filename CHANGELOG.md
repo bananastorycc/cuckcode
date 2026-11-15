@@ -2,6 +2,12 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.38.0 — 2026-11-15
+
+- Plugins installed from a git URL are part of your config file, so Export…/Import… and the config repo carry them. A plugin added on another machine is cloned and loaded at the next launch here.
+- At launch, plugins load after the config sync, so they're always the newest your config knows of.
+- Installing a plugin whose clone is already in the plugins folder reuses it. Plugins installed before this version sync once you install their URL again.
+
 ## 1.37.0 — 2026-11-14
 
 - cuckcode follows your system's light or dark appearance by default, and is dark when it can't tell. Settings has a Theme menu (Auto, Dark or Light) in place of the Dark mode checkbox.

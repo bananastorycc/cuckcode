@@ -107,6 +107,7 @@ export interface PlaygroundSlot {
 
 export interface PluginRef {
   path: string // the plugin's folder (holds cuckcode-plugin.json)
+  url?: string // the git URL it was installed from; only these travel in the config file
   enabled: boolean
 }
 

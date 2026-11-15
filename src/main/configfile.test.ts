@@ -17,7 +17,10 @@ const base: Settings = {
   playgrounds: [{ name: 'playground' }],
   webPages: [],
   agents: [{ id: 'claude', name: 'claude', type: 'claude' }],
-  plugins: [{ path: '/Users/a/plugins/p', enabled: true }],
+  plugins: [
+    { path: '/Users/a/plugins/p', enabled: true },
+    { path: '/Users/a/plugins/q', url: 'git@example.com:a/q.git', enabled: false }
+  ],
   configRepo: 'git@example.com:a/c.git',
   layout: null,
   layouts: []
@@ -27,7 +30,6 @@ describe('config file', () => {
   it('leaves out what belongs to this machine and writes home paths as ~', () => {
     const out = JSON.parse(toFile(base, 'notes', '/Users/a'))
     expect(out).not.toHaveProperty('projects')
-    expect(out).not.toHaveProperty('plugins')
     expect(out).not.toHaveProperty('configRepo')
     expect(out.projectsDir).toBe('~/code')
     expect(out.folders.dirs).toEqual(['~/Pictures', '/Volumes/x'])
@@ -35,13 +37,28 @@ describe('config file', () => {
 
   it('reads back into another home, keeping local keys', () => {
     const local = { ...base, theme: 'light' as const, plugins: [], configRepo: '' }
-    const next = fromFile(JSON.parse(toFile(base, 'notes', '/Users/a')), local, '/Users/b')
+    const next = fromFile(JSON.parse(toFile(base, 'notes', '/Users/a')), local, '/Users/b/plugins', '/Users/b')
     expect(next.projectsDir).toBe('/Users/b/code')
     expect(next.folders).toEqual({ enabled: true, dirs: ['/Users/b/Pictures', '/Volumes/x'] })
     expect(next.theme).toBe('dark')
-    expect(next.plugins).toEqual([])
+    expect(next.plugins).toEqual([{ path: '/Users/b/plugins/q', url: 'git@example.com:a/q.git', enabled: false }])
     expect(next.configRepo).toBe('')
     expect(next.projects).toEqual(base.projects)
+  })
+
+  it('carries plugins installed from a URL, and leaves folders of your own on each machine', () => {
+    expect(JSON.parse(toFile(base, '', '/Users/a')).plugins).toEqual([{ url: 'git@example.com:a/q.git', enabled: false }])
+    const own = { path: '/Users/b/dev/mine', enabled: true }
+    const gone = { path: '/Users/b/plugins/old', url: 'https://example.com/old.git', enabled: true }
+    // Installed here before it was synced: the same clone, not a second one.
+    const clone = { path: '/Users/b/plugins/r', enabled: true }
+    const raw = { plugins: [{ url: 'git@example.com:a/q.git', enabled: true }, { url: 'https://example.com/r.git' }, { url: '..' }, 'x'] }
+    const next = fromFile(raw, { ...base, plugins: [own, gone, clone] }, '/Users/b/plugins', '/Users/b')
+    expect(next.plugins).toEqual([
+      own,
+      { ...clone, url: 'https://example.com/r.git' },
+      { path: '/Users/b/plugins/q', url: 'git@example.com:a/q.git', enabled: true }
+    ])
   })
 
   it('carries the scratchpad, and leaves it alone when a file has none', () => {
@@ -50,7 +67,7 @@ describe('config file', () => {
   })
 
   it('rejects anything else', () => {
-    for (const raw of [null, [], 'x', { foo: 1 }]) expect(() => fromFile(raw, base)).toThrow()
+    for (const raw of [null, [], 'x', { foo: 1 }]) expect(() => fromFile(raw, base, '/p')).toThrow()
   })
 
   it("keeps a sync's values over a window save that hasn't seen it, but takes the window's own changes", () => {

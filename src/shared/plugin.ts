@@ -14,6 +14,10 @@ import type { ReactNode } from 'react'
 
 export const MANIFEST = 'cuckcode-plugin.json'
 
+// The folder a plugin installed from url gets: git@host:me/cuckcode-thing.git -> cuckcode-thing
+export const folderName = (url: string): string =>
+  url.trim().replace(/\/+$/, '').replace(/\.git$/, '').split(/[/:]/).pop()?.replace(/[^\w.-]/g, '-') ?? ''
+
 export const HOST_MODULES = ['react', 'react/jsx-runtime', 'react-dom', 'monaco-editor/editor/editor.api'] as const
 
 export interface PluginManifest {
