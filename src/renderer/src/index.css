@@ -285,3 +285,15 @@ html {
 .cc-dock .dv-tab .dv-default-tab .dv-default-tab-action {
   display: none;
 }
+
+/* The section you're in (⌃⌘arrows move it) gets an accent frame. An overlay, so the editor's and
+   terminal's backgrounds can't paint over it and nothing shifts. On the section's own element:
+   dockview renders panel content in an overlay outside its group, tab bar and all. */
+[data-pane]:focus-within::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  border: 1px solid var(--accent);
+  pointer-events: none;
+}
