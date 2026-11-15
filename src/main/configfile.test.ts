@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { Settings } from '../shared/types'
-import { fromFile, overStale, toFile, travelling } from './configfile'
+import { fromFile, overStale, scratchOf, toFile, travelling } from './configfile'
 
 const base: Settings = {
   projects: ['/Users/a/p'],
   active: '/Users/a/p',
   theme: 'dark',
   files: {},
+  agent: {},
   recent: [],
   projectsDir: '/Users/a/code',
   meters: true,
@@ -24,7 +25,7 @@ const base: Settings = {
 
 describe('config file', () => {
   it('leaves out what belongs to this machine and writes home paths as ~', () => {
-    const out = JSON.parse(toFile(base, '/Users/a'))
+    const out = JSON.parse(toFile(base, 'notes', '/Users/a'))
     expect(out).not.toHaveProperty('projects')
     expect(out).not.toHaveProperty('plugins')
     expect(out).not.toHaveProperty('configRepo')
@@ -34,13 +35,18 @@ describe('config file', () => {
 
   it('reads back into another home, keeping local keys', () => {
     const local = { ...base, theme: 'light' as const, plugins: [], configRepo: '' }
-    const next = fromFile(JSON.parse(toFile(base, '/Users/a')), local, '/Users/b')
+    const next = fromFile(JSON.parse(toFile(base, 'notes', '/Users/a')), local, '/Users/b')
     expect(next.projectsDir).toBe('/Users/b/code')
     expect(next.folders).toEqual({ enabled: true, dirs: ['/Users/b/Pictures', '/Volumes/x'] })
     expect(next.theme).toBe('dark')
     expect(next.plugins).toEqual([])
     expect(next.configRepo).toBe('')
     expect(next.projects).toEqual(base.projects)
+  })
+
+  it('carries the scratchpad, and leaves it alone when a file has none', () => {
+    expect(scratchOf(JSON.parse(toFile(base, 'notes', '/Users/a')))).toBe('notes')
+    expect(scratchOf({ theme: 'dark' })).toBeNull()
   })
 
   it('rejects anything else', () => {

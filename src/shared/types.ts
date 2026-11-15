@@ -129,8 +129,10 @@ export interface Settings extends Config {
   // The tab in front at quit; it reopens in front regardless of tab order.
   active: string | null
   theme: Theme
-  // Per project path: the file (repo-root relative) in front at quit. The terminal always reopens on the first agent.
+  // Per project path: the file (repo-root relative) in front at quit.
   files: Record<string, string>
+  // Per project path: the agent id in front at quit; it reopens in front.
+  agent: Record<string, string>
   // Projects opened before, most recently opened or closed first; the empty screen lists them.
   recent: string[]
   // The window's last size and place. Main keeps it; the renderer never sends it.
@@ -298,6 +300,8 @@ export interface Api {
   onMenu: (cb: (cmd: MenuCommand) => void) => () => void
   // The config repo brought in settings from another machine.
   onRemoteConfig: (cb: (settings: Settings) => void) => () => void
+  // The config repo or an import brought in the scratchpad.
+  onRemoteScratch: (cb: (text: string) => void) => () => void
   onSyncStatus: (cb: (status: SyncStatus) => void) => () => void
   // Quitting waits for cb (saving unsaved edits) before exiting.
   onFlush: (cb: () => Promise<void>) => () => void

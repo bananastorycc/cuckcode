@@ -44,7 +44,7 @@ export default function App(): React.JSX.Element {
   const [picking, setPicking] = useState(0)
   const [config, setConfig] = useState<Config>(EMPTY)
   const { agents } = config
-  // Per project: the agent in front, by id. Unset (or since removed): the first agent.
+  // Per project: the agent in front, by id, saved with the session. Unset (or since removed): the first agent.
   const [terms, setTerms] = useState<Record<string, string>>({})
   const [gitTab, setGitTab] = useState<GitTab>('commit')
   const agentOf = (path: string): string => {
@@ -97,6 +97,7 @@ export default function App(): React.JSX.Element {
       setActive(s.active)
       setTheme(s.theme)
       setConfig(pickConfig(s))
+      setTerms(s.agent)
       setRecent(s.recent)
       layoutRef.current = s.layout
       setLayouts(s.layouts)
@@ -110,9 +111,9 @@ export default function App(): React.JSX.Element {
     if (loaded) {
       // A commit's file isn't restored: it'd come back as the working copy.
       const files = Object.fromEntries(Object.entries(selected).flatMap(([p, f]) => (f.commit ? [] : [[p, f.path]])))
-      window.api.save({ ...config, projects, active, theme, files, recent, layout: layoutRef.current, layouts })
+      window.api.save({ ...config, projects, active, theme, files, agent: terms, recent, layout: layoutRef.current, layouts })
     }
-  }, [loaded, projects, active, theme, selected, config, recent, layoutSaves, layouts])
+  }, [loaded, projects, active, theme, selected, terms, config, recent, layoutSaves, layouts])
 
   // The dock, once the saved layout is known. Dragging a divider changes the layout every frame;
   // it's saved once that settles.

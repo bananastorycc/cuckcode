@@ -21,6 +21,16 @@ export default function Scratch(): React.JSX.Element {
     flushScratch().then(() => window.api.scratchRead()).then(setText)
   }, [])
 
+  // From the config repo or an import. While a save is pending, this machine's notes win: the
+  // save syncs them back out.
+  useEffect(
+    () =>
+      window.api.onRemoteScratch((next) => {
+        if (!pending) setText(next)
+      }),
+    []
+  )
+
   const change = (next: string): void => {
     setText(next)
     if (pending) clearTimeout(pending.timer)

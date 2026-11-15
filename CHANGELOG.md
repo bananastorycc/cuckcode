@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.36.0 — 2026-11-14
+
+- Each project reopens on the agent it had in front when you quit, instead of always the first one.
+- The scratchpad travels with your config: Export… and the config repo carry it, and Import… or a sync brings it in.
+
 ## 1.35.5 — 2026-11-14
 
 - The usage meters in the Agents title bar use the whole bar: when they don't all fit, they fill the room up to the agent picker and clip at the edge instead of leaving a gap.

@@ -1,7 +1,8 @@
 import { homedir } from 'node:os'
 import type { Settings } from '../shared/types'
 
-// What travels between machines: the Settings screen's choices, the theme and the saved layouts.
+// What travels between machines: the Settings screen's choices, the theme, the saved layouts and
+// (beside them, as `scratch`) the scratchpad.
 // Installed plugins and the sync repo are wired to this machine; projects, the window and the
 // session stay home too.
 const KEYS = ['theme', 'projectsDir', 'meters', 'notifications', 'readme', 'folders', 'playgrounds', 'webPages', 'agents', 'layouts'] as const
@@ -10,10 +11,11 @@ const KEYS = ['theme', 'projectsDir', 'meters', 'notifications', 'readme', 'fold
 const tilde = (p: string, home: string): string => (p === home || p.startsWith(`${home}/`) ? `~${p.slice(home.length)}` : p)
 const expand = (p: unknown, home: string): unknown => (typeof p === 'string' && (p === '~' || p.startsWith('~/')) ? home + p.slice(1) : p)
 
-export function toFile(s: Settings, home = homedir()): string {
+export function toFile(s: Settings, scratch: string, home = homedir()): string {
   const out: Record<string, unknown> = Object.fromEntries(KEYS.map((k) => [k, s[k]]))
   out.projectsDir = s.projectsDir && tilde(s.projectsDir, home)
   out.folders = { ...s.folders, dirs: s.folders.dirs.map((d) => tilde(d, home)) }
+  out.scratch = scratch
   return `${JSON.stringify(out, null, 2)}\n`
 }
 
@@ -28,6 +30,9 @@ export function fromFile(raw: any, current: Settings, home = homedir()): Record<
   if (Array.isArray(picked.folders?.dirs)) picked.folders = { ...picked.folders, dirs: picked.folders.dirs.map((d: unknown) => expand(d, home)) }
   return { ...current, ...picked }
 }
+
+// The file's scratchpad; null when it has none, which leaves this machine's alone.
+export const scratchOf = (raw: any): string | null => (typeof raw?.scratch === 'string' ? raw.scratch : null)
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 // The travelling keys as JSON, to tell old values from new.

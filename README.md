@@ -152,7 +152,7 @@ Two buttons above the commit box act on **every open project** at once: ✨ comm
 - **Layout:** the presets and your saved layouts (see [Layout](#layout)).
 - **Panels:** README and Folders on or off, and the folders Folders lists.
 - **Playgrounds**, **Web pages**, **Agents**, **Plugins:** see below.
-- **Sync:** your settings, theme and saved layouts as one `cuckcode-config.json`. Export… and Import… move it by hand. Or give it a git repo (use a private one: agent commands and licenses are in the file): cuckcode clones it, pulls at launch, and commits and pushes a few seconds after each change; the ↻ button next to it syncs now, and the line under it shows the last sync or what went wrong. A change made just before quitting is committed on the way out and pushed at the next launch. When you first connect, a repo that already has the file replaces this machine's settings, and an empty one starts from them. When two machines change the same setting, the one that syncs last wins. Installed plugins, open projects and the repo URL itself stay on each machine, and paths under your home folder are written as `~/…`.
+- **Sync:** your settings, theme, saved layouts and scratchpad as one `cuckcode-config.json`. Export… and Import… move it by hand. Or give it a git repo (use a private one: agent commands and licenses are in the file): cuckcode clones it, pulls at launch, and commits and pushes a few seconds after each change; the ↻ button next to it syncs now, and the line under it shows the last sync or what went wrong. A change made just before quitting is committed on the way out and pushed at the next launch. When you first connect, a repo that already has the file replaces this machine's settings, and an empty one starts from them. When two machines change the same setting, the one that syncs last wins. Installed plugins, open projects and the repo URL itself stay on each machine, and paths under your home folder are written as `~/…`.
 - **Reset:** put the layout back to Default, or every setting back to a fresh install's. Open projects, installed plugins and the config repo stay.
 
 ## Agents
@@ -227,11 +227,11 @@ cuckcode is GPL-licensed, and plugins run inside it, so a plugin you distribute 
 
 ## Scratchpad
 
-One notepad, shared by every project tab, autosaving to app data rather than into any repo — for notes that don't belong in a commit.
+One notepad, shared by every project tab, autosaving to app data rather than into any repo — for notes that don't belong in a commit. It travels with the config file, so [Sync](#settings) and Export… carry it to your other machines.
 
 ## Sessions
 
-Open projects, which tab is active, each project's open file, everything in Settings, and the recently-closed list all survive a quit and come back on the next launch. Which agent each project had in front doesn't: every project reopens on the first agent. With no project open, the welcome screen lists recently closed projects to reopen one or all of them.
+Open projects, which tab is active, each project's open file and agent, everything in Settings, and the recently-closed list all survive a quit and come back on the next launch: each project reopens on the agent it had in front (the first agent starts too, as always). With no project open, the welcome screen lists recently closed projects to reopen one or all of them.
 
 Settings live in `~/Library/Application Support/cuckcode/cuckcode-settings.json`, the scratchpad in `cuckcode-scratch.txt` beside it, and the config repo's clone (with [Sync](#settings)) in `config-repo/`.
 

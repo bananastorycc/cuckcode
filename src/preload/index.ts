@@ -84,6 +84,7 @@ const api: Api = {
   },
   onMenu: (cb) => listen<MenuCommand>('menu', cb),
   onRemoteConfig: (cb) => listen<Settings>('config:remote', cb),
+  onRemoteScratch: (cb) => listen<string>('scratch:remote', cb),
   onSyncStatus: (cb) => listen<SyncStatus>('config:status', cb),
   onFlush: (cb) => listen('app:flush', () => void cb().finally(() => ipcRenderer.send('app:flushed')))
 }

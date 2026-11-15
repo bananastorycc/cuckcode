@@ -42,6 +42,7 @@ const DEFAULTS: Settings = {
   active: null,
   theme: 'light',
   files: {},
+  agent: {},
   recent: [],
   projectsDir: '', // unset: ⌘T asks for it the first time
   meters: true,
@@ -57,6 +58,8 @@ const DEFAULTS: Settings = {
   layouts: []
 }
 let settings: Settings = DEFAULTS
+// The scratchpad's text, kept here so the config file can carry it.
+let scratch = ''
 let win: BrowserWindow | null = null
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -80,13 +83,18 @@ function parse(raw: any): Settings {
   const projects = strings(raw.projects)
   // Only open projects keep theirs.
   const files: Settings['files'] = {}
-  for (const p of projects) if (isStr(raw.files?.[p])) files[p] = raw.files[p]
+  const agentIn: Settings['agent'] = {}
+  for (const p of projects) {
+    if (isStr(raw.files?.[p])) files[p] = raw.files[p]
+    if (isStr(raw.agent?.[p])) agentIn[p] = raw.agent[p]
+  }
   const agents = list(raw.agents, agent).filter((a, i, all) => all.findIndex((b) => b.id === a.id) === i)
   return {
     projects,
     active: projects.includes(raw.active) ? raw.active : (projects[0] ?? null),
     theme: raw.theme === 'dark' ? 'dark' : 'light',
     files,
+    agent: agentIn,
     recent: strings(raw.recent),
     window: ['x', 'y', 'width', 'height'].every((k) => Number.isFinite(raw.window?.[k])) ? raw.window : undefined,
     projectsDir: isStr(raw.projectsDir) && raw.projectsDir.startsWith('/') ? raw.projectsDir : d.projectsDir,
@@ -110,16 +118,29 @@ function parse(raw: any): Settings {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-// A config file's text over the current settings. Throws on a file that isn't one.
-const fromConfigFile = (text: string): Settings => parse(configfile.fromFile(JSON.parse(text), settings))
-
 // What imports and syncs replaced, until the window's saves show it has caught up with them.
 let unshown: Record<string, string>[] = []
 
-// Settings from a config file, which the window is then sent.
+// Atomic, like settings: dying mid-write must not empty the notes.
+function saveScratch(text: string): Promise<void> {
+  scratch = text
+  configsync.changed()
+  return writeAtomic(scratchFile, text)
+}
+
+// Settings and the scratchpad from a config file, which the window is then sent. Throws on a
+// file that isn't one, before changing anything.
 function adopt(text: string): void {
+  const raw = JSON.parse(text)
+  const next = parse(configfile.fromFile(raw, settings))
+  const notes = configfile.scratchOf(raw)
+  // The scratchpad first, so the settings save finds the file in step with the repo.
+  if (notes !== null && notes !== scratch) {
+    saveScratch(notes).catch(() => {})
+    send('scratch:remote', notes)
+  }
   const old = configfile.travelling(settings)
-  saveSettings(fromConfigFile(text))
+  saveSettings(next)
   unshown.push(old)
 }
 
@@ -499,7 +520,7 @@ function registerIpc(): void {
   ipcMain.handle('config:export', async () => {
     const r = await dialog.showSaveDialog(win!, { defaultPath: join(app.getPath('documents'), 'cuckcode-config.json') })
     if (r.canceled || !r.filePath) return false
-    await writeAtomic(r.filePath, configfile.toFile(settings))
+    await writeAtomic(r.filePath, configfile.toFile(settings, scratch))
     return true
   })
   ipcMain.handle('config:import', async () => {
@@ -511,17 +532,17 @@ function registerIpc(): void {
   ipcMain.on('config:syncNow', () => configsync.now())
   ipcMain.handle('config:syncStatus', () => configsync.current())
   ipcMain.on('app:reveal', (_e, path: string) => shell.showItemInFolder(path))
-  ipcMain.handle('scratch:read', () => readFile(scratchFile, 'utf8').catch(() => ''))
-  // Atomic, like settings: dying mid-write must not empty the notes.
-  ipcMain.handle('scratch:write', (_e, text: string) => writeAtomic(scratchFile, text))
+  ipcMain.handle('scratch:read', () => scratch)
+  ipcMain.handle('scratch:write', (_e, text: string) => saveScratch(text))
 }
 
 app.whenReady().then(async () => {
   // The installed bundle's own version froze when `npm run app` last ran; the repo's is the real one.
   app.setAboutPanelOptions({ applicationVersion: __VERSION__, version: `Electron ${process.versions.electron}` })
   await loadSettings()
+  scratch = await readFile(scratchFile, 'utf8').catch(() => '')
   configsync.setUp(join(app.getPath('userData'), 'config-repo'), {
-    local: () => configfile.toFile(settings),
+    local: () => configfile.toFile(settings, scratch),
     // Main takes it too, so a page that hasn't loaded yet starts with it.
     onRemote: (text) => {
       adopt(text)
