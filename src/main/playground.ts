@@ -5,20 +5,20 @@ import { MAX_SLOTS } from '../shared/types'
 import { writeAtomic } from './atomic'
 import { run } from './git'
 
-// Per-project folders, one per configured slot, that Claude fills with a page (image reviews,
+// Per-project folders, one per configured slot, that an agent fills with a page (image reviews,
 // forms, previews) cuckcode shows over the whole workspace. Answers the page saves land in data/,
-// where Claude reads them back.
+// where the agent reads them back.
 
 export const playDir = (project: string, slot: number): string => join(project, '.cuckcode', 'playground', String(slot))
 
-// The kit pages load from media://kit/: blocks Claude describes instead of writing a page. The
+// The kit pages load from media://kit/: blocks an agent describes instead of writing a page. The
 // repo always sits beside the build (out/main) and the tests (src/main), two levels down.
 export const kitDir = join(__dirname, '../../src/kit')
 
 const slotName = (s: PlaygroundSlot, i: number): string => s.name || `playground ${i + 1}`
 
-// Appended to the system prompt of every claude session cuckcode starts. The block summary is
-// what spares Claude reading the kit's README or writing a page from scratch.
+// $CUCKCODE_PLAYGROUND for agents with Playground on (Claude Code's preset appends it to the
+// system prompt). The block summary is what spares the agent reading the kit's README or writing a page from scratch.
 export function prompt(project: string, slots: PlaygroundSlot[]): string {
   const one = slots.length === 1
   const dir = one ? playDir(project, 1) : `${join(project, '.cuckcode', 'playground')}/<n>`
@@ -91,7 +91,7 @@ export function save(project: string, slot: number, name: string, text: string):
   return next
 }
 
-// Keeps .cuckcode/ out of git status without touching any tracked file. Two claude agents
+// Keeps .cuckcode/ out of git status without touching any tracked file. Two agents
 // starting in one project at once share one check, or both would append the line.
 const excluding = new Map<string, Promise<void>>()
 

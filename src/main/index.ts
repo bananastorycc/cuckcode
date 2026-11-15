@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import type { Worker } from 'node:worker_threads'
 import type { Agent, Bounds, GitOp, MenuCommand, PaneDir, Settings, ChangedFile, SearchQuery, SearchResult } from '../shared/types'
 import { MAX_SLOTS, SHELL_ID } from '../shared/types'
+import { CLAUDE, COMMIT_COMMAND, fromPreset } from '../shared/agents'
 import { writeAtomic } from './atomic'
 import * as configfile from './configfile'
 import * as configsync from './configsync'
@@ -17,11 +18,9 @@ import { readme } from './readme'
 import * as repos from './repos'
 import * as search from './search'
 import createSearchWorker from './searchWorker?nodeWorker'
-import { usage } from './usage'
-import { junieBalance } from './junie'
 import { closeAll, setWatched } from './watch'
 
-// Apps launched from Finder get a bare PATH; make git, brew tools and claude resolvable.
+// Apps launched from Finder get a bare PATH; make git, brew tools and agent CLIs resolvable.
 const extraPath = ['/opt/homebrew/bin', '/opt/homebrew/sbin', '/usr/local/bin', join(homedir(), '.local/bin')]
 const path = (process.env.PATH ?? '/usr/bin:/bin:/usr/sbin:/sbin').split(':')
 process.env.PATH = [...extraPath.filter((p) => !path.includes(p)), ...path].join(':')
@@ -37,7 +36,7 @@ const settingsFile = join(app.getPath('userData'), 'cuckcode-settings.json')
 // One scratchpad shared by every project; it lives with the settings, never in a repo.
 const scratchFile = join(app.getPath('userData'), 'cuckcode-scratch.txt')
 const pluginsDir = join(app.getPath('userData'), 'plugins')
-// A fresh install: claude and one playground, nothing else configured.
+// A fresh install: the Claude Code preset and one playground, nothing else configured.
 const DEFAULTS: Settings = {
   projects: [],
   active: null,
@@ -46,13 +45,13 @@ const DEFAULTS: Settings = {
   agent: {},
   recent: [],
   projectsDir: '', // unset: ⌘T asks for it the first time
-  meters: true,
   notifications: true,
+  commitCommand: COMMIT_COMMAND,
   readme: true,
   folders: { enabled: true, dirs: [] },
   playgrounds: [{ name: 'playground' }],
   webPages: [],
-  agents: [{ id: 'claude', name: 'claude', type: 'claude' }],
+  agents: [fromPreset(CLAUDE, 'claude')],
   plugins: [],
   configRepo: '',
   layout: null,
@@ -70,12 +69,20 @@ const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter(isStr) : 
 const list = <T>(v: unknown, f: (x: any) => T | null, max = Infinity): T[] =>
   (Array.isArray(v) ? v.map((x) => (x && typeof x === 'object' ? f(x) : null)).filter((x): x is T => x !== null) : []).slice(0, max)
 
+const flag = (v: unknown): boolean => v === true
+
 function agent(a: any): Agent | null {
-  if (!isStr(a.id) || !/^[\w-]+$/.test(a.id) || a.id === SHELL_ID || !isStr(a.name)) return null
-  if (a.type === 'claude') return { id: a.id, name: a.name, type: 'claude' }
-  if (a.type === 'junie') return { id: a.id, name: a.name, type: 'junie', license: isStr(a.license) ? a.license : '' }
-  if (a.type === 'command') return { id: a.id, name: a.name, type: 'command', command: isStr(a.command) ? a.command : '' }
-  return null
+  if (!isStr(a.id) || !/^[\w-]+$/.test(a.id) || a.id === SHELL_ID || !isStr(a.name) || !isStr(a.command)) return null
+  return {
+    id: a.id,
+    name: a.name,
+    command: a.command,
+    notify: flag(a.notify),
+    awake: flag(a.awake),
+    mentions: flag(a.mentions),
+    newline: flag(a.newline),
+    playground: flag(a.playground)
+  }
 }
 
 // Anything missing or malformed takes its default; nothing older is read.
@@ -99,7 +106,7 @@ function parse(raw: any): Settings {
     recent: strings(raw.recent),
     window: ['x', 'y', 'width', 'height'].every((k) => Number.isFinite(raw.window?.[k])) ? raw.window : undefined,
     projectsDir: isStr(raw.projectsDir) && raw.projectsDir.startsWith('/') ? raw.projectsDir : d.projectsDir,
-    meters: typeof raw.meters === 'boolean' ? raw.meters : d.meters,
+    commitCommand: isStr(raw.commitCommand) ? raw.commitCommand : d.commitCommand,
     notifications: typeof raw.notifications === 'boolean' ? raw.notifications : d.notifications,
     readme: typeof raw.readme === 'boolean' ? raw.readme : d.readme,
     folders: {
@@ -278,7 +285,7 @@ function buildMenu(): void {
           { role: 'selectAll' },
           { type: 'separator' },
           { label: 'Find in Files', accelerator: 'Cmd+Shift+F', click: menu({ type: 'search' }) },
-          { label: 'Send Selection to Claude', accelerator: 'Cmd+Alt+K', click: menu({ type: 'sendSelection' }) }
+          { label: 'Send Selection to Agent', accelerator: 'Cmd+Alt+K', click: menu({ type: 'sendSelection' }) }
         ]
       },
       {
@@ -459,23 +466,10 @@ function registerIpc(): void {
   ipcMain.handle('git:branches', (_e, cwd: string) => git.branches(cwd))
   ipcMain.handle('git:log', (_e, cwd: string, skip: number) => git.log(cwd, skip))
   ipcMain.handle('git:commitFiles', (_e, root: string, sha: string) => git.commitFiles(root, sha))
-  ipcMain.handle('git:op', (_e, cwd: string, op: GitOp, arg?: string) => git.op(cwd, op, arg))
+  ipcMain.handle('git:op', (_e, cwd: string, op: GitOp, arg?: string) => git.op(cwd, op, arg, settings.commitCommand))
   ipcMain.handle('git:setRemote', (_e, cwd: string, name: string, url: string) => git.setRemote(cwd, name, url))
-  ipcMain.handle('git:discard', async (_e, root: string, file: ChangedFile) => {
-    // Untracked files only go to the Trash; anything git tracks is gone for good.
-    if (file.code !== '?' && win) {
-      const { response } = await dialog.showMessageBox(win, {
-        type: 'warning',
-        message: `Discard changes to ${file.path}?`,
-        detail: "This can't be undone.",
-        buttons: ['Discard', 'Cancel'],
-        defaultId: 0,
-        cancelId: 1
-      })
-      if (response !== 0) return null
-    }
-    return git.discard(root, file, (abs) => shell.trashItem(abs))
-  })
+  // The renderer has asked first (tracked changes are gone for good); new files go to the Trash.
+  ipcMain.handle('git:discard', (_e, root: string, file: ChangedFile) => git.discard(root, file, (abs) => shell.trashItem(abs)))
   ipcMain.handle('search:find', (_e, root: string, q: SearchQuery) => find(root, q))
   ipcMain.handle('search:replace', (_e, root: string, q: SearchQuery, replacement: string, paths: string[]) =>
     replaceAll(root, q, replacement, paths)
@@ -516,8 +510,6 @@ function registerIpc(): void {
     relaunching = true
     app.quit()
   })
-  ipcMain.handle('usage', () => usage())
-  ipcMain.handle('junieBalance', (_e, license: string) => junieBalance(license))
   ipcMain.handle('config:export', async () => {
     const r = await dialog.showSaveDialog(win!, { defaultPath: join(app.getPath('documents'), 'cuckcode-config.json') })
     if (r.canceled || !r.filePath) return false
@@ -603,11 +595,14 @@ app.on('before-quit', (e) => {
   }
   closeAll()
   const cap = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+  // The config commit waits for the window's last saves (a scratchpad edit still on its timer),
+  // or it would commit without them and the next launch's pull would put the old ones back.
+  const flushed = request('app:flush', 'app:flushed', undefined, 3000)
   Promise.all([
-    request('app:flush', 'app:flushed', undefined, 3000),
+    flushed,
     Promise.race([pty.killAll(), cap(3000)]),
-    Promise.race([configsync.flush(), cap(3000)]),
-    saving
+    flushed.then(() => Promise.race([configsync.flush(), cap(3000)])),
+    flushed.then(() => saving)
   ]).finally(() => {
     if (relaunch) app.relaunch()
     app.exit(0)

@@ -61,7 +61,7 @@ describe('config sync', () => {
     expect(await done).toMatchObject({ state: 'ok' })
     expect(b.received).toEqual(['{"theme":"dark"}\n'])
 
-    b.text = '{"theme":"light","meters":false}\n'
+    b.text = '{"theme":"light","notifications":false}\n'
     b.sync.changed()
     done = b.settled()
     b.sync.now()
@@ -70,13 +70,13 @@ describe('config sync', () => {
     done = a.settled()
     a.sync.now()
     expect((await done).state).toBe('ok')
-    expect(a.text).toBe('{"theme":"light","meters":false}\n')
+    expect(a.text).toBe('{"theme":"light","notifications":false}\n')
 
     // Both change the same line; A only commits (as at quit), B pushes first. A's side wins.
-    a.text = '{"theme":"dark","meters":false}\n'
+    a.text = '{"theme":"dark","notifications":false}\n'
     a.sync.changed()
     await a.sync.flush()
-    b.text = '{"theme":"blue","meters":false}\n'
+    b.text = '{"theme":"blue","notifications":false}\n'
     b.sync.changed()
     done = b.settled()
     b.sync.now()
@@ -87,6 +87,6 @@ describe('config sync', () => {
     done = b.settled()
     b.sync.now()
     expect((await done).state).toBe('ok')
-    expect(b.text).toBe('{"theme":"dark","meters":false}\n')
+    expect(b.text).toBe('{"theme":"dark","notifications":false}\n')
   }, 30_000)
 })

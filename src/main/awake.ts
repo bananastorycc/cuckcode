@@ -1,8 +1,8 @@
 import { powerSaveBlocker } from 'electron'
 
-// Keeps the Mac from idle-sleeping while Claude works, so a long task isn't cut off mid-turn.
-// Busy = a Claude terminal printed something recently: its spinner redraws several times a second
-// for the whole turn (tool runs included), and an idle prompt prints nothing. The display may
+// Keeps the Mac from idle-sleeping while an agent works, so a long task isn't cut off mid-turn.
+// Busy = a terminal of an agent with awake on printed something recently: a working agent's
+// spinner redraws several times a second (tool runs included), and an idle prompt prints nothing. The display may
 // still sleep; closing the lid still sleeps.
 
 const IDLE_MS = 30_000

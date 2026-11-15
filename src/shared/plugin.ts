@@ -8,9 +8,11 @@
 // - style: a stylesheet added to the page. The host's colors are CSS variables (--bg, --panel,
 //   --line, --fg, --muted, --accent, --add, --del, --mod, --new); light and dark switch them.
 // When the folder's package.json has a build script, cuckcode runs `npm install` (when the
-// lockfile changed) and `npm run build` there before loading, whenever src/ is newer than the bundles.
+// lockfile changed, or it never ran) and `npm run build` there before loading, whenever src/ is newer than the bundles.
 import type * as Monaco from 'monaco-editor/editor/editor.api'
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
+import type { AgentPreset } from './agents'
+import type { Agent } from './types'
 
 export const MANIFEST = 'cuckcode-plugin.json'
 
@@ -110,6 +112,10 @@ export interface EditorContext<T> {
   mediaUrl: (abs: string) => string
 }
 
+// Drawn in the Agents section's title bar for the agent in front (a usage meter, a status).
+// Renders null for agents it has nothing for; it decides that from the agent's settings.
+export type AgentBarItem = ComponentType<{ agent: Agent }>
+
 export interface RendererHost<T = unknown> {
   monaco: typeof Monaco
   invoke: <R>(name: string, ...args: unknown[]) => Promise<R>
@@ -122,6 +128,9 @@ export interface RendererHost<T = unknown> {
   onCommand: (id: string, fn: () => void) => void
   // Called for each code editor, now and later; the disposable runs when it goes.
   onEditor: (fn: (editor: Monaco.editor.ICodeEditor, ctx: EditorContext<T>) => Monaco.IDisposable | void) => void
+  // An agent to start from in Settings › Agents › Add, beside the built-in ones.
+  agentPreset: (preset: AgentPreset) => void
+  agentBar: (item: AgentBarItem) => void
 }
 
 export interface RendererPlugin {

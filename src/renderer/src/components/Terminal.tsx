@@ -13,18 +13,19 @@ interface Props {
   project: string
   agent: string // the agent's id, or SHELL_ID for the bottom pane
   name: string
-  claude?: boolean // a claude agent: ⇧↩ newlines and @-mentions for dropped files
+  mentions?: boolean // dropped files go in as @path, not a quoted path
+  newline?: boolean // ⇧↩ sends ESC+CR, a newline without submitting
   active: boolean
   theme: Theme
   title?: ReactNode // replaces the plain name label, e.g. with a tab switcher
   onNotify?: (message: string) => void
 }
 
-// Live terminals by PTY id, so the app can paste into one (Send Selection to Claude).
+// Live terminals by PTY id, so the app can paste into one (Send Selection, a playground's Done).
 const terms = new Map<string, XTerm>()
 
-// Resolves once the program in the terminal has turned on bracketed paste, which Claude does
-// when its prompt is up, or false after `ms`. Text sent to an agent that's still starting is lost.
+// Resolves once the program in the terminal has turned on bracketed paste, which agents like
+// Claude Code do when their prompt is up, or false after `ms`. Text sent to an agent that's still starting is lost.
 export function whenReady(id: string, ms = 30_000): Promise<boolean> {
   const until = Date.now() + ms
   return new Promise((resolve) => {
@@ -38,7 +39,7 @@ export function whenReady(id: string, ms = 30_000): Promise<boolean> {
 }
 
 // Pasted, not typed: xterm wraps it in bracketed paste when the program asked for that, so
-// Claude takes it as one input rather than keystrokes.
+// the agent takes it as one input rather than keystrokes.
 export function pasteInto(id: string, text: string): boolean {
   const t = terms.get(id)
   t?.paste(text)
@@ -49,17 +50,17 @@ export function pasteInto(id: string, text: string): boolean {
 // The drag type FileTree rows carry: the dragged file's absolute path.
 export const PATH_DRAG = 'application/x-cuckcode-path'
 
-const shellQuote = (s: string): string => (/^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`)
+export const shellQuote = (s: string): string => (/^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`)
 
-export default function Terminal({ project, agent, name, claude, active, theme, title, onNotify }: Props): React.JSX.Element {
+export default function Terminal({ project, agent, name, mentions, newline, active, theme, title, onNotify }: Props): React.JSX.Element {
   const id = `${agent}:${project}`
   const host = useRef<HTMLDivElement>(null)
   const term = useRef<XTerm | null>(null)
   const exited = useRef(false)
   const notify = useRef(onNotify)
   notify.current = onNotify
-  const claudeRef = useRef(claude)
-  claudeRef.current = claude
+  const newlineRef = useRef(newline)
+  newlineRef.current = newline
 
   // A spawn can fail outright (node-pty's helper not executable after an install); say so
   // rather than leave a blank pane.
@@ -112,9 +113,9 @@ export default function Terminal({ project, agent, name, claude, active, theme, 
     }
 
     t.attachCustomKeyEventHandler((e) => {
-      // Claude Code reads ESC+CR as "newline without submit". Swallow the keypress too, or
-      // xterm sends a plain CR from it and submits anyway.
-      if (claudeRef.current && e.shiftKey && e.key === 'Enter') {
+      // Agents like Claude Code read ESC+CR as "newline without submit". Swallow the keypress
+      // too, or xterm sends a plain CR from it and submits anyway.
+      if (newlineRef.current && e.shiftKey && e.key === 'Enter') {
         if (e.type === 'keydown') send('\x1b\r')
         return false
       }
@@ -126,7 +127,8 @@ export default function Terminal({ project, agent, name, claude, active, theme, 
       return true
     })
 
-    // Claude Code signals "done / needs input" via bell or OSC 9 / OSC 777 notifications.
+    // Agents signal "done / needs input" with a bell or an OSC 9 / OSC 777 notification
+    // (Claude Code's preset does it through its hooks and $CUCKCODE_NOTIFY).
     t.onBell(() => notify.current?.(''))
     t.parser.registerOscHandler(9, (data) => {
       if (!/^\d;/.test(data)) notify.current?.(data) // 9;4;… is a progress report, not a notification
@@ -205,9 +207,9 @@ export default function Terminal({ project, agent, name, claude, active, theme, 
           const abs = e.dataTransfer.getData(PATH_DRAG)
           if (!abs) return
           e.preventDefault()
-          // Relative to the project, where the terminal starts; Claude reads it as a file mention.
+          // Relative to the project, where the terminal starts; with mentions, an @ file mention.
           const path = abs.startsWith(`${project}/`) ? abs.slice(project.length + 1) : abs
-          pasteInto(id, claude ? `@${path} ` : `${shellQuote(path)} `)
+          pasteInto(id, mentions ? `@${path} ` : `${shellQuote(path)} `)
         }}
       >
         <div ref={host} className="h-full w-full" />

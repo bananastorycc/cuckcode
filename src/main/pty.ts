@@ -1,4 +1,5 @@
 import * as pty from 'node-pty'
+import { join } from 'node:path'
 import type { Settings } from '../shared/types'
 import { SHELL_ID } from '../shared/types'
 import * as awake from './awake'
@@ -25,27 +26,12 @@ type Config = () => Settings
 const sessions = new Map<string, Session>()
 
 // Login+interactive so the user's PATH and config load, then the agent; when it exits you
-// land in a normal shell in the same directory. Everything configured reaches the command
-// through the environment, which spares quoting it in.
-const RUN = {
-  claude: 'claude --settings "$CUCKCODE_HOOKS" --append-system-prompt "$CUCKCODE_PLAYGROUND"',
-  junie: 'junie --auth-license="$CUCKCODE_LICENSE"',
-  command: 'eval "$CUCKCODE_COMMAND"'
-}
+// land in a normal shell in the same directory. The command comes from the environment, which
+// spares quoting it in.
+const RUN = 'eval "$CUCKCODE_COMMAND"; exec "$SHELL" -l'
 
-// Claude only signals "done" or "needs input" in terminals it recognizes (or with
-// preferredNotifChannel set), and it doesn't know this one. These hooks signal it themselves: an
-// OSC 777 notification, which Terminal.tsx turns into the tab dot and a macOS notification. Hooks
-// run detached, without /dev/tty, so they write to the terminal of their parent, claude.
-const osc = (body: string): string =>
-  `t=$(ps -o tty= -p $PPID | tr -d ' ') && printf '\\033]777;notify;Claude;${body}\\007' 2>/dev/null > "/dev/$t" || true`
-const HOOKS = JSON.stringify({
-  hooks: {
-    Stop: [{ hooks: [{ type: 'command', command: osc('Claude is done') }] }],
-    // Not idle_prompt: that's a reminder a minute after Stop already said so.
-    Notification: [{ matcher: 'permission_prompt|elicitation_dialog', hooks: [{ type: 'command', command: osc('Claude needs your input') }] }]
-  }
-})
+// Any agent's hooks can run it to notify (see notify.sh). The repo sits beside the build, as for the kit.
+const NOTIFY = join(__dirname, '../../src/agent/notify.sh')
 
 function spawn(id: string, cols: number, rows: number, send: Sink, config: Config): Session {
   const shell = process.env.SHELL || '/bin/zsh'
@@ -58,16 +44,15 @@ function spawn(id: string, cols: number, rows: number, send: Sink, config: Confi
   if (agentId !== SHELL_ID && !agent) throw new Error(`No agent ${agentId}`)
   if (agent) {
     const slots = config().playgrounds
-    if (agent.type === 'claude' && slots.length) {
+    if (agent.playground && slots.length) {
       env.CUCKCODE_PLAYGROUND = playground.prompt(cwd, slots)
       playground.exclude(cwd)
     }
-    if (agent.type === 'claude') env.CUCKCODE_HOOKS = HOOKS
-    if (agent.type === 'junie') env.CUCKCODE_LICENSE = agent.license ?? ''
-    if (agent.type === 'command') env.CUCKCODE_COMMAND = agent.command ?? ''
-    args = [...args, '-c', `${RUN[agent.type]}; exec "$SHELL" -l`]
+    env.CUCKCODE_NOTIFY = NOTIFY
+    env.CUCKCODE_COMMAND = agent.command
+    args = [...args, '-c', RUN]
   }
-  const claude = agent?.type === 'claude'
+  const keepAwake = !!agent?.awake
   const proc = pty.spawn(shell, args, { name: 'xterm-256color', cols, rows, cwd, env })
   const s: Session = { proc, tail: [], tailLength: 0, pending: '' }
 
@@ -85,7 +70,7 @@ function spawn(id: string, cols: number, rows: number, send: Sink, config: Confi
     // A killed shell can still print on its way out; after a restart that would land in
     // the new session's terminal, which shares the id.
     if (sessions.get(id) !== s) return
-    if (claude) awake.poke()
+    if (keepAwake) awake.poke()
     s.pending += data
     s.timer ??= setTimeout(flush, FLUSH_MS)
   })

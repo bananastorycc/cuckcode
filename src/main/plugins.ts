@@ -57,7 +57,11 @@ async function newestIn(p: string): Promise<number> {
 async function build(dir: string, m: PluginManifest): Promise<void> {
   const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8').catch(() => '{}'))
   if (!pkg.scripts?.build) return
-  if ((await mtime(join(dir, 'package-lock.json'))) > (await mtime(join(dir, 'node_modules/.package-lock.json')))) {
+  // Installed when the lockfile is newer than the last install, or never installed at all (a
+  // plugin without a lockfile has nothing else to compare).
+  const installed = await mtime(join(dir, 'node_modules/.package-lock.json'))
+  const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).length > 0
+  if (deps && (!installed || (await mtime(join(dir, 'package-lock.json'))) > installed)) {
     await run('npm', ['install', '--no-audit', '--no-fund'], dir)
   }
   const outputs = [m.main, m.renderer, m.style].filter((f): f is string => !!f).map((f) => join(dir, f))

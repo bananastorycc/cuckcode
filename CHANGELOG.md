@@ -2,6 +2,18 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.41.0 — 2026-11-15
+
+- Agents are now any command plus switches for what cuckcode does with them: Notify, Keep awake, @ mentions, ⇧↩ newline and Playground. Add one from a preset (Claude Code, or a plain command) and change anything. Agents set up before this version need adding again: Claude Code is a preset, and Junie is a Command agent running `junie --auth-license=<id>`.
+- Notifications, keep-awake, file mentions, ⌥⌘K and a playground's Done work with any agent that has them switched on, not only Claude.
+- The command that writes AI commit messages is a setting (Settings › Git), still Claude Haiku by default. Empty hides the AI buttons.
+- Usage meters moved to a plugin, cuckcode-meters. Plugins can now add agent presets and draw in the Agents title bar.
+- A playground's Done and ⌥⌘K say so when no agent can take them, instead of doing nothing.
+- A scratchpad edit made just before quitting is no longer lost when syncing the config through git.
+- Discard Changes asks in cuckcode's own dialog, and branch names starting with a dash are refused.
+- A plugin without a lockfile gets its dependencies installed before it builds.
+- The Sync settings now say what travels: plugins installed from a URL and the scratchpad do.
+
 ## 1.40.1 — 2026-11-15
 
 - Agents started in a cuckcode that was itself launched from a Claude Code session no longer inherit that session's markers, which turned off transcript saving and could deny their shell commands.

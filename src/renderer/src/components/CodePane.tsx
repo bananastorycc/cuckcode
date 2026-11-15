@@ -92,7 +92,7 @@ export async function saveFile(abs: string): Promise<void> {
   if (m) await saveModel(m)
 }
 
-// The editor in front (plain or diff), for Send Selection to Claude.
+// The editor in front (plain or diff), for Send Selection.
 let front: () => monaco.editor.ICodeEditor | null = () => null
 
 // The working file shown and its selected lines (1-based, inclusive; null when nothing is

@@ -5,21 +5,21 @@ interface Props {
   project: string
   slot: number // from 1
   name: string
-  // When the page last changed; null when Claude hasn't made one.
+  // When the page last changed; null when no page has been made.
   version: number | null
   theme: Theme
-  // The page's Done button: tell Claude.
+  // The page's Done button: tell the agent.
   onDone: () => void
 }
 
 type Message = { cuckcode: 'save'; id: number; root: string; name: string; text: string } | { cuckcode: 'done' }
 
-// A slot's .cuckcode/playground/<slot>/index.html, which Claude writes. The page saves answers
+// A slot's .cuckcode/playground/<slot>/index.html, which an agent writes. The page saves answers
 // through window.cuckcode (injected by media.ts), relayed here because only this side has the api;
 // its Done button lands here too.
 export default function Playground({ project, slot, name, version, theme, onDone }: Props): React.JSX.Element {
   const frame = useRef<HTMLIFrameElement>(null)
-  // The kit's showcase: every block, so you can see what Claude can put here.
+  // The kit's showcase: every block, so you can see what an agent can put here.
   const [showcase, setShowcase] = useState(false)
   const done = useRef(onDone)
   done.current = onDone
@@ -56,7 +56,7 @@ export default function Playground({ project, slot, name, version, theme, onDone
         <iframe src={`media://kit/showcase.html?theme=${theme}`} className="min-h-0 w-full flex-1 border-0 bg-bg" />
       ) : version === null ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-xs text-muted">
-          <span>Nothing here yet. Claude puts pages here when showing beats describing, or ask it to.</span>
+          <span>Nothing here yet. Agents with Playground on put pages here when showing beats describing, or ask yours to.</span>
           <button className="text-accent hover:underline" onClick={() => setShowcase(true)}>
             See what it can make
           </button>

@@ -2,7 +2,8 @@ import * as React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
 import * as ReactDOM from 'react-dom'
 import { useSyncExternalStore } from 'react'
-import type { EditorContext, HOST_MODULES, PluginView, ProjectSource, RendererHost, RendererPlugin } from '../../shared/plugin'
+import type { AgentPreset } from '../../shared/agents'
+import type { AgentBarItem, EditorContext, HOST_MODULES, PluginView, ProjectSource, RendererHost, RendererPlugin } from '../../shared/plugin'
 import { addThemeRules, monaco } from './monaco'
 
 // The renderer side of plugins: what they registered, for App and CodePane to use. Loaded once
@@ -17,6 +18,8 @@ export interface Registered {
   source: ProjectSource<unknown> | null
   view: PluginView<unknown> | null
   commands: Map<string, () => void>
+  presets: AgentPreset[]
+  bar: AgentBarItem[]
   // A command's shortcut as the menu shows it (⇧⌘S), or ''.
   shortcut: (command: string) => string
   error?: string // its renderer side failed to activate
@@ -113,6 +116,8 @@ export async function loadPlugins(): Promise<void> {
       source: null,
       view: null,
       commands: new Map(),
+      presets: [],
+      bar: [],
       shortcut: (command) => {
         const a = p.commands.find((c) => c.id === command)?.accelerator
         return a ? keys(a) : ''
@@ -139,7 +144,9 @@ export async function loadPlugins(): Promise<void> {
         const h = { id: p.id, fn: fn as EditorHook }
         editorHooks.push(h)
         for (const editor of editors.keys()) hook(editor, h)
-      }
+      },
+      agentPreset: (preset) => reg.presets.push(preset),
+      agentBar: (item) => reg.bar.push(item)
     }
     try {
       const module = { exports: {} as Partial<RendererPlugin> }

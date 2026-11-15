@@ -56,7 +56,7 @@ window.cuckcode = (() => {
         waiting.set(id, [ok, fail])
         parent.postMessage({ cuckcode: 'save', id, root, name, text: JSON.stringify(data, null, 2) }, '*')
       }),
-    // The user finished: cuckcode tells Claude, in words of its own (the page can't pick them).
+    // The user finished: cuckcode tells the agent, in words of its own (the page can't pick them).
     done: () => parent.postMessage({ cuckcode: 'done' }, '*'),
     load: (name) =>
       fetch(root + 'data/' + encodeURIComponent(name) + '.json', { cache: 'no-store' })
@@ -182,7 +182,7 @@ export async function mediaResponse(request: Request): Promise<Response> {
     const path = url.host === 'local' && url.searchParams.get('path')
     if (path) return await localResponse(path, request.headers.get('range'))
     const { data, ext } = await load(url)
-    // Claude rewrites playground files in place under the same names; the kit changes with updates.
+    // Agents rewrite playground files in place under the same names; the kit changes with updates.
     const fresh: Record<string, string> = url.host === 'play' || url.host === 'kit' ? { 'Cache-Control': 'no-store' } : {}
     const range = parseRange(request.headers.get('range'), data.length)
     const body = (range ? data.subarray(range[0], range[1] + 1) : data) as Uint8Array<ArrayBuffer>

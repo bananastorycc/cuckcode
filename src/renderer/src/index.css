@@ -164,7 +164,7 @@ html {
   border-left-color: var(--del);
 }
 
-/* A tab whose Claude finished while you were elsewhere. */
+/* A tab whose agent finished while you were elsewhere. */
 .tab-done {
   background: color-mix(in srgb, var(--add) 22%, transparent);
   color: var(--fg);

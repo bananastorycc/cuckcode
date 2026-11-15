@@ -305,8 +305,9 @@ async function sync(cwd: string): Promise<void> {
 const firstLine = (s: string): string => s.trim().split('\n')[0]
 const lastLine = (s: string): string => s.trim().split('\n').pop() ?? ''
 
-export async function op(cwd: string, kind: GitOp, arg = ''): Promise<GitResult> {
-  return queued((await repoRoot(cwd)) || cwd, () => apply(cwd, kind, arg))
+// commitCommand writes aicommit's message (see commitmsg.ts).
+export async function op(cwd: string, kind: GitOp, arg = '', commitCommand = ''): Promise<GitResult> {
+  return queued((await repoRoot(cwd)) || cwd, () => apply(cwd, kind, arg, commitCommand))
 }
 
 // Puts a file back as HEAD has it. New files (and a rename's new name) go to the Trash rather
@@ -363,7 +364,7 @@ async function readStart(path: string, bytes: number): Promise<Buffer | null> {
   }
 }
 
-// What claude sees to write a message: the diff against HEAD, the start of each new file,
+// What the commit command sees to write a message: the diff against HEAD, the start of each new file,
 // and recent subjects for style. Read-only: staging first would touch the index (and the watcher).
 async function changes(cwd: string): Promise<string> {
   const root = (await repoRoot(cwd)) || cwd
@@ -383,13 +384,15 @@ async function changes(cwd: string): Promise<string> {
   return out.length > CHANGES_BUDGET ? out.slice(0, CHANGES_BUDGET) + '\n(truncated)' : out
 }
 
-async function apply(cwd: string, kind: GitOp, arg: string): Promise<GitResult> {
+async function apply(cwd: string, kind: GitOp, arg: string, commitCommand: string): Promise<GitResult> {
+  // git would read a name starting with - as an option.
+  if ((kind === 'switch' || kind === 'branch') && (!arg || arg.startsWith('-'))) return { ok: false, output: `Not a branch name: ${arg}` }
   try {
     switch (kind) {
       case 'commit':
         return await commit(cwd, arg)
       case 'aicommit':
-        return await commit(cwd, await commitMessage(cwd, await changes(cwd)))
+        return await commit(cwd, await commitMessage(commitCommand, cwd, await changes(cwd)))
       case 'pull':
         return { ok: true, output: lastLine(await run(cwd, ['pull'], 60_000)) }
       case 'push':

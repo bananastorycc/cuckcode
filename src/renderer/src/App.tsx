@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { Component, useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { FolderOpen, X } from 'lucide-react'
+import { target } from '../../shared/agents'
 import changelog from '../../../CHANGELOG.md?raw'
 import type { ChangedFile, Config, GitStatus, MenuCommand, PaneDir, SavedLayout, Settings as AllSettings, Theme, ThemeChoice } from '../../shared/types'
 import { SHELL_ID } from '../../shared/types'
@@ -19,9 +20,8 @@ import Readme from './components/Readme'
 import Scratch, { flushScratch } from './components/Scratch'
 import Search from './components/Search'
 import Settings from './components/Settings'
-import Terminal, { pasteInto, whenReady } from './components/Terminal'
+import Terminal, { pasteInto, shellQuote, whenReady } from './components/Terminal'
 import Toasts, { toast } from './components/Toasts'
-import UsageBar, { JunieBar, useJunieBalance, useUsage } from './components/UsageBar'
 import WebPage from './components/WebPage'
 import { apply, hosts, mount, PRESETS, SECTIONS, type Section } from './layout'
 import { loadPlugins, runCommand, setCurrent, setOpenFile, usePlugins, type Registered } from './plugins'
@@ -61,8 +61,6 @@ export default function App(): React.JSX.Element {
     const ids = Object.entries(terms).map(([path, agent]) => `${agent}:${path}`)
     setStarted((s) => (ids.every((id) => s.has(id)) ? s : new Set([...s, ...ids])))
   }, [terms])
-  const usage = useUsage(config.meters && top?.type === 'claude')
-  const junie = useJunieBalance(config.meters && top?.type === 'junie' ? (top.license ?? null) : null)
   // The dock layout as last left, saved with the session (sizes included), and the named ones.
   const layoutRef = useRef<unknown>(null)
   const [layoutSaves, bumpLayout] = useReducer((n: number) => n + 1, 0)
@@ -444,8 +442,14 @@ export default function App(): React.JSX.Element {
     <div className="mr-2 flex min-w-0 flex-1 items-center gap-2">
       <AgentMenu agents={agents} value={top?.id ?? ''} onChange={(id) => active && setTerms((t) => ({ ...t, [active]: id }))} />
       <div className="flex min-w-0 flex-1 justify-end">
-        {config.meters && top?.type === 'claude' && <UsageBar usage={usage} />}
-        {config.meters && top?.type === 'junie' && <JunieBar balance={junie} />}
+        {top &&
+          plugins.flatMap((p) =>
+            p.bar.map((Item, i) => (
+              <Quiet key={`${p.id}:${i}`}>
+                <Item agent={top} />
+              </Quiet>
+            ))
+          )}
       </div>
     </div>
   )
@@ -473,34 +477,40 @@ export default function App(): React.JSX.Element {
   }
   useEffect(() => setOpenFile(openFile))
 
-  // Types @path#L12-20 into the project's claude prompt (the first claude agent), the mention
-  // Claude Code's IDE integrations use. No selection: just the file.
+  // Shows an agent (starting it if it wasn't running) and resolves once its prompt is up.
+  const wake = (path: string, agentId: string): Promise<boolean> => {
+    const id = `${agentId}:${path}`
+    setTerms((t) => ({ ...t, [path]: agentId }))
+    setStarted((s) => (s.has(id) ? s : new Set(s).add(id)))
+    return whenReady(id)
+  }
+
+  // Types the selection into an agent, as @path#L12-20 (the mention Claude Code's IDE
+  // integrations use) for one with mentions on, else as a quoted path. No selection: just the file.
   const sendSelection = (): void => {
     const sel = selection()
-    const claude = agents.find((a) => a.type === 'claude')
-    if (!active || !sel || !claude) return
+    if (!active || !sel) return
+    const to = target(agents, agentOf(active), (a) => a.mentions) ?? top
+    if (!to) return toast(false, 'Send Selection', 'No agent to send it to. Add one in Settings › Agents.')
     const path = sel.abs.startsWith(`${active}/`) ? sel.abs.slice(active.length + 1) : sel.abs
     const [start, end] = sel.lines ?? []
     const lines = start === undefined ? '' : start === end ? `#L${start}` : `#L${start}-${end}`
-    setTerms((t) => ({ ...t, [active]: claude.id }))
-    setStarted((s) => (s.has(`${claude.id}:${active}`) ? s : new Set(s).add(`${claude.id}:${active}`)))
-    // A Claude started just now isn't ready yet: wait for its prompt.
-    void whenReady(`${claude.id}:${active}`).then((ready) => ready && pasteInto(`${claude.id}:${active}`, `@${path}${lines} `))
+    const text = to.mentions ? `@${path}${lines} ` : `${shellQuote(path)}${lines && ` (lines ${lines.slice(2)})`} `
+    const id = `${to.id}:${active}`
+    void wake(active, to.id).then((ready) => ready && pasteInto(id, text))
   }
 
-  // A playground page's Done: back to the workspace, and tell the project's claude (the first
-  // claude agent) to read the answers, as if typed there. The Enter goes separately, after the
-  // paste, or Claude takes it as part of the pasted text.
+  // A playground page's Done: back to the workspace, and tell the agent that takes playground
+  // answers (the one in front, else the first) to read them, as if typed there. The Enter goes
+  // separately, after the paste, or the agent takes it as part of the pasted text.
   const playDone = (slot: number): void => {
-    const claude = agents.find((a) => a.type === 'claude')
-    if (!active || !claude) return
-    const id = `${claude.id}:${active}`
+    if (!active) return
+    const to = target(agents, agentOf(active), (a) => a.playground)
+    if (!to) return toast(false, 'Playground', 'No agent takes playground answers. Turn Playground on for one in Settings › Agents.')
+    const id = `${to.id}:${active}`
     const name = config.playgrounds[slot - 1]?.name || `playground ${slot}`
     setView((v) => ({ ...v, [active]: undefined }))
-    setTerms((t) => ({ ...t, [active]: claude.id }))
-    setStarted((s) => (s.has(id) ? s : new Set(s).add(id)))
-    // A Claude that wasn't running yet starts now; the message waits for its prompt.
-    void whenReady(id).then((ready) => {
+    void wake(active, to.id).then((ready) => {
       if (!ready || !pasteInto(id, `I'm done in the ${name}: read .cuckcode/playground/${slot}/data/answers.json and act on it.`)) return
       setTimeout(() => window.api.ptyWrite(id, '\r'), 150)
     })
@@ -594,11 +604,12 @@ export default function App(): React.JSX.Element {
                         project={path}
                         agent={a.id}
                         name={a.name}
-                        claude={a.type === 'claude'}
+                        mentions={a.mentions}
+                        newline={a.newline}
                         active={path === active && a.id === agentOf(path)}
                         theme={theme}
                         title={topTabs}
-                        onNotify={a.type === 'claude' ? (message) => notify(path, message) : undefined}
+                        onNotify={a.notify ? (message) => notify(path, message) : undefined}
                       />
                     ))
                 )}
@@ -613,6 +624,7 @@ export default function App(): React.JSX.Element {
                 key={active}
                 cwd={active}
                 projects={projects}
+                ai={!!config.commitCommand.trim()}
                 status={status}
                 selected={file}
                 tab={gitTab}
@@ -761,8 +773,8 @@ const RECENT_MAX = 12
 // Until init answers; never saved (saving waits for init).
 const EMPTY: Config = {
   projectsDir: '',
-  meters: false,
   notifications: false,
+  commitCommand: '',
   readme: false,
   folders: { enabled: false, dirs: [] },
   playgrounds: [],
@@ -774,8 +786,8 @@ const EMPTY: Config = {
 
 const pickConfig = (s: Config): Config => ({
   projectsDir: s.projectsDir,
-  meters: s.meters,
   notifications: s.notifications,
+  commitCommand: s.commitCommand,
   readme: s.readme,
   folders: s.folders,
   playgrounds: s.playgrounds,
@@ -784,6 +796,20 @@ const pickConfig = (s: Config): Config => ({
   plugins: s.plugins,
   configRepo: s.configRepo
 })
+
+// A plugin's title-bar item that throws drops out instead of taking the window down with it.
+class Quiet extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true }
+  }
+  componentDidCatch(err: unknown): void {
+    console.error('plugin agent bar:', err)
+  }
+  render(): ReactNode {
+    return this.state.failed ? null : this.props.children
+  }
+}
 
 // Per-project keys are `${slot or plugin id}:${path}`; neither part before the path has a colon.
 const pathOf = (key: string): string => key.slice(key.indexOf(':') + 1)

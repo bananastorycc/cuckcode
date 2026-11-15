@@ -38,7 +38,7 @@ export interface Commit {
 }
 
 // switch takes a branch name (a remote-only one gets a tracking branch); branch creates one from HEAD.
-// aicommit is commit with a message claude writes from the changes.
+// aicommit is commit with a message the configured commit command writes from the changes.
 export type GitOp = 'commit' | 'aicommit' | 'pull' | 'push' | 'sync' | 'switch' | 'branch'
 
 export interface GitResult {
@@ -82,16 +82,18 @@ export interface SearchResult {
 // A PTY id is `${agent id}:${project path}`; `shell` is the bottom pane, never an agent's id.
 export const SHELL_ID = 'shell'
 
-// What an agent tab runs: claude (with the playground prompt, usage meter and notifications),
-// junie on one license (with its credit meter), or any command.
-export type AgentType = 'claude' | 'junie' | 'command'
-
+// An agent tab: any command, run by the login shell, and what cuckcode does with it. Every agent
+// gets $CUCKCODE_NOTIFY (a script its hooks can run to notify) and, with playground on,
+// $CUCKCODE_PLAYGROUND (the playground prompt); the command passes them on however its tool takes them.
 export interface Agent {
   id: string
   name: string
-  type: AgentType
-  license?: string // junie: the JetBrains license id, passed as --auth-license
-  command?: string // command: run by the login shell
+  command: string
+  notify: boolean // a bell or OSC 9/777 lights up the tab and sends a notification
+  awake: boolean // its output keeps the Mac from idle-sleeping
+  mentions: boolean // dropped files and Send Selection go in as @path#L1-2 (else a quoted path)
+  newline: boolean // ⇧↩ sends ESC+CR (a newline without submitting)
+  playground: boolean // gets $CUCKCODE_PLAYGROUND, and is told when a playground page is done
 }
 
 // A full-window web page on ⌃⌘1–0.
@@ -114,8 +116,10 @@ export interface PluginRef {
 // What the Settings screen edits.
 export interface Config {
   projectsDir: string // where ⌘T opens from and new clones go; '' until chosen
-  meters: boolean // Claude usage and Junie credit meters (read from the Keychain)
-  notifications: boolean // a macOS notification when a claude agent is done or needs input
+  notifications: boolean // a macOS notification when an agent with notify on is done or needs input
+  // Writes AI commit messages: run by sh with the changes on stdin, the instructions in
+  // $CUCKCODE_COMMIT_PROMPT; prints the message. '' hides the AI buttons.
+  commitCommand: string
   readme: boolean
   folders: { enabled: boolean; dirs: string[] }
   playgrounds: PlaygroundSlot[]
@@ -164,31 +168,6 @@ export interface BrowseEntry {
   dir: boolean
   mtime: number
   size: number
-}
-
-// Account-wide plan usage, as `claude /usage` shows it. resetsAt is ISO.
-export interface UsageLimit {
-  label: string
-  percent: number
-  resetsAt: string | null
-}
-
-export interface Usage {
-  limits: UsageLimit[]
-  // Extra usage credits, when enabled. In currency units; limit null when uncapped.
-  credits: { used: number; limit: number | null; currency: string } | null
-}
-
-// AI credits left of a pool's total.
-export interface JuniePool {
-  left: number
-  total: number
-}
-
-export interface JunieBalance {
-  monthly: JuniePool // the license's own allowance, refilled every 30 days
-  topUp: JuniePool // bought credits: one pool for the whole account, the same on both licenses
-  resetsAt: string | null // when the license's monthly credits next refill
 }
 
 // The config repo's last sync. at: ms.
@@ -249,9 +228,8 @@ export interface Api {
   commitFiles: (root: string, sha: string) => Promise<ChangedFile[]>
   // arg: the commit message, or the branch name for switch/branch.
   git: (cwd: string, op: GitOp, arg?: string) => Promise<GitResult>
-  // Puts a changed file back as HEAD has it (new files go to the Trash), after a confirm for
-  // tracked ones. null when the confirm is cancelled.
-  discard: (root: string, file: ChangedFile) => Promise<GitResult | null>
+  // Puts a changed file back as HEAD has it (new files go to the Trash). The caller confirms first.
+  discard: (root: string, file: ChangedFile) => Promise<GitResult>
   // Points a remote at url, adding it if the repo doesn't have it yet.
   setRemote: (cwd: string, name: string, url: string) => Promise<GitResult>
   writeFile: (path: string, content: string) => Promise<void>
@@ -286,9 +264,6 @@ export interface Api {
   pluginUninstall: (path: string) => Promise<void>
   // Quits (as ⌘Q does) and starts again, to apply plugin changes.
   relaunch: () => void
-  // null when signed out or the request fails.
-  usage: () => Promise<Usage | null>
-  junieBalance: (license: string) => Promise<JunieBalance | null>
   // The portable config file: written to / read from a file the user picks. Export resolves
   // false when cancelled; import to the new settings, or null when cancelled, and rejects on a bad file.
   exportConfig: () => Promise<boolean>

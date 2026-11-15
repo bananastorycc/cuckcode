@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, RefreshCw, Sparkles } from 'lucide-react'
 import type { ChangedFile, GitOp, GitStatus } from '../../../shared/types'
 import BranchMenu from './BranchMenu'
 import { saveAll, saveFile } from './CodePane'
+import { ask } from './Confirm'
 import { contextMenu } from './ContextMenu'
 import { CODE_COLOR } from './FileTree'
 import { projectName } from './Header'
@@ -14,6 +15,7 @@ export type GitTab = 'commit' | 'history'
 interface Props {
   cwd: string
   projects: string[]
+  ai: boolean // a commit command is set, so the AI buttons show
   status: GitStatus | null
   selected: ChangedFile | null
   tab: GitTab
@@ -24,7 +26,7 @@ interface Props {
   onDiscarded: (path: string) => void
 }
 
-export default function GitPanel({ cwd, projects, status, selected, tab, onTab, onSelect, onChanged, onDiscarded }: Props): React.JSX.Element {
+export default function GitPanel({ cwd, projects, ai, status, selected, tab, onTab, onSelect, onChanged, onDiscarded }: Props): React.JSX.Element {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState<GitOp | null>(null)
   const files = status?.files ?? []
@@ -68,9 +70,10 @@ export default function GitPanel({ cwd, projects, status, selected, tab, onTab, 
 
   const discard = async (f: ChangedFile): Promise<void> => {
     if (!status?.root) return
+    // A new file only goes to the Trash; anything git tracks is gone for good.
+    if (f.code !== '?' && !(await ask({ title: `Discard changes to ${f.path}?`, detail: "This can't be undone.", action: 'Discard', danger: true }))) return
     await saveFile(`${status.root}/${f.path}`)
     const r = await window.api.discard(status.root, f)
-    if (!r) return
     toast(r.ok, projectName(cwd), r.output)
     if (r.ok && (f.code === '?' || f.code === 'A' || f.code === 'R')) onDiscarded(f.path)
     onChanged()
@@ -99,7 +102,7 @@ export default function GitPanel({ cwd, projects, status, selected, tab, onTab, 
           </div>
         )}
         <div className="flex h-8 min-w-0 max-w-full grow items-center justify-end gap-2 pl-2">
-          <AllRepos projects={projects} onChanged={onChanged} />
+          <AllRepos projects={projects} ai={ai} onChanged={onChanged} />
           {status?.branch && <BranchMenu cwd={cwd} branch={status.branch} onChanged={onChanged} />}
         </div>
       </div>
@@ -120,10 +123,12 @@ export default function GitPanel({ cwd, projects, status, selected, tab, onTab, 
             <button className="btn" disabled={!!busy || !message.trim() || !files.length} onClick={() => run('commit')}>
               Commit
             </button>
-            <button className="btn" disabled={!!busy || !files.length} onClick={() => run('aicommit')} title="Commit all changes with a message Claude writes">
-              <Sparkles className={`h-3.5 w-3.5 ${busy === 'aicommit' ? 'animate-pulse' : ''}`} />
-              AI
-            </button>
+            {ai && (
+              <button className="btn" disabled={!!busy || !files.length} onClick={() => run('aicommit')} title="Commit all changes with a message your commit command writes">
+                <Sparkles className={`h-3.5 w-3.5 ${busy === 'aicommit' ? 'animate-pulse' : ''}`} />
+                AI
+              </button>
+            )}
             <button className="btn" disabled={!!busy} onClick={() => run('pull')} title="git pull">
               <ArrowDown className={`h-3.5 w-3.5 ${busy === 'pull' ? 'animate-pulse' : ''}`} />
               {status?.behind || ''}
@@ -179,8 +184,8 @@ export function FileRow({ file: f, selected, indent, onClick, onContextMenu }: F
 type BulkOp = 'aicommit' | 'sync'
 
 // Commit / sync every open project at once, as a sanity check before walking away.
-// Each repo gets its own message, written by claude.
-function AllRepos({ projects, onChanged }: { projects: string[]; onChanged: () => void }): React.JSX.Element {
+// Each repo gets its own message, written by the commit command.
+function AllRepos({ projects, ai, onChanged }: { projects: string[]; ai: boolean; onChanged: () => void }): React.JSX.Element {
   const [busy, setBusy] = useState<BulkOp | null>(null)
 
   const run = async (op: BulkOp): Promise<void> => {
@@ -211,14 +216,16 @@ function AllRepos({ projects, onChanged }: { projects: string[]; onChanged: () =
 
   return (
     <>
-      <button
-        className="btn shrink-0 px-1.5 text-accent"
-        disabled={!!busy}
-        onClick={() => run('aicommit')}
-        title="Commit all open repos with changes, each with a message Claude writes"
-      >
-        <Sparkles className={`h-3.5 w-3.5 ${busy === 'aicommit' ? 'animate-pulse' : ''}`} />
-      </button>
+      {ai && (
+        <button
+          className="btn shrink-0 px-1.5 text-accent"
+          disabled={!!busy}
+          onClick={() => run('aicommit')}
+          title="Commit all open repos with changes, each with a message your commit command writes"
+        >
+          <Sparkles className={`h-3.5 w-3.5 ${busy === 'aicommit' ? 'animate-pulse' : ''}`} />
+        </button>
+      )}
       <button
         className="btn shrink-0 px-1.5 text-accent"
         disabled={!!busy}

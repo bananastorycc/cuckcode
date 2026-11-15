@@ -1,6 +1,6 @@
 # cuckcode
 
-A macOS-first shell for vibe coding with [Claude Code](https://claude.com/claude-code) or any terminal agent. One window with one tab per project. Each tab has your agents' terminals, a live diff of the working tree against HEAD, a small git panel and a file tree. Playgrounds for pages Claude builds, a folder browser and your own web pages are each a keystroke away. Almost everything is configured in Settings (⌘,), and [plugins](#plugins) add more.
+A macOS-first shell for vibe coding with [Claude Code](https://claude.com/claude-code) or any terminal agent. One window with one tab per project. Each tab has your agents' terminals, a live diff of the working tree against HEAD, a small git panel and a file tree. Playgrounds for pages your agent builds, a folder browser and your own web pages are each a keystroke away. Almost everything is configured in Settings (⌘,), and [plugins](#plugins) add more.
 
 It's deliberately small: Electron, Monaco, xterm and git, with no language servers and nothing running while you type. It runs on macOS today. Linux and Windows are planned (see [Platform support](#platform-support)).
 
@@ -10,9 +10,9 @@ Website: [cuckcode.cc](https://cuckcode.cc). Changes in each release: [CHANGELOG
 
 What's different from a terminal next to an editor:
 
-- **The diff is live.** Every file Claude touches shows up in the git panel and diffs against HEAD as it's written, images and video included. Typing in the diff edits the file.
-- **Claude can show you things.** In a [playground](#playgrounds), Claude builds a page for what's easier to look at than read: design options side by side, a plan to tick off, a form of questions. Your answers go straight back to it.
-- **Your edits and Claude's don't collide.** Pressing Enter in a terminal saves your open files first, so Claude always reads what's on screen.
+- **The diff is live.** Every file your agent touches shows up in the git panel and diffs against HEAD as it's written, images and video included. Typing in the diff edits the file.
+- **Your agent can show you things.** In a [playground](#playgrounds), the agent builds a page for what's easier to look at than read: design options side by side, a plan to tick off, a form of questions. Your answers go straight back to it.
+- **Your edits and your agent's don't collide.** Pressing Enter in a terminal saves your open files first, so the agent always reads what's on screen.
 - **One window for every project.** Each project tab keeps its own agents, terminal, diff and git panel. Commit or sync them all at once.
 
 ## Platform support
@@ -30,7 +30,6 @@ cuckcode is built on Electron, git and node-pty, which all run on Linux and Wind
 - **Paths** are assumed to use `/`, which matters on Windows.
 - **The window** uses the macOS title bar and app menu.
 - **Installer:** `install.sh` and `npm run app` build a macOS `.app`.
-- **Usage meters** read logins from the macOS Keychain.
 
 Linux comes first. If you'd like to help with either port, [open an issue](https://github.com/bananastorycc/cuckcode/issues).
 
@@ -81,8 +80,8 @@ Quitting (⌘Q, or closing the window) saves any unsaved edits, kills every term
 | ⇧⌘F | Find in files |
 | ⌘S | Save the open file |
 | ⌘K | Clear the focused terminal |
-| ⌥⌘K | Send the editor's selection to Claude as `@path#L12-20` (no selection: just the file) |
-| ⇧↩ | Newline in the claude prompt, without submitting |
+| ⌥⌘K | Send the editor's selection to your agent as `@path#L12-20` (no selection: just the file; see [Agents](#agents)) |
+| ⇧↩ | Newline in an agent's prompt, without submitting (agents with ⇧↩ newline on) |
 | ⌘, | Settings |
 | ⌥⌘1–0 | Toggle playground 1–10 |
 | ⌃⌘1–0 | Toggle web page 1–10 |
@@ -91,7 +90,7 @@ Quitting (⌘Q, or closing the window) saves any unsaved edits, kills every term
 
 Plugins add their own shortcuts, listed under View. The theme is in Settings: Auto (the default) follows the system's appearance and is dark when it can't tell; Dark and Light pin it.
 
-**File tree:** ↑/↓ move the cursor and open files as you go, → expands a folder or steps into it, ← collapses it or jumps to its parent, ↩ renames, ⌘⌫ moves to the Trash, right-click for New File / Rename / Move to Trash / Reveal in Finder / Copy Path / Copy Relative Path. Drag a file onto a terminal to paste its path (as an `@` mention in Claude).
+**File tree:** ↑/↓ move the cursor and open files as you go, → expands a folder or steps into it, ← collapses it or jumps to its parent, ↩ renames, ⌘⌫ moves to the Trash, right-click for New File / Rename / Move to Trash / Reveal in Finder / Copy Path / Copy Relative Path. Drag a file onto a terminal to paste its path (as an `@` mention in agents with @ mentions on).
 
 **Git file list and history:** ↑/↓ move the selection (and the diff) without touching the mouse; in history, → opens a commit's file list and ← closes it. Right-click a changed file (or ⌘⌫) to discard its changes.
 
@@ -119,14 +118,14 @@ Under them, type a name to save the current layout. A saved layout stays as you 
 
 ## Files and diffs
 
-Click any file in the tree to open it — changed files are colored by status (modified / added / deleted / renamed / untracked) and show their diff against HEAD live as Claude edits; unchanged files just open in the editor. **Diff** and **Edit** are both the same underlying model, so typing works in either view, and switching never loses your place. Unchanged regions of a diff collapse to keep big files readable.
+Click any file in the tree to open it — changed files are colored by status (modified / added / deleted / renamed / untracked) and show their diff against HEAD live as your agent edits; unchanged files just open in the editor. **Diff** and **Edit** are both the same underlying model, so typing works in either view, and switching never loses your place. Unchanged regions of a diff collapse to keep big files readable.
 
 Images (`.png` `.jpg` `.gif` `.webp` `.avif` `.svg`) and video (`.mp4` `.mov` `.webm`) get a side-by-side HEAD vs. working-tree viewer instead of a text diff; videos play in sync. A past commit's changes show the same way, parent vs. that commit.
 
 <img src="docs/screenshots/image-diff.png" alt="A changed logo.png shown side by side: HEAD on the left, the working tree on the right" width="500">
 
 
-Edits save on ⌘S, when you press Enter in a terminal (so Claude always reads what's on screen and can't be overwritten by it later; an agent prompt that saved anything shows a note listing the files), when you leave the file (open another, close the project), and on quit; there's no save-as-you-type and no prompt. Unsaved files show ●, and are also saved before a commit, a branch switch, or a rename. To undo, discard the change in git.
+Edits save on ⌘S, when you press Enter in a terminal (so the agent always reads what's on screen and can't be overwritten by it later; an agent prompt that saved anything shows a note listing the files), when you leave the file (open another, close the project), and on quit; there's no save-as-you-type and no prompt. Unsaved files show ●, and are also saved before a commit, a branch switch, or a rename. To undo, discard the change in git.
 
 ## Search
 
@@ -134,56 +133,66 @@ Edits save on ⌘S, when you press Enter in a terminal (so Claude always reads w
 
 ## Git
 
-**Commit** stages everything (`git add -A`), commits, and then, if the repo has a remote, syncs straight away: every commit is pushed. **AI** (✨) has Claude write the commit message from the diff, recent commit style, and new files (through a headless `claude -p` on Haiku), then commits the same way. **Sync** runs `pull --rebase --autostash` then push; **Pull**/**Push** run alone.
+**Commit** stages everything (`git add -A`), commits, and then, if the repo has a remote, syncs straight away: every commit is pushed. **AI** (✨) has your commit command write the message from the diff, recent commit style, and new files, then commits the same way. The command is set in Settings › Git and defaults to a headless `claude -p` on Haiku; any program works that reads the changes on stdin (its instructions are in `$CUCKCODE_COMMIT_PROMPT`) and prints a message. With no command, the AI buttons are hidden. **Sync** runs `pull --rebase --autostash` then push; **Pull**/**Push** run alone.
 
-**Discard Changes** (right-click a file in the list, or ⌘⌫) puts it back as HEAD has it, after a confirm. A new file goes to the Trash instead, with no confirm.
+**Discard Changes** (right-click a file in the list, or ⌘⌫) puts it back as HEAD has it, after a confirm in cuckcode's dialog. A new file goes to the Trash instead, with no confirm.
 
 **History** pages through HEAD's log; expand a commit to see its files and open any one's diff against its parent.
 
 The **branch picker** (click the branch name) switches or creates branches, and its Remote section shows where each remote points, edits its URL, or adds `origin` to a repo that has none.
 
-Two buttons above the commit box act on **every open project** at once: ✨ commits each repo with changes, each with its own Claude-written message, and the sync button syncs them all. They're a quick way to leave everything committed and pushed before you walk away.
+Two buttons above the commit box act on **every open project** at once: ✨ commits each repo with changes, each with its own AI-written message, and the sync button syncs them all. They're a quick way to leave everything committed and pushed before you walk away.
 
 ## Settings
 
 ⌘, (or the gear in the header) opens Settings. Every change saves at once.
 
-- **General:** the theme (Auto, the default, follows the system; or Dark, or Light); the projects folder ⌘T opens from (the first ⌘T asks for it); notifications (on by default); usage meters.
+- **General:** the theme (Auto, the default, follows the system; or Dark, or Light); the projects folder ⌘T opens from (the first ⌘T asks for it); notifications (on by default).
 - **Layout:** the presets and your saved layouts (see [Layout](#layout)).
 - **Panels:** README and Folders on or off, and the folders Folders lists.
 - **Playgrounds**, **Web pages**, **Agents**, **Plugins:** see below.
+- **Git:** the command that writes AI commit messages (see [Git](#git)).
 - **Sync:** your settings, theme, saved layouts, plugins and scratchpad as one `cuckcode-config.json`. Export… and Import… move it by hand. Or give it a git repo (use a private one: agent commands and licenses are in the file): cuckcode clones it, pulls at launch, and commits and pushes a few seconds after each change; the ↻ button next to it syncs now, and the line under it shows the last sync or what went wrong. A change made just before quitting is committed on the way out and pushed at the next launch. When you first connect, a repo that already has the file replaces this machine's settings, and an empty one starts from them. When two machines change the same setting, the one that syncs last wins. Plugins travel as the git URLs they were installed from: one added on another machine is cloned and loaded at this one's next launch, and one removed there drops off the list here. Plugin folders you added yourself, open projects and the repo URL itself stay on each machine, and paths under your home folder are written as `~/…`.
 - **Reset:** put the layout back to Default, or every setting back to a fresh install's. Open projects, installed plugins and the config repo stay.
 
 ## Agents
 
-The Agents section runs agents: real login shells (via `node-pty`) running a program, with a dropdown in its title bar to switch between them. The Terminal section is a separate plain shell in the same folder. List as many agents as you like, in the order you want them. The first one starts with each project, and the rest start the first time you pick them. Each has a name and a type:
+The Agents section runs agents: real login shells (via `node-pty`) running a program, with a dropdown in its title bar to switch between them. The Terminal section is a separate plain shell in the same folder. List as many agents as you like, in the order you want them. The first one starts with each project, and the rest start the first time you pick them.
 
-- **Claude Code** runs `claude` and tells it about your playgrounds (through `--append-system-prompt`). When Claude finishes or needs your input, that project's tab lights up green and you get a macOS notification (unless you're already looking at it); clicking it brings you back. cuckcode sets this up itself, through Claude Code hooks it passes with `--settings`. macOS asks once whether cuckcode may show notifications, and Settings › General turns them off. ⌥⌘K sends the editor selection to the first Claude agent. With usage meters on, the Agents title bar shows your plan usage and any extra credit spend.
-- **Junie** runs `junie --auth-license=<license id>`. Add one per license. With usage meters on, it shows the license's monthly AI credits, the account's top-up credits, and when the monthly ones refill.
-- **Command** runs any command line, such as `oterm`.
+An agent is a name, a command, and a few switches for what cuckcode does with it. **Add** under the list starts one from a preset, and plugins can add presets of their own. Nothing depends on which preset an agent came from: every field stays editable.
 
-**About the usage meters:** to show usage, cuckcode reads the login token that Claude Code (or Junie) keeps in the macOS Keychain and calls the same usage endpoint the CLI uses. The token is only sent to that service. cuckcode never writes it to disk, logs it, or refreshes it. macOS may ask once whether cuckcode can read the Keychain item. If you'd rather it didn't, turn the meters off in Settings › General.
+- **Notify:** a bell or an OSC 9 / OSC 777 notification from the agent lights up the project's tab green and sends a macOS notification (unless you're already looking at it); clicking it brings you back. macOS asks once whether cuckcode may show notifications, and Settings › General turns them off.
+- **Keep awake:** while the agent prints, cuckcode keeps the Mac from idle-sleeping, so a long task isn't cut off halfway. The display can still sleep, and closing the lid still sleeps. It lets go about 30 seconds after the agent goes quiet.
+- **@ mentions:** files dragged onto the agent, and ⌥⌘K's selection, go in as `@path#L12-20`. Off: as a quoted path. ⌥⌘K goes to the agent in front when it has mentions on, else to the first that does.
+- **⇧↩ newline:** ⇧↩ sends ESC+CR, which agents such as Claude Code read as a newline without submitting.
+- **Playground:** the agent gets `$CUCKCODE_PLAYGROUND`, the instructions for your [playgrounds](#playgrounds), and is told when you press Done in one.
+
+Every agent's command also gets `$CUCKCODE_NOTIFY`, a script its hooks can run with a message (`"$CUCKCODE_NOTIFY" "done"`) to notify from a process that has no terminal of its own.
+
+The presets:
+
+- **Claude Code** (a fresh install's agent): `claude`, with every switch on. It passes `$CUCKCODE_PLAYGROUND` with `--append-system-prompt`, and through `--settings` gives Claude Code hooks that run `$CUCKCODE_NOTIFY` when it finishes or needs your input.
+- **Command:** an empty command with Notify on, for anything else (`codex`, `junie --auth-license=<id>`, `oterm`, …).
+
+Usage meters for Claude Code's plan and Junie's AI credits are a plugin, [cuckcode-meters](#plugins), which shows them in the Agents title bar.
 
 When an agent exits you land in a shell in the same folder. The toolbar button (or any key) restarts it.
 
-While a Claude agent is working, cuckcode keeps the Mac from idle-sleeping, so a long task isn't cut off halfway. The display can still sleep, and closing the lid still sleeps. It lets go about 30 seconds after Claude goes quiet.
-
 ## Playgrounds
 
-A playground is a page Claude builds for you to look at or fill in, when showing beats describing. Claude is told about your playgrounds when it starts and uses them on its own, without being asked. You say "show me three directions for the sky card"; Claude writes a page into `.cuckcode/playground/<n>/index.html`, and the playground's icon in the header lights up. ⌥⌘<n> shows it over the whole workspace.
+A playground is a page your agent builds for you to look at or fill in, when showing beats describing. Agents with Playground on are told about your playgrounds when they start (Claude Code's preset uses them on its own, without being asked). You say "show me three directions for the sky card"; the agent writes a page into `.cuckcode/playground/<n>/index.html`, and the playground's icon in the header lights up. ⌥⌘<n> shows it over the whole workspace.
 
 ![A playground page Claude built: three mockups of a card side by side, each with pros and cons, one picked, and a note added](docs/screenshots/playground.png)
 
-You pick, tick, drag or type. Answers save as you go (to `data/answers.json` next to the page), and when you press **Done** (once they've saved) the playground closes and your first Claude agent is told to read them (started first, if it wasn't running), so it carries on from your choice:
+You pick, tick, drag or type. Answers save as you go (to `data/answers.json` next to the page), and when you press **Done** (once they've saved) the playground closes and an agent with Playground on (the one in front, else the first) is told to read them (started first, if it wasn't running), so it carries on from your choice:
 
 <img src="docs/screenshots/playground-done.png" alt="After Done: Claude reports that it restyled the card in the picked direction, with the note applied" width="480">
 
-Pages are built from the playground kit (`src/kit`, served at `media://kit/`): blocks for choices, image and video reviews, forms, plans, triage boards, tables, live design tuning, image annotation, charts, progress and Markdown reports. A page is a few lines naming its blocks, which keeps it cheap for Claude to write, and it follows cuckcode's light or dark theme. The **Templates** button in a playground shows every block live, and [`src/kit/README.md`](src/kit/README.md) documents them. Pages can also be plain HTML, with `window.cuckcode.save/load` to keep answers.
+Pages are built from the playground kit (`src/kit`, served at `media://kit/`): blocks for choices, image and video reviews, forms, plans, triage boards, tables, live design tuning, image annotation, charts, progress and Markdown reports. A page is a few lines naming its blocks, which keeps it cheap for the agent to write, and it follows cuckcode's light or dark theme. The **Templates** button in a playground shows every block live, and [`src/kit/README.md`](src/kit/README.md) documents them. Pages can also be plain HTML, with `window.cuckcode.save/load` to keep answers.
 
 ![The Templates page's Tune tab: sliders, a toggle, a font picker and a text field driving a live card preview](docs/screenshots/playground-templates.png)
 
-Settings › Playgrounds names them, up to ten per project. With none, Claude isn't told about any.
+Settings › Playgrounds names them, up to ten per project. With none, agents aren't told about any.
 
 ## README, folders and web pages
 
@@ -197,7 +206,7 @@ Settings › Playgrounds names them, up to ten per project. With none, Claude is
 
 Plugins are git repos. Open **Plugins…** (in the cuckcode menu, or Settings › Plugins), paste a plugin's git URL and click Install. cuckcode clones it into `~/Library/Application Support/cuckcode/plugins/`. The page lists every plugin with an on/off switch, its commit, whether new commits are waiting (Update pulls them), and its README. Remove moves the clone to the Trash. Add folder… uses a plugin you cloned yourself, for working on one.
 
-Every launch, before any plugin loads, cuckcode syncs your config (waiting up to 10 seconds), clones plugins your config lists but this machine lacks, pulls each plugin with a clean working tree and an upstream (fast-forward only), and rebuilds it (`npm install` when its lockfile changed, then `npm run build`) when its sources are newer than its build. So a launch always runs the latest of every plugin. Changes on the Plugins page take effect after a relaunch, which the page offers. Plugins installed from a URL sync with your config (see Sync under [Settings](#settings)); installing a URL that's already cloned in the plugins folder reuses that clone.
+Every launch, before any plugin loads, cuckcode syncs your config (waiting up to 10 seconds), clones plugins your config lists but this machine lacks, pulls each plugin with a clean working tree and an upstream (fast-forward only), and rebuilds it (`npm install` when its lockfile changed or it was never installed, then `npm run build`) when its sources are newer than its build. So a launch always runs the latest of every plugin. Changes on the Plugins page take effect after a relaunch, which the page offers. Plugins installed from a URL sync with your config (see Sync under [Settings](#settings)); installing a URL that's already cloned in the plugins folder reuses that clone.
 
 A plugin is code that runs inside cuckcode with your user's full access, and it updates itself from its repo on every launch. Install only plugins whose source you trust.
 
@@ -218,7 +227,7 @@ A plugin is a git repo with a `cuckcode-plugin.json` at its root:
 Every field except `id` and `name` is optional. Each bundle is a single CommonJS file that exports `activate(host)`:
 
 - **main** runs in Electron's main process. It can register functions that the renderer side calls, share an API with other plugins, and get the environment cuckcode's terminals use. It must never block: use async fs and `execFile` only.
-- **renderer** runs in the window and gets React and Monaco from cuckcode, so there's only one copy of each. It can add languages and token colors to the editor, keep per-project data that reloads when relevant files change, add a full-window view with a header button and a menu shortcut, and hook into the code editors (for hover previews or ⌘-click go-to-definition).
+- **renderer** runs in the window and gets React and Monaco from cuckcode, so there's only one copy of each. It can add languages and token colors to the editor, keep per-project data that reloads when relevant files change, add a full-window view with a header button and a menu shortcut, hook into the code editors (for hover previews or ⌘-click go-to-definition), add agent presets to Settings › Agents, and draw in the Agents title bar for the agent in front (as cuckcode-meters does for usage meters).
 - **style** is a stylesheet. Use the host's CSS variables (`--bg`, `--fg`, `--accent`, …) so it follows light and dark mode.
 
 If the repo's `package.json` has a `build` script, cuckcode runs it whenever the sources are newer than the bundles. `requires` lists plugin ids that must load first, and a plugin can use the API that each of them provides. The full contract, with what each side gets, is in [`src/shared/plugin.ts`](src/shared/plugin.ts).

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, Plus, Puzzle, RefreshCw, Save, Trash2, X } from 'lucide-react'
-import type { Agent, AgentType, Config, SavedLayout, Settings as AllSettings, SyncStatus, ThemeChoice } from '../../../shared/types'
+import type { Agent, Config, SavedLayout, Settings as AllSettings, SyncStatus, ThemeChoice } from '../../../shared/types'
 import { MAX_SLOTS } from '../../../shared/types'
+import { COMMIT_COMMAND, fromPreset, PRESETS as AGENT_PRESETS } from '../../../shared/agents'
+import { usePlugins } from '../plugins'
 import { apply, current, load, PRESETS, valid } from '../layout'
 import { ask } from './Confirm'
 import { tildify } from './Header'
@@ -23,21 +25,14 @@ const field = 'min-w-0 select-text rounded-sm border border-line bg-bg px-2 py-1
 // Shortcut digits: 1–9, then 0 for the tenth.
 const digit = (i: number): string => String((i + 1) % 10)
 
-const TYPES: { type: AgentType; label: string }[] = [
-  { type: 'claude', label: 'Claude Code' },
-  { type: 'junie', label: 'Junie' },
-  { type: 'command', label: 'Command' }
-]
-
 // ipcRenderer.invoke wraps it: "Error invoking remote method 'x': Error: <message>"
 const message = (err: unknown): string => String((err as Error).message ?? err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
-
-// Ids key PTYs, so they're made once and never follow later renames.
-const newId = (name: string): string => `${name.toLowerCase().replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '') || 'agent'}-${Date.now().toString(36)}`
 
 // Full-window, over everything. Every change saves at once.
 export default function Settings({ config, theme, onTheme, layouts, onLayouts, onChange, onClose, onPlugins, onReset, onImport }: Props): React.JSX.Element {
   const set = <K extends keyof Config>(key: K, value: Config[K]): void => onChange({ ...config, [key]: value })
+  // Ids key PTYs, so they're made once (from the preset's name) and never follow later renames.
+  const presets = [...AGENT_PRESETS, ...usePlugins().flatMap((p) => p.presets)]
 
   const pickInto = async (apply: (dir: string) => void): Promise<void> => {
     const dir = await window.api.pickFolder()
@@ -70,15 +65,9 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
             </Row>
             <Toggle
               label="Notifications"
-              hint="A macOS notification when Claude is done or needs your input, unless you're already looking at that project."
+              hint="A macOS notification when an agent with Notify on is done or needs your input, unless you're already looking at that project. Off: only the tab lights up."
               checked={config.notifications}
               onChange={(v) => set('notifications', v)}
-            />
-            <Toggle
-              label="Usage meters"
-              hint="Claude plan usage and Junie credits in the agent title bar. Reads your logins from the Keychain."
-              checked={config.meters}
-              onChange={(v) => set('meters', v)}
             />
           </Section>
 
@@ -112,7 +101,7 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
 
           <Section
             title="Playgrounds"
-            hint="Pages Claude builds for you to look at or fill in (galleries, review forms, previews), shown over the whole workspace. Claude is told about each one by name. None: Claude isn't told about any."
+            hint="Pages your agent builds for you to look at or fill in (galleries, review forms, previews), shown over the whole workspace. Agents with Playground on are told about each one by name. None: they aren't told about any."
           >
             <List
               items={config.playgrounds}
@@ -156,15 +145,27 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
 
           <Section
             title="Agents"
-            hint="The terminals in the Agents section's dropdown. The first one starts with each project; the rest start when first picked. Each runs in your login shell, which stays open after it exits."
+            hint="The terminals in the Agents section's dropdown. The first one starts with each project; the rest start when first picked. Each command runs in your login shell, which stays open after it exits, with $CUCKCODE_NOTIFY (a script its hooks can run to notify) and, with Playground on, $CUCKCODE_PLAYGROUND (the playground instructions) to pass on."
           >
-            <List
-              items={config.agents}
-              onChange={(v) => set('agents', v)}
-              onAdd={() => set('agents', [...config.agents, { id: newId('claude'), name: 'claude', type: 'claude' }])}
-              addLabel="Add agent"
-              render={(agent, _i, update) => <AgentRow agent={agent} update={update} />}
-            />
+            <List items={config.agents} onChange={(v) => set('agents', v)} render={(agent, _i, update) => <AgentRow agent={agent} update={update} />} />
+            <div className="flex flex-wrap gap-1">
+              {presets.map((p, i) => (
+                <button key={i} className="btn text-muted" onClick={() => set('agents', [...config.agents, fromPreset(p)])}>
+                  <Plus className="h-3.5 w-3.5" /> {p.label}
+                </button>
+              ))}
+            </div>
+          </Section>
+
+          <Section title="Git" hint="The AI commit buttons (✨) commit with a message this command writes. It runs with sh in the repo, gets the changes on stdin and its instructions in $CUCKCODE_COMMIT_PROMPT, and prints the message. Empty hides the buttons.">
+            <Row label="Commit command">
+              <input className={`flex-1 ${field}`} value={config.commitCommand} placeholder="none" onChange={(e) => set('commitCommand', e.target.value)} />
+              {config.commitCommand !== COMMIT_COMMAND && (
+                <button className="btn shrink-0" onClick={() => set('commitCommand', COMMIT_COMMAND)} title={COMMIT_COMMAND}>
+                  Default
+                </button>
+              )}
+            </Row>
           </Section>
 
           <Section title="Plugins" hint="Extra features from git repos, such as language support. Install, update and remove them on their own page.">
@@ -175,7 +176,7 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
 
           <Section
             title="Sync"
-            hint="Your settings, theme and saved layouts as one file, to move to another machine or keep in git. Installed plugins, open projects and the repo below stay on this machine."
+            hint="Your settings, theme, saved layouts, scratchpad and the plugins installed from a URL as one file, to move to another machine or keep in git. Plugin folders you added yourself, open projects and the repo below stay on this machine."
           >
             <ConfigFile onImport={onImport} />
             <ConfigRepo url={config.configRepo} onChange={(v) => set('configRepo', v)} />
@@ -362,42 +363,36 @@ function ConfigRepo({ url, onChange }: { url: string; onChange: (url: string) =>
   )
 }
 
+const SWITCHES: { key: 'notify' | 'awake' | 'mentions' | 'newline' | 'playground'; label: string; hint: string }[] = [
+  { key: 'notify', label: 'Notify', hint: 'A bell or OSC 9/777 notification lights up the tab and sends a notification' },
+  { key: 'awake', label: 'Keep awake', hint: "Its output keeps the Mac from idle-sleeping until it's been quiet for 30 seconds" },
+  { key: 'mentions', label: '@ mentions', hint: 'Dropped files and Send Selection (⌥⌘K) go in as @path#L12-20; off: a quoted path' },
+  { key: 'newline', label: '⇧↩ newline', hint: '⇧↩ sends ESC+CR, a newline without submitting' },
+  { key: 'playground', label: 'Playground', hint: "Gets $CUCKCODE_PLAYGROUND and is told when you press Done in a playground" }
+]
+
 function AgentRow({ agent, update }: { agent: Agent; update: (a: Agent) => void }): React.JSX.Element {
   return (
-    <>
-      <input className={`w-28 ${field}`} value={agent.name} placeholder="name" onChange={(e) => update({ ...agent, name: e.target.value })} />
-      <select
-        className={`w-28 ${field}`}
-        value={agent.type}
-        onChange={(e) => {
-          const type = e.target.value as AgentType
-          update({ id: agent.id, name: agent.name, type, ...(type === 'junie' ? { license: '' } : type === 'command' ? { command: '' } : {}) })
-        }}
-      >
-        {TYPES.map((t) => (
-          <option key={t.type} value={t.type}>
-            {t.label}
-          </option>
-        ))}
-      </select>
-      {agent.type === 'junie' && (
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <input className={`w-28 ${field}`} value={agent.name} placeholder="name" onChange={(e) => update({ ...agent, name: e.target.value })} />
         <input
           className={`flex-1 ${field}`}
-          value={agent.license ?? ''}
-          placeholder="license id (--auth-license)"
-          onChange={(e) => update({ ...agent, license: e.target.value.trim() })}
-        />
-      )}
-      {agent.type === 'command' && (
-        <input
-          className={`flex-1 ${field}`}
-          value={agent.command ?? ''}
-          placeholder="command, e.g. oterm"
+          value={agent.command}
+          placeholder="command, e.g. codex"
+          title={agent.command}
           onChange={(e) => update({ ...agent, command: e.target.value })}
         />
-      )}
-      {agent.type === 'claude' && <span className="flex-1 truncate text-muted">claude, told about your playgrounds</span>}
-    </>
+      </div>
+      <div className="flex flex-wrap gap-x-3 pl-30 text-muted">
+        {SWITCHES.map((s) => (
+          <label key={s.key} className="flex items-center gap-1" title={s.hint}>
+            <input type="checkbox" className="accent-accent" checked={agent[s.key]} onChange={(e) => update({ ...agent, [s.key]: e.target.checked })} />
+            {s.label}
+          </label>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -439,7 +434,7 @@ interface ListProps<T> {
   items: T[]
   onChange: (items: T[]) => void
   onAdd?: () => void // absent: full
-  addLabel: string
+  addLabel?: string
   render: (item: T, i: number, update: (item: T) => void) => React.ReactNode
 }
 

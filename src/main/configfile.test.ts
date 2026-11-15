@@ -10,13 +10,13 @@ const base: Settings = {
   agent: {},
   recent: [],
   projectsDir: '/Users/a/code',
-  meters: true,
+  commitCommand: 'x',
   notifications: false,
   readme: true,
   folders: { enabled: true, dirs: ['/Users/a/Pictures', '/Volumes/x'] },
   playgrounds: [{ name: 'playground' }],
   webPages: [],
-  agents: [{ id: 'claude', name: 'claude', type: 'claude' }],
+  agents: [{ id: 'claude', name: 'claude', command: 'claude', notify: true, awake: true, mentions: true, newline: true, playground: true }],
   plugins: [
     { path: '/Users/a/plugins/p', enabled: true },
     { path: '/Users/a/plugins/q', url: 'git@example.com:a/q.git', enabled: false }
@@ -72,10 +72,10 @@ describe('config file', () => {
 
   it("keeps a sync's values over a window save that hasn't seen it, but takes the window's own changes", () => {
     const old = travelling(base)
-    const synced: Settings = { ...base, theme: 'light', meters: false }
+    const synced: Settings = { ...base, theme: 'light', commitCommand: 'y' }
     // Sent before the window had the sync, with a change of its own.
     const stale = overStale({ ...base, readme: false, active: '/Users/a/q' }, synced, [old])
-    expect(stale).toMatchObject({ theme: 'light', meters: false, readme: false, active: '/Users/a/q' })
+    expect(stale).toMatchObject({ theme: 'light', commitCommand: 'y', readme: false, active: '/Users/a/q' })
     // Once it shows the sync, nothing in its saves is old.
     expect(overStale({ ...synced, notifications: true }, synced, [old])).toBeNull()
   })

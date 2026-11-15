@@ -35,7 +35,7 @@ export default function Search({ root, tick, focus, onOpen }: Props): React.JSX.
   }, [focus])
 
   // Debounced, and rerun on file changes so results (and replaces) stay fresh. One at a time:
-  // while Claude writes, changes land faster than a big repo scans, and scans would pile up in main.
+  // while an agent writes, changes land faster than a big repo scans, and scans would pile up in main.
   useEffect(() => {
     if (!root || !q.text) return setFound(null)
     let live = true

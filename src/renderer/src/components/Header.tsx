@@ -14,7 +14,7 @@ interface Props {
   playgrounds: PlaygroundSlot[]
   // The slot shown, if any (from 1).
   playing: number | null
-  // Slots Claude changed since they were last opened.
+  // Slots the agent changed since they were last opened.
   playUnseen: (slot: number) => boolean
   onPlay: (slot: number) => void
   readme: boolean
