@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { JunieBalance, JuniePool, Usage } from '../../../shared/types'
 
-// Plan usage for the terminal pane's title bar. One poll for the whole app; the
+// Plan usage for the Agents section's title bar. One poll for the whole app; the
 // endpoints are rate limited, so it's every few minutes, and on coming back to the window.
 const POLL_MS = 3 * 60_000
 const MIN_GAP_MS = 60_000

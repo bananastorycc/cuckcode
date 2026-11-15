@@ -171,9 +171,13 @@ function buildMenu(): void {
     click: menu({ type: 'playground', slot: i + 1 })
   }))
   const sep = { type: 'separator' as const }
-  // Plugins get what's left: a shortcut cuckcode (or an earlier plugin) has is dropped.
+  // Plugins get what's left: a shortcut cuckcode (or an earlier plugin) has is dropped. That
+  // includes the role items' keys (a plugin on ⌘C would break copy) and the ones createWindow intercepts.
+  const roles = ['Cmd+Z', 'Cmd+Shift+Z', 'Cmd+X', 'Cmd+C', 'Cmd+V', 'Cmd+Alt+Shift+V', 'Cmd+A', 'Cmd+M', 'Cmd+Alt+H', 'Cmd+Alt+I', 'Cmd+R', 'Cmd+Ctrl+F']
+  const intercepted = ['Cmd+Left', 'Cmd+Right', 'Cmd+Shift+[', 'Cmd+Shift+]', 'Cmd+Shift+{', 'Cmd+Shift+}', ...panes.map((p) => p.accelerator)]
   const taken = new Set(
     ['Cmd+N', 'Cmd+T', 'Cmd+O', 'Cmd+Shift+W', 'Cmd+W', 'Cmd+Shift+F', 'Cmd+Alt+K', 'Cmd+E', 'Cmd+B', 'Cmd+,', 'Cmd+Q', 'Cmd+H', 'Cmd+K', 'Cmd+S']
+      .concat(roles, intercepted)
       .concat(Array.from({ length: 10 }, (_, i) => [`Cmd+${i}`, `Cmd+Ctrl+${i}`, `Cmd+Alt+${i}`]).flat())
       .map(normal)
   )

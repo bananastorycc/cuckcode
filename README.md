@@ -114,7 +114,7 @@ Edits save on ⌘S, when you press Enter in a terminal (so Claude always reads w
 
 ## Search
 
-⇧⌘F searches the project (respecting `.gitignore`), with case/whole-word/regex toggles and a live-updating replace preview. Replace All or replace a single file; unsaved edits are saved first so a later save can't clobber the replacement.
+⇧⌘F searches the project (respecting `.gitignore`), with case/whole-word/regex toggles and a live-updating replace preview. Replace All (⌘↩ in the replace field) or replace a single file; unsaved edits are saved first so a later save can't clobber the replacement.
 
 ## Git
 
@@ -135,9 +135,9 @@ Edits save on ⌘S, when you press Enter in a terminal (so Claude always reads w
 
 ## Agents
 
-The top-right pane runs agents: real login shells (via `node-pty`) running a program, with a dropdown to switch between them. There's a separate plain shell in the pane below. List as many agents as you like, in the order you want them. The first one starts with each project, and the rest start the first time you pick them. Each has a name and a type:
+The Agents section runs agents: real login shells (via `node-pty`) running a program, with a dropdown in its title bar to switch between them. The Terminal section is a separate plain shell in the same folder. List as many agents as you like, in the order you want them. The first one starts with each project, and the rest start the first time you pick them. Each has a name and a type:
 
-- **Claude Code** runs `claude` and tells it about your playgrounds (through `--append-system-prompt`). When Claude finishes or needs input in a background tab, that tab gets a dot and you get a macOS notification; clicking it brings you back. This needs `claude config set --global preferredNotifChannel terminal_bell`. ⌥⌘K sends the editor selection to the first Claude agent. With usage meters on, the title bar shows your plan usage and any extra credit spend.
+- **Claude Code** runs `claude` and tells it about your playgrounds (through `--append-system-prompt`). When Claude finishes or needs input in a background tab, that tab gets a dot and you get a macOS notification; clicking it brings you back. This needs `claude config set --global preferredNotifChannel terminal_bell`. ⌥⌘K sends the editor selection to the first Claude agent. With usage meters on, the Agents title bar shows your plan usage and any extra credit spend.
 - **Junie** runs `junie --auth-license=<license id>`. Add one per license. With usage meters on, it shows the license's monthly AI credits, the account's top-up credits, and when the monthly ones refill.
 - **Command** runs any command line, such as `oterm`.
 

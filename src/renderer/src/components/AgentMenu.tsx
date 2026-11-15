@@ -12,7 +12,7 @@ interface Props {
   onChange: (id: string) => void
 }
 
-// The agent switcher in the terminal title bar, drawn like BranchMenu rather than a native <select>.
+// The agent switcher in the Agents section's title bar, drawn like BranchMenu rather than a native <select>.
 export default function AgentMenu({ agents, value, onChange }: Props): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [index, setIndex] = useState(0)

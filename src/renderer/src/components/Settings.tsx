@@ -95,7 +95,7 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
 
           <Section
             title="Playgrounds"
-            hint="Pages Claude builds for you to look at or fill in (galleries, review forms, previews), shown over the code. Claude is told about each one by name. None: Claude isn't told about any."
+            hint="Pages Claude builds for you to look at or fill in (galleries, review forms, previews), shown over the whole workspace. Claude is told about each one by name. None: Claude isn't told about any."
           >
             <List
               items={config.playgrounds}
@@ -139,7 +139,7 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
 
           <Section
             title="Agents"
-            hint="The terminals in the top-right pane's dropdown. The first one starts with each project; the rest start when first picked. Each runs in your login shell, which stays open after it exits."
+            hint="The terminals in the Agents section's dropdown. The first one starts with each project; the rest start when first picked. Each runs in your login shell, which stays open after it exits."
           >
             <List
               items={config.agents}

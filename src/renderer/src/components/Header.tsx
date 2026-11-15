@@ -71,7 +71,7 @@ export default function Header(p: Props): React.JSX.Element {
               dragging.current = i
             }}
             onClick={() => p.onSelect(path)}
-            title={`${path}  ⌘${i + 1}`}
+            title={i < 9 ? `${path}  ⌘${i + 1}` : path}
             className={`group flex shrink-0 items-center gap-1.5 rounded px-2 py-0.5 font-mono text-xs ${
               p.done.has(path)
                 ? 'tab-done'

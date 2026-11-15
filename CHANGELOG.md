@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.29.4 — 2026-11-14
+
+- A plugin can no longer take a shortcut that copy, paste, undo, select all, minimize or project/pane switching already use; it keeps its menu item without the shortcut.
+- Settings describe where agents and playgrounds show in the current layout, and tab tooltips only list ⌘1–9 shortcuts that exist.
+
 ## 1.29.3 — 2026-11-14
 
 - Updating a plugin on the Plugins page now shows its new README right away, without switching plugins first.
