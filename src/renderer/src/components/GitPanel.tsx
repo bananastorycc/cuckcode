@@ -53,12 +53,17 @@ export default function GitPanel({ cwd, projects, status, selected, tab, onTab, 
   const run = async (op: GitOp): Promise<void> => {
     if (busy || (op === 'commit' && !message.trim())) return
     setBusy(op)
-    await saveAll()
-    const r = await window.api.git(cwd, op, message.trim())
-    if (r.ok && op === 'commit') setMessage('')
-    toast(r.ok, projectName(cwd), r.output)
-    setBusy(null)
-    onChanged()
+    try {
+      await saveAll()
+      const r = await window.api.git(cwd, op, message.trim())
+      if (r.ok && op === 'commit') setMessage('')
+      toast(r.ok, projectName(cwd), r.output)
+    } catch (err) {
+      toast(false, projectName(cwd), String(err))
+    } finally {
+      setBusy(null)
+      onChanged()
+    }
   }
 
   const discard = async (f: ChangedFile): Promise<void> => {
@@ -181,22 +186,27 @@ function AllRepos({ projects, onChanged }: { projects: string[]; onChanged: () =
   const run = async (op: BulkOp): Promise<void> => {
     if (busy) return
     setBusy(op)
-    await saveAll()
-    const statuses = await Promise.all(projects.map((path) => window.api.status(path).catch(() => null)))
-    // Several tabs can live in one repo, so run once per repo root.
-    const roots = new Set<string>()
-    for (const s of statuses) if (s?.root && (op === 'sync' || s.files.length)) roots.add(s.root)
-    const results = await Promise.all([...roots].map(async (root) => ({ root, ...(await window.api.git(root, op)) })))
-    // One toast per repo for commits, so every message can be read; a sync just reports the count.
-    if (!results.length) toast(true, 'All repos', op === 'sync' ? 'No repos' : 'Nothing to commit')
-    else if (op === 'aicommit') for (const r of results) toast(r.ok, projectName(r.root), r.output)
-    else {
-      for (const r of results) if (!r.ok) toast(false, projectName(r.root), r.output)
-      const ok = results.filter((r) => r.ok).length
-      if (ok) toast(true, 'All repos', `Synced ${ok} repo${ok === 1 ? '' : 's'}`)
+    try {
+      await saveAll()
+      const statuses = await Promise.all(projects.map((path) => window.api.status(path).catch(() => null)))
+      // Several tabs can live in one repo, so run once per repo root.
+      const roots = new Set<string>()
+      for (const s of statuses) if (s?.root && (op === 'sync' || s.files.length)) roots.add(s.root)
+      const results = await Promise.all([...roots].map(async (root) => ({ root, ...(await window.api.git(root, op)) })))
+      // One toast per repo for commits, so every message can be read; a sync just reports the count.
+      if (!results.length) toast(true, 'All repos', op === 'sync' ? 'No repos' : 'Nothing to commit')
+      else if (op === 'aicommit') for (const r of results) toast(r.ok, projectName(r.root), r.output)
+      else {
+        for (const r of results) if (!r.ok) toast(false, projectName(r.root), r.output)
+        const ok = results.filter((r) => r.ok).length
+        if (ok) toast(true, 'All repos', `Synced ${ok} repo${ok === 1 ? '' : 's'}`)
+      }
+    } catch (err) {
+      toast(false, 'All repos', String(err))
+    } finally {
+      setBusy(null)
+      onChanged()
     }
-    setBusy(null)
-    onChanged()
   }
 
   return (

@@ -45,7 +45,7 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
   return out
 }
 
-export function matchLine(line: string, n: number, re: RegExp): SearchMatch | null {
+function matchLine(line: string, n: number, re: RegExp): SearchMatch | null {
   const all: [number, number][] = []
   for (const m of line.matchAll(re)) if (m[0]) all.push([m.index!, m.index! + m[0].length])
   if (!all.length) return null
@@ -130,9 +130,4 @@ export async function replacements(root: string, q: SearchQuery, replacement: st
 export async function write(root: string, r: Replaced): Promise<number> {
   await Promise.all(r.files.map((f) => writeFile(join(root, f.path), f.text, 'utf8')))
   return r.count
-}
-
-// Returns the number of replacements made.
-export async function replace(root: string, q: SearchQuery, replacement: string, paths: string[]): Promise<number> {
-  return write(root, await replacements(root, q, replacement, paths))
 }

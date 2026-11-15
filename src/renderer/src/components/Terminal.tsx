@@ -92,6 +92,8 @@ export default function Terminal({ project, agent, name, claude, active, theme, 
           const rel = (p: string): string => (p.startsWith(`${project}/`) ? p.slice(project.length + 1) : p)
           toast(true, `${project.split('/').pop()}: saved before the prompt`, saved.map(rel).join('\n'))
         })
+        // A rejected step would skip every later keystroke, so the input still goes through.
+        .catch(() => {})
         .then(() => window.api.ptyWrite(id, data))
     }
 

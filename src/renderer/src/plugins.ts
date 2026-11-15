@@ -2,7 +2,7 @@ import * as React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
 import * as ReactDOM from 'react-dom'
 import { useSyncExternalStore } from 'react'
-import type { EditorContext, PluginView, ProjectSource, RendererHost, RendererPlugin } from '../../shared/plugin'
+import type { EditorContext, HOST_MODULES, PluginView, ProjectSource, RendererHost, RendererPlugin } from '../../shared/plugin'
 import { addThemeRules, monaco } from './monaco'
 
 // The renderer side of plugins: what they registered, for App and CodePane to use. Loaded once
@@ -32,7 +32,7 @@ export function keys(accelerator: string): string {
   return mods.join('') + parts[parts.length - 1].toUpperCase()
 }
 
-const MODULES: Record<string, unknown> = {
+const MODULES: Record<(typeof HOST_MODULES)[number], unknown> = {
   react: React,
   'react/jsx-runtime': jsxRuntime,
   'react-dom': ReactDOM,
@@ -144,7 +144,7 @@ export async function loadPlugins(): Promise<void> {
     try {
       const module = { exports: {} as Partial<RendererPlugin> }
       const require = (name: string): unknown => {
-        if (name in MODULES) return MODULES[name]
+        if (name in MODULES) return MODULES[name as keyof typeof MODULES]
         throw new Error(`${p.id} requires ${name}, which cuckcode doesn't provide: bundle it in`)
       }
       new Function('require', 'module', 'exports', p.renderer)(require, module, module.exports)

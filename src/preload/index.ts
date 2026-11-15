@@ -9,7 +9,10 @@ function router(channel: string): (id: string, cb: (data: string) => void) => ()
   return (id, cb) => {
     if (!subs.has(id)) subs.set(id, new Set())
     subs.get(id)!.add(cb)
-    return () => subs.get(id)?.delete(cb)
+    return () => {
+      const set = subs.get(id)
+      if (set?.delete(cb) && !set.size) subs.delete(id)
+    }
   }
 }
 

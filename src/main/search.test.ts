@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import type { SearchQuery } from '../shared/types'
-import { replace, replacements, search } from './search'
+import { replacements, search, write } from './search'
 
 const q = (text: string, opts: Partial<SearchQuery> = {}): SearchQuery => ({
   text,
@@ -47,8 +47,10 @@ describe('search and replace in a real repo', () => {
   })
 
   it('replaces literally or with groups, keeping CRLF', async () => {
-    expect(await replace(dir, q('$1'), '$&', ['a.txt'])).toBe(1)
-    expect(await replace(dir, q('(f)oo', { regex: true, word: true }), '$1u', ['a.txt'])).toBe(2)
+    const replace = async (query: SearchQuery, replacement: string): Promise<number> =>
+      write(dir, await replacements(dir, query, replacement, ['a.txt']))
+    expect(await replace(q('$1'), '$&')).toBe(1)
+    expect(await replace(q('(f)oo', { regex: true, word: true }), '$1u')).toBe(2)
     expect(readFileSync(join(dir, 'a.txt'), 'utf8')).toBe('fu Fu food\r\nbar $&\n')
   })
 })

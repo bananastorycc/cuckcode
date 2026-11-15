@@ -158,7 +158,7 @@ export async function snapshot(root: string, file: ChangedFile): Promise<FileSna
 
 const LOG_PAGE = 100
 
-export function parseLog(out: string): Commit[] {
+function parseLog(out: string): Commit[] {
   return out
     .split('\n')
     .filter(Boolean)
@@ -278,7 +278,12 @@ const queues = new Map<string, Promise<unknown>>()
 
 function queued<T>(root: string, fn: () => Promise<T>): Promise<T> {
   const next = (queues.get(root) ?? Promise.resolve()).then(fn)
-  queues.set(root, next.catch(() => {}))
+  const tail = next.then(
+    () => {},
+    () => {}
+  )
+  queues.set(root, tail)
+  void tail.then(() => queues.get(root) === tail && queues.delete(root))
   return next
 }
 

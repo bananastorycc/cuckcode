@@ -219,7 +219,10 @@ export default function CodePane({ root, file, theme, tick, reveal, onSaved, onC
     if (!file || !abs) return setSnap(null)
     let live = true
     const at = writes.get(monaco.Uri.file(abs).toString()) ?? 0
-    window.api.snapshot(root, file).then((s) => live && setSnap({ ...s, abs, commit, writes: at }))
+    window.api.snapshot(root, file).then(
+      (s) => live && setSnap({ ...s, abs, commit, writes: at }),
+      () => {}
+    )
     return () => {
       live = false
     }

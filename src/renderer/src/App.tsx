@@ -187,7 +187,9 @@ export default function App(): React.JSX.Element {
     if (loading.current.has(key)) return void loading.current.set(key, true)
     do {
       loading.current.set(key, false)
-      const r = await p.source!.load(path).catch(() => null)
+      const r = await Promise.resolve()
+        .then(() => p.source!.load(path))
+        .catch(() => null)
       // Unchanged data keeps its identity, so views (a laid-out graph) don't redo their work.
       setData((x) => (key in x && JSON.stringify(x[key]) === JSON.stringify(r) ? x : { ...x, [key]: r }))
     } while (loading.current.get(key))

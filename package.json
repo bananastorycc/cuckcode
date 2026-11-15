@@ -1,6 +1,6 @@
 {
   "name": "cuckcode",
-  "version": "1.29.0",
+  "version": "1.29.1",
   "private": true,
   "description": "A macOS-first shell for vibe coding with Claude Code or any terminal agent",
   "license": "GPL-3.0-or-later",

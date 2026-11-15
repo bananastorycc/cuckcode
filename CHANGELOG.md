@@ -2,6 +2,13 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.29.1 — 2026-11-14
+
+- Typing in a terminal can't get stuck if saving open files before a prompt fails.
+- Git buttons, the branch picker and the all-repos buttons can't stay greyed out after an unexpected error; it's shown instead.
+- A plugin whose project data fails to load no longer breaks the rest of the app.
+- Small memory and code tidy-ups.
+
 ## 1.29.0 — 2026-11-14
 
 - Playgrounds now fill the whole workspace instead of only the code pane.

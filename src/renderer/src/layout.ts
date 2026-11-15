@@ -9,7 +9,7 @@ import 'dockview/dist/styles/dockview.css'
 export const SECTIONS = ['files', 'search', 'editor', 'terminal', 'agents', 'git', 'scratch'] as const
 export type Section = (typeof SECTIONS)[number]
 
-export const TITLES: Record<Section, string> = {
+const TITLES: Record<Section, string> = {
   files: 'Files',
   search: 'Search',
   editor: 'Editor',

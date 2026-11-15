@@ -87,13 +87,18 @@ export default function BranchMenu({ cwd, branch, onChanged }: Props): React.JSX
     if (item.kind === 'local' && item.name === branch) return setOpen(false)
     setBusy(true)
     setError('')
-    // Unsaved edits belong to this branch, not the next one.
-    await saveAll()
-    const r = await window.api.git(cwd, item.kind === 'create' ? 'branch' : 'switch', item.name)
-    setBusy(false)
-    onChanged()
-    if (r.ok) setOpen(false)
-    else setError(r.output)
+    try {
+      // Unsaved edits belong to this branch, not the next one.
+      await saveAll()
+      const r = await window.api.git(cwd, item.kind === 'create' ? 'branch' : 'switch', item.name)
+      if (r.ok) setOpen(false)
+      else setError(r.output)
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setBusy(false)
+      onChanged()
+    }
   }
 
   const onKey = (e: React.KeyboardEvent): void => {
