@@ -34,15 +34,17 @@ export default function Confirm(): React.JSX.Element | null {
   const [dontAsk, setDontAsk] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   const restore = useRef<Element | null>(null)
+  // The question up now, outside state: setPending's updater must stay pure.
+  const current = useRef<Pending | null>(null)
 
   useEffect(() => {
-    show = (p) =>
-      setPending((prev) => {
-        prev?.answer({ yes: false, dontAsk: false })
-        if (!prev) restore.current = document.activeElement
-        setDontAsk(false)
-        return p
-      })
+    show = (p) => {
+      if (current.current) current.current.answer({ yes: false, dontAsk: false })
+      else restore.current = document.activeElement
+      current.current = p
+      setDontAsk(false)
+      setPending(p)
+    }
     return () => {
       show = null
     }
@@ -56,6 +58,7 @@ export default function Confirm(): React.JSX.Element | null {
 
   const done = (yes: boolean): void => {
     pending.answer({ yes, dontAsk: yes && dontAsk })
+    current.current = null
     setPending(null)
     if (restore.current instanceof HTMLElement) restore.current.focus()
   }
