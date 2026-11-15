@@ -3,7 +3,7 @@ import { open, readFile, stat } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { commitMessage } from './commitmsg'
 import { mediaKind } from './mime'
-import type { Branches, ChangeCode, ChangedFile, Commit, FileSnapshot, GitOp, GitResult, GitStatus } from '../shared/types'
+import type { Branches, ChangeCode, ChangedFile, Commit, FileSnapshot, GitOp, GitResult, GitStatus, Remote } from '../shared/types'
 
 const MAX_TEXT = 4 * 1024 * 1024
 
@@ -200,7 +200,7 @@ export async function commitFiles(root: string, sha: string): Promise<ChangedFil
 }
 
 // Local branches, then branches only on a remote, each most recently committed first.
-export function parseBranches(out: string): Branches {
+export function parseBranches(out: string): Omit<Branches, 'remotes'> {
   const local: string[] = []
   const remote = new Set<string>()
   for (const line of out.split('\n')) {
@@ -213,9 +213,37 @@ export function parseBranches(out: string): Branches {
   return { local, remote: [...remote].filter((b) => !local.includes(b)) }
 }
 
+// Parses `git config --get-regexp ^remote\..*\.url$`: one `remote.<name>.url <url>` per line.
+export function parseRemotes(out: string): Remote[] {
+  return out
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const space = line.indexOf(' ')
+      return { name: line.slice('remote.'.length, space - '.url'.length), url: line.slice(space + 1) }
+    })
+}
+
 export async function branches(cwd: string): Promise<Branches> {
   const format = '--format=%(refname)%09%(symref)'
-  return parseBranches(await run(cwd, ['for-each-ref', '--sort=-committerdate', format, 'refs/heads', 'refs/remotes']))
+  const [refs, remotes] = await Promise.all([
+    run(cwd, ['for-each-ref', '--sort=-committerdate', format, 'refs/heads', 'refs/remotes']),
+    // Exits 1 when there are no remotes.
+    run(cwd, ['config', '--get-regexp', '^remote\\..*\\.url$']).catch(() => '')
+  ])
+  return { ...parseBranches(refs), remotes: parseRemotes(remotes) }
+}
+
+export async function setRemote(cwd: string, name: string, url: string): Promise<GitResult> {
+  return queued((await repoRoot(cwd)) || cwd, async () => {
+    try {
+      const exists = (await run(cwd, ['remote'])).split('\n').includes(name)
+      await run(cwd, ['remote', exists ? 'set-url' : 'add', name, url])
+      return { ok: true, output: `${name} → ${url}` }
+    } catch (err) {
+      return { ok: false, output: (err as Error).message }
+    }
+  })
 }
 
 // Cheaper than a full status, which scans the whole working tree.

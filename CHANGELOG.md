@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.27.0 — 2026-11-14
+
+- The branch picker has a Remote section: see where each remote points, edit its URL in place, or add origin to a repo that has none.
+
 ## 1.26.2 — 2026-11-14
 
 The first public release, under GPL-3.0-or-later.

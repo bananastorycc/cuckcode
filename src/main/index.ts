@@ -406,6 +406,7 @@ function registerIpc(): void {
   ipcMain.handle('git:log', (_e, cwd: string, skip: number) => git.log(cwd, skip))
   ipcMain.handle('git:commitFiles', (_e, root: string, sha: string) => git.commitFiles(root, sha))
   ipcMain.handle('git:op', (_e, cwd: string, op: GitOp, arg?: string) => git.op(cwd, op, arg))
+  ipcMain.handle('git:setRemote', (_e, cwd: string, name: string, url: string) => git.setRemote(cwd, name, url))
   ipcMain.handle('git:discard', async (_e, root: string, file: ChangedFile) => {
     // Untracked files only go to the Trash; anything git tracks is gone for good.
     if (file.code !== '?' && win) {

@@ -44,10 +44,16 @@ export interface GitResult {
   output: string
 }
 
+export interface Remote {
+  name: string
+  url: string
+}
+
 // Most recently committed first. remote holds names that exist only on a remote.
 export interface Branches {
   local: string[]
   remote: string[]
+  remotes: Remote[]
 }
 
 export interface SearchQuery {
@@ -232,6 +238,8 @@ export interface Api {
   // Puts a changed file back as HEAD has it (new files go to the Trash), after a confirm for
   // tracked ones. null when the confirm is cancelled.
   discard: (root: string, file: ChangedFile) => Promise<GitResult | null>
+  // Points a remote at url, adding it if the repo doesn't have it yet.
+  setRemote: (cwd: string, name: string, url: string) => Promise<GitResult>
   writeFile: (path: string, content: string) => Promise<void>
   // Absolute paths. create and rename make missing parent directories and never overwrite.
   createFile: (path: string) => Promise<void>

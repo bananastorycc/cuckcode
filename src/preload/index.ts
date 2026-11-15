@@ -43,6 +43,7 @@ const api: Api = {
   commitFiles: (root, sha) => ipcRenderer.invoke('git:commitFiles', root, sha),
   git: (cwd, op, arg) => ipcRenderer.invoke('git:op', cwd, op, arg),
   discard: (root, file) => ipcRenderer.invoke('git:discard', root, file),
+  setRemote: (cwd, name, url) => ipcRenderer.invoke('git:setRemote', cwd, name, url),
   writeFile: (path, content) => ipcRenderer.invoke('fs:write', path, content),
   createFile: (path) => ipcRenderer.invoke('fs:create', path),
   rename: (from, to) => ipcRenderer.invoke('fs:rename', from, to),

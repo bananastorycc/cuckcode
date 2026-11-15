@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, GitBranch, Plus } from 'lucide-react'
-import type { Branches } from '../../../shared/types'
+import type { Branches, Remote } from '../../../shared/types'
 import { saveAll } from './CodePane'
 import { clamp } from '../clamp'
 
@@ -17,6 +17,7 @@ interface Item {
 
 // The branch label opens a picker: type to filter, ↑↓ and ↩ to switch, or ↩ on a new
 // name to create it from HEAD. A new branch is pushed by the next commit or sync.
+// Below the list, each remote's URL can be edited in place (or origin added when there's none).
 export default function BranchMenu({ cwd, branch, onChanged }: Props): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [branches, setBranches] = useState<Branches | null>(null)
@@ -32,7 +33,19 @@ export default function BranchMenu({ cwd, branch, onChanged }: Props): React.JSX
     setIndex(0)
     setError('')
     setBranches(null)
-    window.api.branches(cwd).then(setBranches, () => setBranches({ local: [], remote: [] }))
+    load()
+  }
+
+  const load = (): void => {
+    window.api.branches(cwd).then(setBranches, () => setBranches({ local: [], remote: [], remotes: [] }))
+  }
+
+  const saveRemote = async (name: string, url: string): Promise<void> => {
+    setError('')
+    const r = await window.api.setRemote(cwd, name, url)
+    if (!r.ok) setError(r.output)
+    load()
+    onChanged()
   }
 
   const q = query.trim()
@@ -122,6 +135,14 @@ export default function BranchMenu({ cwd, branch, onChanged }: Props): React.JSX
               ))}
               {branches && !items.length && <div className="px-2 py-0.5 text-xs text-muted">No branches</div>}
             </div>
+            {branches && (
+              <div className="border-t border-line py-1">
+                <div className="px-2 pb-0.5 text-[10px] uppercase tracking-wide text-muted">Remote</div>
+                {(branches.remotes.length ? branches.remotes : [{ name: 'origin', url: '' }]).map((r) => (
+                  <RemoteRow key={r.name} remote={r} onSave={(url) => saveRemote(r.name, url)} />
+                ))}
+              </div>
+            )}
             {error && (
               <div className="max-h-24 select-text overflow-y-auto whitespace-pre-wrap border-t border-line px-2 py-1 font-mono text-xs text-del">
                 {error}
@@ -131,5 +152,35 @@ export default function BranchMenu({ cwd, branch, onChanged }: Props): React.JSX
         </>
       )}
     </div>
+  )
+}
+
+// Enter saves a changed URL, Escape or leaving the field puts the saved one back.
+function RemoteRow({ remote, onSave }: { remote: Remote; onSave: (url: string) => void }): React.JSX.Element {
+  const [url, setUrl] = useState(remote.url)
+  useEffect(() => setUrl(remote.url), [remote.url])
+
+  const onKey = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+      const next = url.trim()
+      if (next && next !== remote.url) onSave(next)
+      e.currentTarget.blur()
+    } else if (e.key === 'Escape') e.currentTarget.blur()
+  }
+
+  return (
+    <label className="flex items-center gap-1.5 px-2 py-0.5 font-mono text-xs">
+      <span className="shrink-0 text-muted">{remote.name}</span>
+      <input
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        onKeyDown={onKey}
+        onBlur={() => setUrl(remote.url)}
+        spellCheck={false}
+        placeholder={remote.url ? '' : 'Add remote URL…'}
+        title={remote.url ? 'Edit, then ↩ to save' : 'Paste a URL, then ↩ to add'}
+        className="min-w-0 flex-1 select-text rounded-sm border border-transparent bg-transparent px-1 text-fg outline-hidden hover:border-line focus:border-line focus:bg-bg"
+      />
+    </label>
   )
 }

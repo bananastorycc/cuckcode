@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { branches, commitFiles, discard, log, op, parseBranches, parseNameStatus, parseStatus, snapshot, status } from './git'
+import { branches, commitFiles, discard, log, op, parseBranches, parseNameStatus, parseRemotes, parseStatus, setRemote, snapshot, status } from './git'
 
 describe('parseStatus', () => {
   it('parses branch, ahead/behind and every entry type', () => {
@@ -72,6 +72,16 @@ describe('parseBranches', () => {
   })
 })
 
+describe('parseRemotes', () => {
+  it('reads each remote name and URL, dots in names included', () => {
+    const out = 'remote.origin.url git@github.com:a/b.git\nremote.my.fork.url https://example.com/b.git\n'
+    expect(parseRemotes(out)).toEqual([
+      { name: 'origin', url: 'git@github.com:a/b.git' },
+      { name: 'my.fork', url: 'https://example.com/b.git' }
+    ])
+  })
+})
+
 describe('against a real repo', () => {
   const dir = mkdtempSync(join(tmpdir(), 'cuckcode-'))
   const git = (...args: string[]): string => execFileSync('git', args, { cwd: dir }).toString()
@@ -107,6 +117,15 @@ describe('against a real repo', () => {
     expect((await op(dir, 'switch', 'main')).ok).toBe(true)
     expect((await status(dir)).branch).toBe('main')
     expect((await op(dir, 'branch', 'bad name')).ok).toBe(false)
+  })
+
+  it('adds a remote, then changes its URL', async () => {
+    expect((await branches(dir)).remotes).toEqual([])
+    expect((await setRemote(dir, 'origin', '/nowhere/a.git')).ok).toBe(true)
+    expect((await setRemote(dir, 'origin', '/nowhere/b.git')).ok).toBe(true)
+    expect((await branches(dir)).remotes).toEqual([{ name: 'origin', url: '/nowhere/b.git' }])
+    // Later commits here would try to push to it.
+    git('remote', 'remove', 'origin')
   })
 
   it('lists history and snapshots files as each commit changed them', async () => {
