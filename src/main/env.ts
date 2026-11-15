@@ -3,7 +3,11 @@
 
 // Vars that leak from whatever launched us (npm, Vite, Electron, another terminal,
 // an outer Claude Code session) and would change how tools behave inside the shell.
-const LEAKY = /^(npm_|ELECTRON_|VITE_|ITERM_|LC_TERMINAL)|^(NODE_ENV|INIT_CWD|PWD|OLDPWD|TERM_PROGRAM|TERM_PROGRAM_VERSION|TERM_SESSION_ID|COLORFGBG|CLAUDECODE|CLAUDE_CODE_ENTRYPOINT)$|^CUCKCODE_/
+// Claude's are only the markers it sets on its own children (they turn off transcripts and
+// put the outer session's permission mode on our agents), not CLAUDE_CODE_* settings a user
+// exports on purpose.
+const LEAKY =
+  /^(npm_|ELECTRON_|VITE_|ITERM_|LC_TERMINAL)|^(NODE_ENV|INIT_CWD|PWD|OLDPWD|TERM_PROGRAM|TERM_PROGRAM_VERSION|TERM_SESSION_ID|COLORFGBG)$|^(CLAUDECODE|CLAUDE_PID|CLAUDE_EFFORT|CLAUDE_CODE_(ENTRYPOINT|EXECPATH|CHILD_SESSION|SESSION_ID|SESSION_ATTENDED|MESSAGING_SOCKET|MESSAGING_TOKEN))$|^CUCKCODE_/
 
 export function shellEnv(): Record<string, string> {
   const env: Record<string, string> = {}

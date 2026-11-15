@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.40.1 — 2026-11-15
+
+- Agents started in a cuckcode that was itself launched from a Claude Code session no longer inherit that session's markers, which turned off transcript saving and could deny their shell commands.
+
 ## 1.40.0 — 2026-11-15
 
 - A section alone in its group no longer spends a row on a tab bar: a thin strip stays, and hovering it shows the tab to drag. Stack another section there and the tab bar comes back.
