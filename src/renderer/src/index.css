@@ -1,0 +1,287 @@
+@import 'tailwindcss';
+
+/* The tokens below, as Tailwind colors (bg-panel, text-muted, border-line…). */
+@theme {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-hover: var(--hover);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-add: var(--add);
+  --color-del: var(--del);
+  --color-mod: var(--mod);
+  --color-new: var(--new);
+  --font-mono: Menlo, monospace;
+}
+
+/* Tailwind 3's defaults, which 4 changed: gray borders and placeholders, pointer on buttons. */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+:root {
+  --bg: #ffffff;
+  --panel: #f6f8fa;
+  --hover: #eaeef2;
+  --line: #d0d7de;
+  --fg: #1f2328;
+  --muted: #656d76;
+  --accent: #d97706;
+  --add: #1a7f37;
+  --del: #cf222e;
+  --mod: #9a6700;
+  --new: #0969da;
+}
+
+.dark {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --hover: #21262d;
+  --line: #30363d;
+  --fg: #c9d1d9;
+  --muted: #8b949e;
+  --accent: #f0883e;
+  --add: #3fb950;
+  --del: #f85149;
+  --mod: #d29922;
+  --new: #58a6ff;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+/* All UI sizing is rem-based, so this one number scales it. Monaco and xterm set px sizes and are unaffected. */
+html {
+  font: 19.5px -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.drag {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* In the components layer so per-button utilities (text-muted, text-accent, px-*) can override it. */
+@layer components {
+  .btn {
+    @apply flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-fg hover:bg-hover disabled:opacity-40 disabled:hover:bg-transparent;
+  }
+}
+
+.xterm {
+  height: 100%;
+}
+
+/* xterm 6's stylesheet paints this black and no longer sets the theme's color on it, so a
+   strip shows under the last row. The terminal themes' background is --bg. */
+.xterm .xterm-viewport {
+  background-color: var(--bg);
+}
+
+/* Search hits; the tokens are plain var()s, so Tailwind's /opacity modifiers don't apply. */
+.hit {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.hit-del {
+  background: color-mix(in srgb, var(--del) 25%, transparent);
+  text-decoration: line-through;
+}
+
+.hit-add {
+  background: color-mix(in srgb, var(--add) 25%, transparent);
+}
+
+/* Edit pane: lines changed vs HEAD (see changeMarks in CodePane). */
+.line-add {
+  background: color-mix(in srgb, var(--add) 12%, transparent);
+}
+
+.line-mod {
+  background: color-mix(in srgb, var(--mod) 12%, transparent);
+}
+
+.gutter-add,
+.gutter-mod {
+  width: 3px !important;
+  margin-left: 3px;
+}
+
+.gutter-add {
+  background: var(--add);
+}
+
+.gutter-mod {
+  background: var(--mod);
+}
+
+/* A wedge on the line boundary where lines were removed. */
+.gutter-del::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  bottom: -5px;
+  border: 5px solid transparent;
+  border-left-color: var(--del);
+}
+
+/* A tab whose Claude finished while you were elsewhere. */
+.tab-done {
+  background: color-mix(in srgb, var(--add) 22%, transparent);
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1px var(--add);
+}
+
+/* Rendered README. Only the theme tokens, so light and dark both follow. */
+.markdown {
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: 1.5em 0 0.5em;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.markdown h1 {
+  font-size: 1.8em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--line);
+}
+.markdown h2 {
+  font-size: 1.4em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--line);
+}
+.markdown h3 {
+  font-size: 1.15em;
+}
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown pre,
+.markdown blockquote,
+.markdown table {
+  margin: 0 0 1em;
+}
+.markdown ul {
+  list-style: disc;
+  padding-left: 2em;
+}
+.markdown ol {
+  list-style: decimal;
+  padding-left: 2em;
+}
+.markdown a {
+  color: var(--new);
+  cursor: pointer;
+}
+.markdown a:hover {
+  text-decoration: underline;
+}
+.markdown code {
+  font-family: Menlo, monospace;
+  font-size: 0.9em;
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  background: var(--panel);
+}
+.markdown pre {
+  padding: 0.9em 1em;
+  overflow-x: auto;
+  border-radius: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.markdown pre code {
+  padding: 0;
+  background: none;
+}
+.markdown blockquote {
+  padding: 0 1em;
+  color: var(--muted);
+  border-left: 3px solid var(--line);
+}
+.markdown table {
+  border-collapse: collapse;
+}
+.markdown th,
+.markdown td {
+  padding: 0.35em 0.8em;
+  border: 1px solid var(--line);
+}
+.markdown th {
+  background: var(--panel);
+}
+.markdown img {
+  display: inline;
+  max-width: 100%;
+}
+.markdown hr {
+  margin: 1.5em 0;
+  border-color: var(--line);
+}
+
+/* The dock (dockview) in cuckcode's colors; both classes, to win over dockview's own theme. */
+.dockview-theme-light.cc-dock {
+  --dv-group-view-background-color: var(--bg);
+  --dv-tabs-and-actions-container-background-color: var(--panel);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--bg);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--panel);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--panel);
+  --dv-tab-divider-color: var(--line);
+  --dv-activegroup-visiblepanel-tab-color: var(--fg);
+  --dv-activegroup-hiddenpanel-tab-color: var(--muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--fg);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--muted);
+  --dv-separator-border: var(--line);
+  --dv-paneview-header-border-color: var(--line);
+  --dv-drag-over-background-color: color-mix(in srgb, var(--accent) 20%, transparent);
+  --dv-drag-over-border-color: var(--accent);
+  --dv-active-sash-color: var(--accent);
+  --dv-icon-hover-background-color: var(--hover);
+  --dv-scrollbar-background-color: var(--line);
+  --dv-tabs-and-actions-container-height: 1.5rem;
+  --dv-tabs-and-actions-container-font-size: 0.65rem;
+  color-scheme: inherit;
+}
+
+/* Every section stays: tabs move, they don't close. */
+.cc-dock .dv-tab .dv-default-tab .dv-default-tab-action {
+  display: none;
+}

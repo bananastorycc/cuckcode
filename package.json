@@ -1,0 +1,85 @@
+{
+  "name": "cuckcode",
+  "version": "1.26.2",
+  "private": true,
+  "description": "A macOS-first shell for vibe coding with Claude Code or any terminal agent",
+  "license": "GPL-3.0-or-later",
+  "author": "bananastorycc <bananastory@tuta.com>",
+  "homepage": "https://cuckcode.cc",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bananastorycc/cuckcode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bananastorycc/cuckcode/issues"
+  },
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "app": "rm -rf dist && electron-builder --dir -c.extraMetadata.main=boot/index.js -c.extraMetadata.repo=\"$PWD\" && codesign --force --deep --sign - dist/mac*/cuckcode.app && rm -rf /Applications/cuckcode.app && ditto dist/mac*/cuckcode.app /Applications/cuckcode.app && echo 'Installed /Applications/cuckcode.app'",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "postinstall": "sh scripts/ensure-electron.sh && electron-builder install-app-deps"
+  },
+  "build": {
+    "appId": "cc.cuckcode.app",
+    "productName": "cuckcode",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "boot/**",
+      "package.json",
+      "!node_modules"
+    ],
+    "npmRebuild": false,
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dir"
+      ],
+      "identity": null,
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "cuckcode runs git and your terminals, which may reach servers on your local network."
+      }
+    }
+  },
+  "dependencies": {
+    "node-pty": "^1.1.0"
+  },
+  "devDependencies": {
+    "@electron-toolkit/tsconfig": "^2.0.0",
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "dockview": "8.8.3",
+    "electron": "^45.3.1",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "lucide-react": "^1.72.0",
+    "marked": "^18.2.0",
+    "monaco-editor": "^0.57.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  },
+  "allowScripts": {
+    "electron": true,
+    "esbuild": true,
+    "node-pty": true,
+    "fsevents": false,
+    "electron-winstaller": false
+  },
+  "overrides": {
+    "dompurify": "^3.4.17",
+    "dockview-core": "8.8.3"
+  }
+}
