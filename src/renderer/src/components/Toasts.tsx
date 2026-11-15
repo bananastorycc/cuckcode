@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { X } from 'lucide-react'
 
 interface Toast {
   id: number
@@ -7,7 +8,9 @@ interface Toast {
   text: string
 }
 
+// Failures get longer to be read, but still go: one that never fades just sits over the work.
 const FADE_MS = 6000
+const FAIL_FADE_MS = 30000
 
 let nextId = 0
 let push: ((t: Toast) => void) | null = null
@@ -44,10 +47,10 @@ function Note({ toast: t, onDismiss }: { toast: Toast; onDismiss: () => void }):
   const dismiss = useRef(onDismiss)
   dismiss.current = onDismiss
 
-  // Successes fade on their own (held while hovered, to finish reading); failures stay until clicked.
+  // Fades on its own, held while hovered to finish reading; a click dismisses it sooner.
   useEffect(() => {
-    if (!t.ok || hover) return
-    const timer = setTimeout(() => dismiss.current(), FADE_MS)
+    if (hover) return
+    const timer = setTimeout(() => dismiss.current(), t.ok ? FADE_MS : FAIL_FADE_MS)
     return () => clearTimeout(timer)
   }, [t.ok, hover])
 
@@ -56,10 +59,20 @@ function Note({ toast: t, onDismiss }: { toast: Toast; onDismiss: () => void }):
       onClick={() => !window.getSelection()?.toString() && onDismiss()}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className={`pointer-events-auto w-full select-text rounded border bg-panel px-3 py-2 font-mono text-xs shadow-lg ${
+      className={`pointer-events-auto relative w-full select-text rounded border bg-panel py-2 pl-3 pr-7 font-mono text-xs shadow-lg ${
         t.ok ? 'border-line' : 'border-del'
       }`}
     >
+      <button
+        className="absolute right-1.5 top-1.5 text-muted hover:text-fg"
+        title="Dismiss"
+        onClick={(e) => {
+          e.stopPropagation()
+          onDismiss()
+        }}
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
       <div className={`mb-0.5 font-bold ${t.ok ? 'text-add' : 'text-del'}`}>{t.title}</div>
       <div className="max-h-40 overflow-y-auto whitespace-pre-wrap wrap-break-word text-fg">{t.text}</div>
     </div>

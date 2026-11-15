@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.38.1 — 2026-11-15
+
+- Error notes (a failed sync or push) fade on their own after 30 seconds instead of staying until clicked, and every note has a close button.
+
 ## 1.38.0 — 2026-11-15
 
 - Plugins installed from a git URL are part of your config file, so Export…/Import… and the config repo carry them. A plugin added on another machine is cloned and loaded at the next launch here.
