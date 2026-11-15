@@ -23,6 +23,20 @@ interface Props {
 // Live terminals by PTY id, so the app can paste into one (Send Selection to Claude).
 const terms = new Map<string, XTerm>()
 
+// Resolves once the program in the terminal has turned on bracketed paste, which Claude does
+// when its prompt is up, or false after `ms`. Text sent to an agent that's still starting is lost.
+export function whenReady(id: string, ms = 30_000): Promise<boolean> {
+  const until = Date.now() + ms
+  return new Promise((resolve) => {
+    const check = (): void => {
+      if (terms.get(id)?.modes.bracketedPasteMode) resolve(true)
+      else if (Date.now() > until) resolve(false)
+      else setTimeout(check, 100)
+    }
+    check()
+  })
+}
+
 // Pasted, not typed: xterm wraps it in bracketed paste when the program asked for that, so
 // Claude takes it as one input rather than keystrokes.
 export function pasteInto(id: string, text: string): boolean {

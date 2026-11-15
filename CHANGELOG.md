@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.35.3 — 2026-11-14
+
+- A playground's Done, or ⌥⌘K, reaches Claude even when it wasn't running yet: the message waits until Claude's prompt is up instead of getting lost while it starts.
+- Settings arriving from the config repo or an import can't be undone by a save the window made just before it showed them.
+
 ## 1.35.2 — 2026-11-14
 
 - A playground's Done only tells Claude once your answers have saved. If saving fails, the page says why and Claude isn't sent to read answers that aren't there.

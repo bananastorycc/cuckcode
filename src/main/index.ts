@@ -113,6 +113,16 @@ function parse(raw: any): Settings {
 // A config file's text over the current settings. Throws on a file that isn't one.
 const fromConfigFile = (text: string): Settings => parse(configfile.fromFile(JSON.parse(text), settings))
 
+// What imports and syncs replaced, until the window's saves show it has caught up with them.
+let unshown: Record<string, string>[] = []
+
+// Settings from a config file, which the window is then sent.
+function adopt(text: string): void {
+  const old = configfile.travelling(settings)
+  saveSettings(fromConfigFile(text))
+  unshown.push(old)
+}
+
 async function loadSettings(): Promise<void> {
   try {
     settings = parse(JSON.parse(await readFile(settingsFile, 'utf8')))
@@ -394,7 +404,12 @@ function registerIpc(): void {
 
   ipcMain.handle('app:init', () => settings)
   ipcMain.handle('app:defaults', () => DEFAULTS)
-  ipcMain.on('app:save', (_e, next: Settings) => saveSettings({ ...next, window: settings.window }))
+  ipcMain.on('app:save', (_e, next: Settings) => {
+    const save = { ...next, window: settings.window }
+    const merged = unshown.length ? configfile.overStale(save, settings, unshown) : null
+    if (!merged) unshown = []
+    saveSettings(merged ?? save)
+  })
   ipcMain.on('app:focus', () => {
     win?.show()
     app.focus({ steal: true })
@@ -490,7 +505,7 @@ function registerIpc(): void {
   ipcMain.handle('config:import', async () => {
     const r = await dialog.showOpenDialog(win!, { properties: ['openFile'], filters: [{ name: 'cuckcode config', extensions: ['json'] }] })
     if (r.canceled) return null
-    saveSettings(fromConfigFile(await readFile(r.filePaths[0], 'utf8')))
+    adopt(await readFile(r.filePaths[0], 'utf8'))
     return settings
   })
   ipcMain.on('config:syncNow', () => configsync.now())
@@ -509,7 +524,7 @@ app.whenReady().then(async () => {
     local: () => configfile.toFile(settings),
     // Main takes it too, so a page that hasn't loaded yet starts with it.
     onRemote: (text) => {
-      saveSettings(fromConfigFile(text))
+      adopt(text)
       send('config:remote', settings)
     },
     onStatus: (status) => send('config:status', status)

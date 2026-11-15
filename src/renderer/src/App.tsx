@@ -18,7 +18,7 @@ import Readme from './components/Readme'
 import Scratch, { flushScratch } from './components/Scratch'
 import Search from './components/Search'
 import Settings from './components/Settings'
-import Terminal, { pasteInto } from './components/Terminal'
+import Terminal, { pasteInto, whenReady } from './components/Terminal'
 import Toasts, { toast } from './components/Toasts'
 import UsageBar, { JunieBar, useJunieBalance, useUsage } from './components/UsageBar'
 import WebPage from './components/WebPage'
@@ -477,8 +477,8 @@ export default function App(): React.JSX.Element {
     const lines = start === undefined ? '' : start === end ? `#L${start}` : `#L${start}-${end}`
     setTerms((t) => ({ ...t, [active]: claude.id }))
     setStarted((s) => (s.has(`${claude.id}:${active}`) ? s : new Set(s).add(`${claude.id}:${active}`)))
-    // A terminal started just now isn't there yet: wait for it to mount.
-    requestAnimationFrame(() => pasteInto(`${claude.id}:${active}`, `@${path}${lines} `))
+    // A Claude started just now isn't ready yet: wait for its prompt.
+    void whenReady(`${claude.id}:${active}`).then((ready) => ready && pasteInto(`${claude.id}:${active}`, `@${path}${lines} `))
   }
 
   // A playground page's Done: back to the workspace, and tell the project's claude (the first
@@ -492,8 +492,9 @@ export default function App(): React.JSX.Element {
     setView((v) => ({ ...v, [active]: undefined }))
     setTerms((t) => ({ ...t, [active]: claude.id }))
     setStarted((s) => (s.has(id) ? s : new Set(s).add(id)))
-    requestAnimationFrame(() => {
-      if (!pasteInto(id, `I'm done in the ${name}: read .cuckcode/playground/${slot}/data/answers.json and act on it.`)) return
+    // A Claude that wasn't running yet starts now; the message waits for its prompt.
+    void whenReady(id).then((ready) => {
+      if (!ready || !pasteInto(id, `I'm done in the ${name}: read .cuckcode/playground/${slot}/data/answers.json and act on it.`)) return
       setTimeout(() => window.api.ptyWrite(id, '\r'), 150)
     })
   }

@@ -175,7 +175,7 @@ A playground is a page Claude builds for you to look at or fill in, when showing
 
 ![A playground page Claude built: three mockups of a card side by side, each with pros and cons, one picked, and a note added](docs/screenshots/playground.png)
 
-You pick, tick, drag or type. Answers save as you go (to `data/answers.json` next to the page), and when you press **Done** (once they've saved) the playground closes and your first Claude agent is told to read them, so it carries on from your choice:
+You pick, tick, drag or type. Answers save as you go (to `data/answers.json` next to the page), and when you press **Done** (once they've saved) the playground closes and your first Claude agent is told to read them (started first, if it wasn't running), so it carries on from your choice:
 
 <img src="docs/screenshots/playground-done.png" alt="After Done: Claude reports that it restyled the card in the picked direction, with the note applied" width="480">
 

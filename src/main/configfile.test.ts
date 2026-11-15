@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Settings } from '../shared/types'
-import { fromFile, toFile } from './configfile'
+import { fromFile, overStale, toFile, travelling } from './configfile'
 
 const base: Settings = {
   projects: ['/Users/a/p'],
@@ -45,5 +45,15 @@ describe('config file', () => {
 
   it('rejects anything else', () => {
     for (const raw of [null, [], 'x', { foo: 1 }]) expect(() => fromFile(raw, base)).toThrow()
+  })
+
+  it("keeps a sync's values over a window save that hasn't seen it, but takes the window's own changes", () => {
+    const old = travelling(base)
+    const synced: Settings = { ...base, theme: 'light', meters: false }
+    // Sent before the window had the sync, with a change of its own.
+    const stale = overStale({ ...base, readme: false, active: '/Users/a/q' }, synced, [old])
+    expect(stale).toMatchObject({ theme: 'light', meters: false, readme: false, active: '/Users/a/q' })
+    // Once it shows the sync, nothing in its saves is old.
+    expect(overStale({ ...synced, notifications: true }, synced, [old])).toBeNull()
   })
 })

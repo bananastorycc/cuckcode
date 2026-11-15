@@ -29,3 +29,22 @@ export function fromFile(raw: any, current: Settings, home = homedir()): Record<
   return { ...current, ...picked }
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+// The travelling keys as JSON, to tell old values from new.
+export const travelling = (s: Settings): Record<string, string> => Object.fromEntries(KEYS.map((k) => [k, JSON.stringify(s[k])]))
+
+// A window save sent before the window showed settings that came from elsewhere (an import, the
+// config repo) still carries values from before: `olds`, one per change it hasn't shown yet.
+// Those keys keep the current values, so the save can't undo the change; a key the window
+// changed itself is taken. Null when nothing in the save was old: the window has caught up.
+export function overStale(save: Settings, current: Settings, olds: Record<string, string>[]): Settings | null {
+  const out: Record<string, unknown> = { ...save }
+  let stale = false
+  for (const k of KEYS) {
+    const value = JSON.stringify(save[k])
+    if (value === JSON.stringify(current[k]) || !olds.some((o) => o[k] === value)) continue
+    out[k] = current[k]
+    stale = true
+  }
+  return stale ? (out as unknown as Settings) : null
+}
