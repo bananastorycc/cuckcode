@@ -148,7 +148,9 @@ When an agent exits you land in a shell in the same folder. The toolbar button (
 
 ## Playgrounds
 
-Up to ten playgrounds per project, each with a name (Settings › Playgrounds). Claude is told about each one and drops a page in `.cuckcode/playground/<n>/index.html`: a review form, an image gallery, a small tool. ⌥⌘<n> shows it over the whole workspace. The page gets `window.cuckcode.save/load` to keep answers that Claude reads back afterward. A dot on a playground's icon means Claude updated it while you weren't looking. With no playgrounds, Claude isn't told about any.
+Up to ten playgrounds per project, each with a name (Settings › Playgrounds). Claude is told about each one, and uses it on its own whenever showing beats describing. It drops a page in `.cuckcode/playground/<n>/index.html` and ⌥⌘<n> shows it over the whole workspace.
+
+Pages are built from the playground kit (`src/kit`, served at `media://kit/`): blocks for choices, image and video reviews, forms, plans, triage boards, tables, live design tuning, image annotation, charts, progress and Markdown reports. A page is a few lines naming its blocks, which keeps it cheap for Claude to write, and it follows cuckcode's theme. Answers autosave to `data/answers.json`, which Claude reads back when you say you're done. The Templates button in a playground shows every block live, and [`src/kit/README.md`](src/kit/README.md) documents them. Pages can also be plain HTML, with `window.cuckcode.save/load` to keep answers. A dot on a playground's icon means Claude updated it while you weren't looking. With no playgrounds, Claude isn't told about any.
 
 ## Folders and web pages
 

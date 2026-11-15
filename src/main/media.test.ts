@@ -2,8 +2,9 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { browse, mediaResponse, parseRange, playPath, withBridge } from './media'
-import { validName } from './playground'
+import { existsSync } from 'node:fs'
+import { browse, kitPath, mediaResponse, parseRange, playPath, withBridge } from './media'
+import { kitDir, validName } from './playground'
 
 describe('parseRange', () => {
   it('handles open, closed, suffix and invalid ranges', () => {
@@ -27,6 +28,17 @@ describe('playground', () => {
     expect(play('')).toBeNull()
     expect(playPath(new URL('media://play/%2Fp/11/index.html'))).toBeNull()
     expect(playPath(new URL('media://play/%2Fp/x/index.html'))).toBeNull()
+  })
+
+  it('maps kit URLs into the kit and nowhere else', () => {
+    const kit = (path: string): string | null => kitPath(new URL(`media://kit/${path}`), '/k')
+    expect(kit('kit.js')).toBe('/k/kit.js')
+    expect(kit('..%2Fsecret')).toBeNull()
+    expect(kit('a/..%2F..%2Fsecret')).toBeNull()
+    expect(kit('')).toBeNull()
+    // The real one, which pages load from: the prompt's README path and the showcase rely on it.
+    expect(existsSync(join(kitDir, 'kit.js'))).toBe(true)
+    expect(existsSync(join(kitDir, 'README.md'))).toBe(true)
   })
 
   it('injects the bridge after <head>, never before the doctype', () => {

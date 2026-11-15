@@ -618,6 +618,7 @@ export default function App(): React.JSX.Element {
                   slot={playing}
                   name={config.playgrounds[playing - 1].name || `playground ${playing}`}
                   version={playVersions[`${playing}:${active}`] ?? null}
+                  theme={theme}
                 />
               </div>
             )}

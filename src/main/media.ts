@@ -5,12 +5,13 @@ import { Readable } from 'node:stream'
 import { runBuffer } from './git'
 import type { BrowseEntry } from '../shared/types'
 import { mediaKind, TYPES } from './mime'
-import { playDir, validSlot } from './playground'
+import { kitDir, playDir, validSlot } from './playground'
 
 // Serves media:// URLs built by git.snapshot():
 //   media://local/?path=<abs>&v=<mtime>          working tree file
 //   media://local/?repo=<root>&blob=<sha>&ext=.x  blob from git (content-addressed, cached)
 //   media://play/<encoded project>/<path>         a file in that project's playground
+//   media://kit/<path>                             the playground kit (src/kit), shared by every page
 // Range support is required for <video> seeking.
 
 const isMedia = (ext: string): boolean => mediaKind(ext) !== null
@@ -75,8 +76,14 @@ export function withBridge(html: string): string {
 export function playPath(url: URL): string | null {
   const [, id, slot, ...rest] = url.pathname.split('/')
   if (!id || !validSlot(Number(slot))) return null
-  const dir = playDir(decodeURIComponent(id), Number(slot))
-  const file = normalize(join(dir, ...rest.map(decodeURIComponent)))
+  return inside(playDir(decodeURIComponent(id), Number(slot)), rest)
+}
+
+// The kit file a media://kit/… URL names, or null outside the kit.
+export const kitPath = (url: URL, dir = kitDir): string | null => inside(dir, url.pathname.split('/').slice(1))
+
+function inside(dir: string, parts: string[]): string | null {
+  const file = normalize(join(dir, ...parts.map(decodeURIComponent)))
   return file.startsWith(dir + '/') ? file : null
 }
 
@@ -108,6 +115,11 @@ async function load(url: URL): Promise<{ data: Buffer; ext: string }> {
     const ext = extname(file).toLowerCase()
     const data = await readFile(file)
     return { data: ext === '.html' ? Buffer.from(withBridge(data.toString('utf8'))) : data, ext }
+  }
+  if (url.host === 'kit') {
+    const file = kitPath(url)
+    if (!file) throw new Error('outside the kit')
+    return { data: await readFile(file), ext: extname(file).toLowerCase() }
   }
   const repo = url.searchParams.get('repo') ?? ''
   const blob = url.searchParams.get('blob') ?? ''
@@ -168,8 +180,8 @@ export async function mediaResponse(request: Request): Promise<Response> {
     const path = url.host === 'local' && url.searchParams.get('path')
     if (path) return await localResponse(path, request.headers.get('range'))
     const { data, ext } = await load(url)
-    // Claude rewrites playground files in place under the same names.
-    const fresh: Record<string, string> = url.host === 'play' ? { 'Cache-Control': 'no-store' } : {}
+    // Claude rewrites playground files in place under the same names; the kit changes with updates.
+    const fresh: Record<string, string> = url.host === 'play' || url.host === 'kit' ? { 'Cache-Control': 'no-store' } : {}
     const range = parseRange(request.headers.get('range'), data.length)
     const body = (range ? data.subarray(range[0], range[1] + 1) : data) as Uint8Array<ArrayBuffer>
     return respond(body, data.length, range, TYPES[ext], fresh)

@@ -11,21 +11,43 @@ import { run } from './git'
 
 export const playDir = (project: string, slot: number): string => join(project, '.cuckcode', 'playground', String(slot))
 
+// The kit pages load from media://kit/: blocks Claude describes instead of writing a page. The
+// repo always sits beside the build (out/main) and the tests (src/main), two levels down.
+export const kitDir = join(__dirname, '../../src/kit')
+
 const slotName = (s: PlaygroundSlot, i: number): string => s.name || `playground ${i + 1}`
 
-// Appended to the system prompt of every claude session cuckcode starts.
+// Appended to the system prompt of every claude session cuckcode starts. The block summary is
+// what spares Claude reading the kit's README or writing a page from scratch.
 export function prompt(project: string, slots: PlaygroundSlot[]): string {
   const one = slots.length === 1
   const dir = one ? playDir(project, 1) : `${join(project, '.cuckcode', 'playground')}/<n>`
   const which = one
     ? `It is called "${slotName(slots[0], 0)}"; its folder is ${dir}.`
     : `There are ${slots.length} of them, each its own folder (<n> below): ${slots.map((s, i) => `${i + 1} = "${slotName(s, i)}"`).join(', ')}. Use the one whose name fits the task, or 1 when none does.`
-  return `You are running inside cuckcode, an app that shows a "playground" that fills the window in place of this terminal: a web view for anything you want the user to see or interact with (image or video galleries, review/approval forms, previews, small tools). Use it whenever showing beats describing, without being asked. ${which}
+  return `You are running inside cuckcode, which has a "playground": a web page that fills the window in place of this terminal, for anything the user should see, pick or fill in. ${which}
 
-- Write the page to ${dir}/index.html, with any assets beside it (copy or symlink images/videos in; reference them by relative path). Plain HTML/CSS/JS, no build step. It reloads whenever its files change, and the user opens it from its button in the header (a dot appears there when you update it). Tell the user when there's something to look at.
-- The page gets window.cuckcode: \`await cuckcode.save(name, data)\` writes data as JSON to ${dir}/data/<name>.json, and \`await cuckcode.load(name)\` returns it (or null). Save on every change and restore with load on page load, so nothing typed is lost to a reload. Never write to data/ yourself while the user is filling it in.
-- When the user says they're done in the playground, read ${dir}/data/*.json and act on it.
-- The folder is git-ignored (via .git/info/exclude). Overwrite index.html freely for each new task; style it for both light and dark (prefers-color-scheme).`
+Use it on your own, without being asked, whenever showing beats describing: options to choose between (designs, approaches, names), images or video to review, several questions at once, a plan to approve or reorder, items to triage, a look to tune, data or a report to read, progress on long work. Keep a single quick question in the terminal.
+
+Build pages from the kit's blocks; there's no CSS or JS to write. A whole page, in ${dir}/index.html:
+
+<!doctype html><meta charset="utf-8"><script src="media://kit/kit.js"></script>
+<script>kit.page({ title: 'Pick a header', intro: 'Markdown.', blocks: [
+  { type: 'choice', id: 'header', options: [{ id: 'a', label: 'Bold', src: 'a.png', text: 'Why' }, { id: 'b', label: 'Calm', src: 'b.png' }] },
+  { type: 'form', id: 'details', fields: [{ id: 'tagline', label: 'Tagline' }, { id: 'tone', kind: 'radio', options: ['warm', 'dry'] }] }
+] })</script>
+
+Every block takes an optional id (it names the block's answer), title and text (Markdown under the title).
+- Ask: form {fields:[{id,label,kind:text|textarea|number|select|radio|checkbox|toggle|range|rating|color|date,options,default,help,placeholder,min,max,step,unit}]} · choice {options:[{id,label,text,src|html|code+lang,pros,cons,badge}],multiple,columns,note} · review {items:[{id,src,caption,text}],verdicts:['approve','reject'],notes} for images, video, audio or html, with a lightbox and number keys · plan {items:[{id,title,detail,checked}]}: tick, drag to reorder, comment, add steps · checklist {items} · buckets {buckets:['Now','Later','Never'],items:[{id,title,detail,tags,bucket}]}: drag to sort · table {columns,rows,select:'one'|'many'}: sort, filter, pick rows · tune {knobs:[{id,label,kind:range|color|select|toggle|text,min,max,step,unit,value,options}],preview:'<html>',css,height}: a live preview where each knob is var(--id) and {{id}} · annotate {src}: the user pins notes on an image.
+- Show: markdown {text} · callout {tone:info|ok|warn|danger,heading,text} · code {code,lang} (lang 'diff' colors +/- lines) · diff {before,after} · stats {items:[{label,value,delta,better:'lower',tone,hint}]} · chart {kind:bar|line,labels,series:[{name,values}],unit} · steps {items:[{title,status:done|doing|todo|failed|skipped,detail}]} · gallery {items} · compare {before,after}: an image wipe slider · html {html,frame,height}.
+- Arrange: columns {blocks} · tabs {tabs:[{label,blocks}]}. Page options: kicker, width:'wide'|'full', submit (the Done button's label, or false for pages with nothing to answer).
+
+Answers autosave to ${dir}/data/answers.json as {blockId: answer}; _done holds when the user pressed Done. ${join(kitDir, 'README.md')} has each block's answer shape and examples: read it only when this isn't enough. For what blocks can't do, still load kit.js and either register a block (kit.block('name', (spec, ctx) => element), saving with ctx.set(answer); kit.h(tag, props, ...children) and kit.md(text) help) or write your own HTML on the kit's tokens (var(--bg), --panel, --line, --fg, --muted, --accent, --add, --del) and its k-* classes; window.cuckcode.save(name, data) and load(name) keep data/<name>.json.
+
+- Put assets beside index.html (copy or symlink images and video in) and use relative paths. The page reloads whenever its files change, keeping answers, so for long work keep a steps or stats page current as you go.
+- For a new task, overwrite index.html and delete data/ first, or the old answers load into the new page. Never write data/ while the user is filling it in.
+- After writing it, tell the user in one line what's there; they open it from the header (a dot shows it changed). When they say they're done, read data/answers.json and act on it.
+- The folder is git-ignored (via .git/info/exclude).`
 }
 
 // Newest mtime of the page and its assets (not data/, which the page writes itself, so saving

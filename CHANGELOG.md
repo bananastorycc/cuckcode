@@ -2,6 +2,12 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.34.0 — 2026-11-14
+
+- Playgrounds come with a built-in kit of templates: choices, image and video reviews, forms, plans, triage boards, tables, live design tuning, image annotation, charts, progress and reports. Claude builds pages from them in a few lines, so they cost fewer tokens and match cuckcode's look.
+- Claude now uses the playground on its own whenever showing beats describing, and the page follows cuckcode's light or dark theme.
+- The Templates button in a playground shows every template live.
+
 ## 1.33.0 — 2026-11-14
 
 - Settings › Sync exports your settings, theme and saved layouts to a file and imports them back, to move them to another machine.

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Playground templates</title>
+<script src="kit.js"></script>
+</head>
+<body>
+<script>
+// Every block, with made-up content; nothing here is saved. Sample images are drawn inline.
+const swatch = (hue, label, shape = 'circle') =>
+  'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360" viewBox="0 0 480 360">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue} 70% 62%)"/><stop offset="1" stop-color="hsl(${hue + 40} 65% 42%)"/></linearGradient></defs>
+  <rect width="480" height="360" fill="url(#g)"/>
+  ${shape === 'circle' ? '<circle cx="240" cy="170" r="90" fill="rgba(255,255,255,.85)"/>' : '<rect x="150" y="80" width="180" height="180" rx="28" fill="rgba(255,255,255,.85)"/>'}
+  <text x="240" y="320" font-family="-apple-system,sans-serif" font-size="28" font-weight="600" fill="white" text-anchor="middle">${label}</text></svg>`)
+
+const mock = (dense) =>
+  'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="460" viewBox="0 0 800 460">
+  <rect width="800" height="460" fill="${dense ? '#f3f4f6' : '#fff'}"/>
+  <rect width="800" height="56" fill="${dense ? '#1f2937' : '#d97706'}"/>
+  <rect x="24" y="18" width="120" height="20" rx="4" fill="white" opacity=".9"/>
+  <rect x="${dense ? 24 : 160}" y="96" width="${dense ? 360 : 480}" height="28" rx="6" fill="#1f2328"/>
+  <rect x="${dense ? 24 : 200}" y="140" width="${dense ? 300 : 400}" height="14" rx="4" fill="#9ca3af"/>
+  <rect x="${dense ? 24 : 300}" y="186" width="200" height="44" rx="22" fill="${dense ? '#2563eb' : '#d97706'}"/>
+  ${[0, 1, 2].map((i) => `<rect x="${24 + i * 256}" y="270" width="240" height="160" rx="12" fill="${dense ? '#e5e7eb' : '#fef3c7'}"/>`).join('')}</svg>`)
+
+kit.page({
+  kicker: 'cuckcode playground',
+  title: 'What Claude can put here',
+  intro:
+    'Claude builds playground pages out of these blocks when showing beats describing: it writes a few lines naming the blocks and their content, and the kit draws them and saves your answers for Claude to read. Everything below is live. Nothing is saved.',
+  width: 'wide',
+  submit: 'Done (try it)',
+  blocks: [
+    {
+      type: 'tabs',
+      tabs: [
+        {
+          label: 'Decide',
+          blocks: [
+            {
+              type: 'choice',
+              id: 'direction',
+              title: 'choice: pick a direction',
+              text: 'Cards with an image, an HTML preview or code, and optional pros and cons. Set `multiple: true` to pick several.',
+              options: [
+                { id: 'warm', label: 'Warm', src: swatch(20, 'Warm'), text: 'Friendly, high energy.', pros: ['Stands out'], cons: ['Loud next to photos'], badge: 'Recommended' },
+                { id: 'cool', label: 'Cool', src: swatch(200, 'Cool', 'square'), text: 'Calm and technical.', pros: ['Easy on the eyes'] },
+                { id: 'fresh', label: 'Fresh', src: swatch(120, 'Fresh'), text: 'Light, outdoorsy.', cons: ['Close to a competitor'] }
+              ]
+            },
+            {
+              type: 'choice',
+              id: 'button',
+              title: 'choice with HTML previews',
+              columns: 2,
+              note: false,
+              options: [
+                { id: 'solid', label: 'Solid', html: '<div style="display:grid;place-items:center;height:100%"><button style="font:600 14px system-ui;padding:10px 22px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-fg)">Get started</button></div>', height: 110 },
+                { id: 'outline', label: 'Outline', html: '<div style="display:grid;place-items:center;height:100%"><button style="font:600 14px system-ui;padding:10px 22px;border:1.5px solid var(--accent);border-radius:99px;background:none;color:var(--accent)">Get started →</button></div>', height: 110 }
+              ]
+            },
+            {
+              type: 'columns',
+              blocks: [
+                { type: 'compare', title: 'compare: before / after wipe', before: mock(false), after: mock(true), beforeLabel: 'Current', afterLabel: 'Proposed' },
+                { type: 'annotate', id: 'pins', title: 'annotate: pin notes on an image', src: mock(false) }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Review',
+          blocks: [
+            {
+              type: 'review',
+              id: 'sprites',
+              title: 'review: approve or reject each item',
+              text: 'Images, video, audio or HTML. Click one to enlarge, then use ←/→ and 1/2 to judge quickly.',
+              items: [10, 45, 90, 160, 210, 260, 300, 340].map((hue, i) => ({ id: `art-${i + 1}`, src: swatch(hue, `Take ${i + 1}`, i % 2 ? 'square' : 'circle'), caption: `art-${i + 1}.png` })),
+              size: 180
+            },
+            {
+              type: 'review',
+              id: 'copy',
+              title: 'review with custom verdicts',
+              verdicts: ['keep', 'rewrite', 'drop'],
+              items: [
+                { id: 'h1', kind: 'text', text: '## Ship faster\nEverything you need to go from idea to production.', caption: 'Hero, version 1' },
+                { id: 'h2', kind: 'text', text: '## Build what matters\nWe handle the boring parts.', caption: 'Hero, version 2' },
+                { id: 'h3', kind: 'code', code: 'export const cta = "Start free"', lang: 'ts', caption: 'Button label' }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Ask',
+          blocks: [
+            {
+              type: 'form',
+              id: 'setup',
+              title: 'form: several questions at once',
+              text: 'Text, long text, select, radio, checkboxes, toggle, range, rating, color, date and number.',
+              fields: [
+                { id: 'name', label: 'Project name', placeholder: 'e.g. Lighthouse', required: true },
+                { id: 'audience', label: 'Who is it for?', kind: 'radio', options: [{ value: 'devs', label: 'Developers', hint: 'APIs, CLIs' }, { value: 'teams', label: 'Small teams' }, { value: 'everyone', label: 'Everyone' }] },
+                { id: 'platforms', label: 'Platforms', kind: 'checkbox', options: ['macOS', 'Windows', 'Linux', 'Web'], default: ['macOS'] },
+                { id: 'db', label: 'Database', kind: 'select', options: ['SQLite', 'Postgres', 'None'] },
+                { id: 'offline', label: 'Works offline', kind: 'toggle', default: true },
+                { id: 'density', label: 'Density', kind: 'range', min: 1, max: 5, default: 3, help: '1 is airy, 5 is packed' },
+                { id: 'confidence', label: 'How sure are you about scope?', kind: 'rating' },
+                { id: 'brand', label: 'Brand color', kind: 'color', default: '#d97706' },
+                { id: 'notes', label: 'Anything else?', kind: 'textarea' }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Plan',
+          blocks: [
+            {
+              type: 'plan',
+              id: 'plan',
+              title: 'plan: approve, reorder, comment, add',
+              items: [
+                { id: 'schema', title: 'Add a `sessions` table', detail: 'Migration plus model; no data backfill.' },
+                { id: 'api', title: 'Expose `/api/sessions`', detail: 'List and revoke.' },
+                { id: 'ui', title: 'Sessions page in Settings' },
+                { id: 'docs', title: 'Update the README', checked: false }
+              ]
+            },
+            {
+              type: 'buckets',
+              id: 'triage',
+              title: 'buckets: drag items into columns',
+              buckets: ['Now', 'Later', 'Never'],
+              items: [
+                { id: '12', title: 'Crash on empty file', tags: ['bug'] },
+                { id: '15', title: 'Dark mode for exports', tags: ['feature'] },
+                { id: '18', title: 'Slow search in big repos', detail: '~4s on 200k files', tags: ['perf'], bucket: 'Now' },
+                { id: '21', title: 'Rename "Sync" to "Push"', tags: ['ux'] },
+                { id: '22', title: 'Telemetry opt-in', bucket: 'Never' }
+              ]
+            },
+            { type: 'checklist', id: 'release', title: 'checklist', items: ['Tests pass', 'Changelog written', 'Version bumped'] }
+          ]
+        },
+        {
+          label: 'Tune',
+          blocks: [
+            {
+              type: 'tune',
+              id: 'card',
+              title: 'tune: knobs with a live preview',
+              text: 'Each knob is a CSS variable (`var(--radius)`) and a `{{placeholder}}`. Copy the CSS when it looks right.',
+              knobs: [
+                { id: 'radius', label: 'Corner radius', min: 0, max: 32, value: 14, unit: 'px' },
+                { id: 'pad', label: 'Padding', min: 8, max: 48, value: 22, unit: 'px' },
+                { id: 'hue', label: 'Hue', min: 0, max: 360, value: 28 },
+                { id: 'shadow', label: 'Shadow', kind: 'toggle', value: true },
+                { id: 'font', label: 'Font', kind: 'select', options: ['system-ui', 'Georgia', 'ui-monospace'] },
+                { id: 'headline', label: 'Headline', kind: 'text', value: 'Hello there' }
+              ],
+              css: '.card{max-width:340px;margin:20px auto;padding:var(--pad);border-radius:var(--radius);font-family:var(--font);background:hsl(var(--hue) 90% 96%);color:hsl(var(--hue) 60% 20%);box-shadow:0 10px 30px rgb(0 0 0 / calc(var(--shadow) * 18%))}.card button{margin-top:12px;border:0;padding:8px 16px;border-radius:calc(var(--radius) / 2);background:hsl(var(--hue) 80% 45%);color:white;font:inherit}',
+              preview: '<div class="card"><h2 style="margin:0 0 6px">{{headline}}</h2><p style="margin:0">A card you can tune.</p><button>Action</button></div>',
+              height: 300
+            }
+          ]
+        },
+        {
+          label: 'Data',
+          blocks: [
+            {
+              type: 'stats',
+              items: [
+                { label: 'Bundle size', value: '182 kB', delta: '-12%', better: 'lower', tone: 'ok' },
+                { label: 'Cold start', value: '640 ms', delta: '+40 ms', better: 'lower', hint: 'p50 on M1' },
+                { label: 'Tests', value: '214', delta: '+18' },
+                { label: 'Failing', value: '2', tone: 'danger' }
+              ]
+            },
+            {
+              type: 'columns',
+              blocks: [
+                { type: 'chart', title: 'chart: bar', labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], series: [{ name: 'Before', values: [320, 410, 380, 450, 400] }, { name: 'After', values: [210, 260, 240, 300, 250] }], unit: 'ms' },
+                { type: 'chart', title: 'chart: line', kind: 'line', labels: ['v1', 'v2', 'v3', 'v4', 'v5', 'v6'], series: [{ name: 'Size', values: [240, 228, 210, 215, 190, 182] }], unit: 'kB' }
+              ]
+            },
+            {
+              type: 'table',
+              id: 'deps',
+              title: 'table: sort, filter, pick rows',
+              select: 'many',
+              filter: true,
+              columns: ['name', 'version', { key: 'size', label: 'Size (kB)' }, 'license'],
+              rows: [
+                { id: 'react', name: 'react', version: '19.1.0', size: 7.4, license: 'MIT' },
+                { id: 'lodash', name: 'lodash', version: '4.17.21', size: 71.5, license: 'MIT' },
+                { id: 'moment', name: 'moment', version: '2.30.1', size: 72.1, license: 'MIT' },
+                { id: 'zod', name: 'zod', version: '3.24.2', size: 13.2, license: 'MIT' },
+                { id: 'chalk', name: 'chalk', version: '5.4.1', size: 5.6, license: 'MIT' }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Report',
+          blocks: [
+            {
+              type: 'steps',
+              title: 'steps: progress on long work',
+              text: 'Claude rewrites the page as it goes; it reloads in place.',
+              items: [
+                { title: 'Read the codebase', status: 'done' },
+                { title: 'Write the migration', status: 'done', detail: '`0042_sessions.sql`' },
+                { title: 'Run the test suite', status: 'doing', detail: '128 of 214' },
+                { title: 'Update docs', status: 'todo' }
+              ]
+            },
+            { type: 'callout', tone: 'warn', heading: 'callout', text: 'Info, ok, warn and danger tones, with `markdown` inside.' },
+            {
+              type: 'markdown',
+              text: '## markdown\nHeadings, **bold**, *italic*, `code`, [links](https://example.com), lists and tables:\n\n- [x] Parser\n- [ ] Exporter\n\n| Step | Time |\n|---|---|\n| Build | 4.2s |\n| Test | 11s |\n\n> Quotes too.'
+            },
+            { type: 'diff', title: 'diff: before and after text', before: 'Welcome to the app.\nClick here to start.\nThanks!', after: 'Welcome to Lighthouse.\nPress Start to begin.\nThanks!' },
+            { type: 'code', title: 'code', lang: 'ts', code: "kit.page({\n  title: 'Pick one',\n  blocks: [{ type: 'choice', id: 'pick', options: [...] }]\n})" }
+          ]
+        }
+      ]
+    }
+  ]
+})
+</script>
+</body>
+</html>
