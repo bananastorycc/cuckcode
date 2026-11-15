@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, Plus, Puzzle, RefreshCw, Save, Trash2, X } from 'lu
 import type { Agent, AgentType, Config, SavedLayout, Settings as AllSettings, SyncStatus, ThemeChoice } from '../../../shared/types'
 import { MAX_SLOTS } from '../../../shared/types'
 import { apply, current, load, PRESETS, valid } from '../layout'
+import { ask } from './Confirm'
 import { tildify } from './Header'
 
 interface Props {
@@ -184,8 +185,9 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
             <div className="flex gap-2">
               <button
                 className="btn hover:text-del"
-                onClick={() => {
-                  if (!confirm('Reset the layout to Default? The workspace is rearranged; your saved layouts are kept.')) return
+                onClick={async () => {
+                  if (!(await ask({ title: 'Reset the layout to Default?', detail: 'The workspace is rearranged; your saved layouts are kept.', action: 'Reset layout' })))
+                    return
                   apply(PRESETS[0])
                   onClose()
                 }}
@@ -194,10 +196,14 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
               </button>
               <button
                 className="btn hover:text-del"
-                onClick={() =>
-                  confirm(
-                    'Reset all settings to their defaults? Agents, playgrounds, web pages, folders, saved layouts, the projects folder and the theme all go back to a fresh install (and to the config repo, if you sync), and removed agents\' terminals close. This can\'t be undone.'
-                  ) && onReset()
+                onClick={async () =>
+                  (await ask({
+                    title: 'Reset all settings to their defaults?',
+                    detail:
+                      "Agents, playgrounds, web pages, folders, saved layouts, the projects folder and the theme all go back to a fresh install (and to the config repo, if you sync), and removed agents' terminals close. This can't be undone.",
+                    action: 'Reset everything',
+                    danger: true
+                  })) && onReset()
                 }
               >
                 Reset everything

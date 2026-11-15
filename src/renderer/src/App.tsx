@@ -5,6 +5,7 @@ import changelog from '../../../CHANGELOG.md?raw'
 import type { ChangedFile, Config, GitStatus, MenuCommand, PaneDir, SavedLayout, Settings as AllSettings, Theme, ThemeChoice } from '../../shared/types'
 import { SHELL_ID } from '../../shared/types'
 import AgentMenu from './components/AgentMenu'
+import Confirm, { ask } from './components/Confirm'
 import CodePane, { saveAll, selection, type Reveal } from './components/CodePane'
 import FileTree from './components/FileTree'
 import GitPanel, { type GitTab } from './components/GitPanel'
@@ -395,7 +396,12 @@ export default function App(): React.JSX.Element {
   onMenu.current = (cmd) => {
     if (cmd.type === 'open') open()
     // Kills the project's terminals, so the shortcut asks first; the tab's × is deliberate enough.
-    else if (cmd.type === 'close' && active && confirm(`Close ${projectName(active)}? Its terminals and agents are stopped.`)) close(active)
+    else if (cmd.type === 'close' && active) {
+      const path = active
+      ask({ title: `Close ${projectName(path)}?`, detail: 'Its terminals and agents are stopped.', action: 'Close project', danger: true }).then(
+        (yes) => yes && close(path)
+      )
+    }
     else if (cmd.type === 'closeFile') closeFile()
     else if (cmd.type === 'newFile') setNewFile((n) => n + 1)
     else if (cmd.type === 'quickOpen') setQuickOpen((n) => n + 1)
@@ -744,6 +750,7 @@ export default function App(): React.JSX.Element {
           exclude={projects}
           onPick={(path) => open([path])}
         />
+        <Confirm />
       </div>
     </div>
   )

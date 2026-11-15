@@ -3,6 +3,7 @@ import { Download, FolderOpen, GitBranch, RefreshCw, RotateCcw, Trash2, X } from
 import type { PluginInfo, PluginStatus } from '../../../shared/plugin'
 import type { PluginRef } from '../../../shared/types'
 import { usePlugins } from '../plugins'
+import { ask } from './Confirm'
 import { tildify } from './Header'
 import { Markdown } from './Readme'
 
@@ -102,7 +103,13 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
 
   const remove = async (path: string): Promise<void> => {
     const own = infos[path]?.managed
-    if (!confirm(own ? `Remove ${name(path)}? Its folder goes to the Trash.` : `Remove ${name(path)} from cuckcode? The folder stays where it is.`)) return
+    const yes = await ask({
+      title: own ? `Remove ${name(path)}?` : `Remove ${name(path)} from cuckcode?`,
+      detail: own ? 'Its folder goes to the Trash.' : 'The folder stays where it is.',
+      action: 'Remove',
+      danger: true
+    })
+    if (!yes) return
     await window.api.pluginUninstall(path).catch(() => {})
     onChange(plugins.filter((p) => p.path !== path))
   }
