@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, screen, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, screen, shell } from 'electron'
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -40,7 +40,7 @@ const scratchFile = join(app.getPath('userData'), 'cuckcode-scratch.txt')
 const DEFAULTS: Settings = {
   projects: [],
   active: null,
-  theme: 'light',
+  theme: 'auto',
   files: {},
   agent: {},
   recent: [],
@@ -92,7 +92,7 @@ function parse(raw: any): Settings {
   return {
     projects,
     active: projects.includes(raw.active) ? raw.active : (projects[0] ?? null),
-    theme: raw.theme === 'dark' ? 'dark' : 'light',
+    theme: raw.theme === 'light' || raw.theme === 'dark' ? raw.theme : 'auto',
     files,
     agent: agentIn,
     recent: strings(raw.recent),
@@ -330,7 +330,7 @@ function createWindow(): void {
     show: false,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 14, y: 13 },
-    backgroundColor: settings.theme === 'dark' ? '#0d1117' : '#ffffff',
+    backgroundColor: settings.theme === 'light' || (settings.theme === 'auto' && !nativeTheme.shouldUseDarkColors) ? '#ffffff' : '#0d1117',
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: true }
   })
   win.once('ready-to-show', () => win?.show())

@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, Plus, Puzzle, RefreshCw, Save, Trash2, X } from 'lucide-react'
-import type { Agent, AgentType, Config, SavedLayout, Settings as AllSettings, SyncStatus, Theme } from '../../../shared/types'
+import type { Agent, AgentType, Config, SavedLayout, Settings as AllSettings, SyncStatus, ThemeChoice } from '../../../shared/types'
 import { MAX_SLOTS } from '../../../shared/types'
 import { apply, current, load, PRESETS, valid } from '../layout'
 import { tildify } from './Header'
 
 interface Props {
   config: Config
-  theme: Theme
-  onTheme: () => void
+  theme: ThemeChoice
+  onTheme: (theme: ThemeChoice) => void
   layouts: SavedLayout[]
   onLayouts: (layouts: SavedLayout[]) => void
   onChange: (config: Config) => void
@@ -54,7 +54,13 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-2xl flex-col gap-6 px-6 py-5 text-xs">
           <Section title="General">
-            <Toggle label="Dark mode" checked={theme === 'dark'} onChange={onTheme} />
+            <Row label="Theme">
+              <select className={`w-28 ${field}`} value={theme} onChange={(e) => onTheme(e.target.value as ThemeChoice)}>
+                <option value="auto">Auto</option>
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+              </select>
+            </Row>
             <Row label="Projects folder" hint="Where ⌘T opens projects from, and where pasted git remotes are cloned.">
               <span className="truncate font-mono">{config.projectsDir ? tildify(config.projectsDir) : 'Not set'}</span>
               <button className="btn ml-auto shrink-0" onClick={() => pickInto((dir) => set('projectsDir', dir))}>
@@ -190,7 +196,7 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
                 className="btn hover:text-del"
                 onClick={() =>
                   confirm(
-                    'Reset all settings to their defaults? Agents, playgrounds, web pages, folders, saved layouts, the projects folder and dark mode all go back to a fresh install (and to the config repo, if you sync), and removed agents\' terminals close. This can\'t be undone.'
+                    'Reset all settings to their defaults? Agents, playgrounds, web pages, folders, saved layouts, the projects folder and the theme all go back to a fresh install (and to the config repo, if you sync), and removed agents\' terminals close. This can\'t be undone.'
                   ) && onReset()
                 }
               >

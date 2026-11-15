@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.37.0 — 2026-11-14
+
+- cuckcode follows your system's light or dark appearance by default, and is dark when it can't tell. Settings has a Theme menu (Auto, Dark or Light) in place of the Dark mode checkbox.
+
 ## 1.36.0 — 2026-11-14
 
 - Each project reopens on the agent it had in front when you quit, instead of always the first one.

@@ -2,6 +2,8 @@
 import type { LoadedPlugin, PluginInfo, PluginStatus } from './plugin'
 
 export type Theme = 'light' | 'dark'
+// What Settings stores: auto follows the system, dark when it can't tell.
+export type ThemeChoice = 'auto' | Theme
 
 export type ChangeCode = 'M' | 'A' | 'D' | 'R' | '?'
 
@@ -128,7 +130,7 @@ export interface Settings extends Config {
   projects: string[]
   // The tab in front at quit; it reopens in front regardless of tab order.
   active: string | null
-  theme: Theme
+  theme: ThemeChoice
   // Per project path: the file (repo-root relative) in front at quit.
   files: Record<string, string>
   // Per project path: the agent id in front at quit; it reopens in front.

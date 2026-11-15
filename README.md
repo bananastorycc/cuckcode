@@ -89,7 +89,7 @@ Quitting (⌘Q, or closing the window) saves any unsaved edits, kills every term
 | ⌘E | Toggle README |
 | ⌘B | Toggle folders |
 
-Plugins add their own shortcuts, listed under View. Dark mode is in Settings.
+Plugins add their own shortcuts, listed under View. The theme is in Settings: Auto (the default) follows the system's appearance and is dark when it can't tell; Dark and Light pin it.
 
 **File tree:** ↑/↓ move the cursor and open files as you go, → expands a folder or steps into it, ← collapses it or jumps to its parent, ↩ renames, ⌘⌫ moves to the Trash, right-click for New File / Rename / Move to Trash / Reveal in Finder / Copy Path / Copy Relative Path. Drag a file onto a terminal to paste its path (as an `@` mention in Claude).
 
@@ -148,7 +148,7 @@ Two buttons above the commit box act on **every open project** at once: ✨ comm
 
 ⌘, (or the gear in the header) opens Settings. Every change saves at once.
 
-- **General:** dark mode; the projects folder ⌘T opens from (the first ⌘T asks for it); notifications (on by default); usage meters.
+- **General:** the theme (Auto, the default, follows the system; or Dark, or Light); the projects folder ⌘T opens from (the first ⌘T asks for it); notifications (on by default); usage meters.
 - **Layout:** the presets and your saved layouts (see [Layout](#layout)).
 - **Panels:** README and Folders on or off, and the folders Folders lists.
 - **Playgrounds**, **Web pages**, **Agents**, **Plugins:** see below.

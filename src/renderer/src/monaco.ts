@@ -52,7 +52,7 @@ const COLORS: Record<Theme, { base: 'vs' | 'vs-dark'; colors: monaco.editor.ICol
   }
 }
 const rules: Record<Theme, monaco.editor.ITokenThemeRule[]> = { light: [], dark: [] }
-let current: Theme = 'light'
+let current: Theme = 'dark'
 
 function define(): void {
   for (const t of ['light', 'dark'] as const) {

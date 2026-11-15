@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FolderOpen, X } from 'lucide-react'
 import changelog from '../../../CHANGELOG.md?raw'
-import type { ChangedFile, Config, GitStatus, MenuCommand, PaneDir, SavedLayout, Settings as AllSettings, Theme } from '../../shared/types'
+import type { ChangedFile, Config, GitStatus, MenuCommand, PaneDir, SavedLayout, Settings as AllSettings, Theme, ThemeChoice } from '../../shared/types'
 import { SHELL_ID } from '../../shared/types'
 import AgentMenu from './components/AgentMenu'
 import CodePane, { saveAll, selection, type Reveal } from './components/CodePane'
@@ -33,7 +33,9 @@ export default function App(): React.JSX.Element {
   const [loaded, setLoaded] = useState(false)
   const [projects, setProjects] = useState<string[]>([])
   const [active, setActive] = useState<string | null>(null)
-  const [theme, setTheme] = useState<Theme>('light')
+  const [themeChoice, setTheme] = useState<ThemeChoice>('auto')
+  const systemTheme = useSystemTheme()
+  const theme: Theme = themeChoice === 'auto' ? systemTheme : themeChoice
   const [selected, setSelected] = useState<Record<string, ChangedFile>>({})
   const [done, setDone] = useState<Set<string>>(new Set())
   const [tick, setTick] = useState(0)
@@ -111,9 +113,9 @@ export default function App(): React.JSX.Element {
     if (loaded) {
       // A commit's file isn't restored: it'd come back as the working copy.
       const files = Object.fromEntries(Object.entries(selected).flatMap(([p, f]) => (f.commit ? [] : [[p, f.path]])))
-      window.api.save({ ...config, projects, active, theme, files, agent: terms, recent, layout: layoutRef.current, layouts })
+      window.api.save({ ...config, projects, active, theme: themeChoice, files, agent: terms, recent, layout: layoutRef.current, layouts })
     }
-  }, [loaded, projects, active, theme, selected, terms, config, recent, layoutSaves, layouts])
+  }, [loaded, projects, active, themeChoice, selected, terms, config, recent, layoutSaves, layouts])
 
   // The dock, once the saved layout is known. Dragging a divider changes the layout every frame;
   // it's saved once that settles.
@@ -384,8 +386,6 @@ export default function App(): React.JSX.Element {
       next.splice(to, 0, ...next.splice(from, 1))
       return next
     })
-
-  const toggleTheme = (): void => setTheme((t) => (t === 'light' ? 'dark' : 'light'))
 
   const closeFile = (): void => {
     if (active) setSelected(({ [active]: _, ...rest }) => rest)
@@ -720,8 +720,8 @@ export default function App(): React.JSX.Element {
           <div className="absolute inset-0 z-40">
             <Settings
               config={config}
-              theme={theme}
-              onTheme={toggleTheme}
+              theme={themeChoice}
+              onTheme={setTheme}
               layouts={layouts}
               onLayouts={setLayouts}
               onChange={changeConfig}
@@ -844,4 +844,17 @@ function changesSince(last: string): string {
     .slice(0, seen < 0 ? 1 : seen)
     .map((s) => s.slice(s.indexOf('\n') + 1).trim())
     .join('\n')
+}
+
+// The system's appearance, live. Light only when the system says so; anything else is dark.
+function useSystemTheme(): Theme {
+  const query = (): MediaQueryList => window.matchMedia('(prefers-color-scheme: light)')
+  const [light, setLight] = useState(() => query().matches)
+  useEffect(() => {
+    const q = query()
+    const on = (): void => setLight(q.matches)
+    q.addEventListener('change', on)
+    return () => q.removeEventListener('change', on)
+  }, [])
+  return light ? 'light' : 'dark'
 }
