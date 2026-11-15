@@ -38,7 +38,7 @@ Linux comes first. If you'd like to help with either port, [open an issue](https
 - macOS
 - git (`xcode-select --install`)
 - Node.js (`brew install node`)
-- At least one agent CLI, such as [Claude Code](https://claude.com/claude-code), [Junie](https://www.jetbrains.com/junie/), or any program you run in a terminal
+- At least one agent CLI, such as [Claude Code](https://claude.com/claude-code), [Junie](https://www.jetbrains.com/junie/), or any program you run in a terminal. cuckcode starts with Claude Code set up; any other takes a minute in Settings (see [Agents](#agents)).
 
 ## Install
 
@@ -49,6 +49,12 @@ curl -fsSL https://raw.githubusercontent.com/bananastorycc/cuckcode/main/install
 The installer clones this repo to `~/repos/cuckcode` (set `CUCKCODE_DIR` to put it elsewhere), installs dependencies, builds `/Applications/cuckcode.app` and opens it. You can rerun it safely. After that, launch cuckcode from Spotlight, Launchpad or the Dock.
 
 To install by hand, clone the repo anywhere, then run `npm install && npm run app`.
+
+On first launch:
+
+1. Press ⌘T. The first time, it asks for your projects folder (the folder that holds your repos, such as `~/repos`).
+2. Pick a project, or paste a git remote to clone one. It opens as a tab, and Claude Code starts in the Agents section.
+3. Using a different agent, or none? Open Settings (⌘,) › [Agents](#agents) and set up yours. The AI commit button also uses Claude Code by default: change or clear its command under Settings › [Git](#git).
 
 ## How updates work
 
@@ -61,7 +67,7 @@ The installed app is a thin launcher (`boot/index.js`) around your git checkout.
 
 **This means you run whatever is on the branch you track.** To stay on a release, check out its tag (`git -C ~/repos/cuckcode checkout v1.26.2`) or remove the upstream, and the launcher will run what's there. If a build fails, the launcher offers to start the previous build. After an update, a note in the corner shows the new version and what changed.
 
-Rerun `npm run app` only when the Electron version in `package.json` changes. The app tells you when that happens.
+Rerun `npm run app` only when the Electron version in `package.json` changes (the app tells you) or the launcher itself (`boot/index.js`) does (the update note says so).
 
 Quitting (⌘Q, or closing the window) saves any unsaved edits, kills every terminal, and exits within a few seconds. It doesn't ask anything. Nothing is pulled or pushed on the way out (a synced config change is only committed), and nothing keeps running in the background.
 
@@ -120,7 +126,7 @@ Under them, type a name to save the current layout. A saved layout stays as you 
 
 Click any file in the tree to open it — changed files are colored by status (modified / added / deleted / renamed / untracked) and show their diff against HEAD live as your agent edits; unchanged files just open in the editor. **Diff** and **Edit** are both the same underlying model, so typing works in either view, and switching never loses your place. Unchanged regions of a diff collapse to keep big files readable.
 
-Images (`.png` `.jpg` `.gif` `.webp` `.avif` `.svg`) and video (`.mp4` `.mov` `.webm`) get a side-by-side HEAD vs. working-tree viewer instead of a text diff; videos play in sync. A past commit's changes show the same way, parent vs. that commit.
+Images (`.png` `.jpg` `.jpeg` `.gif` `.webp` `.avif` `.svg`) and video (`.mp4` `.mov` `.webm`) get a side-by-side HEAD vs. working-tree viewer instead of a text diff; videos play in sync. A past commit's changes show the same way, parent vs. that commit.
 
 <img src="docs/screenshots/image-diff.png" alt="A changed logo.png shown side by side: HEAD on the left, the working tree on the right" width="500">
 
@@ -133,7 +139,7 @@ Edits save on ⌘S, when you press Enter in a terminal (so the agent always read
 
 ## Git
 
-**Commit** stages everything (`git add -A`), commits, and then, if the repo has a remote, syncs straight away: every commit is pushed. **AI** (✨) has your commit command write the message from the diff, recent commit style, and new files, then commits the same way. The command is set in Settings › Git and defaults to a headless `claude -p` on Haiku; any program works that reads the changes on stdin (its instructions are in `$CUCKCODE_COMMIT_PROMPT`) and prints a message. With no command, the AI buttons are hidden. **Sync** runs `pull --rebase --autostash` then push; **Pull**/**Push** run alone.
+**Commit** stages everything (`git add -A`), commits, and then, if the repo has a remote, syncs straight away: every commit is pushed. **AI** (✨) has your commit command write the message from the diff, recent commit style, and new files, then commits the same way. The command is set in Settings › Git and defaults to a headless `claude -p` on Haiku; any program works that reads the changes on stdin (its instructions are in `$CUCKCODE_COMMIT_PROMPT`) and prints a message. Unlike an agent, it runs with `/bin/sh` in the repo, not your login shell, so your aliases don't apply and `PATH` is cuckcode's own: the system folders plus Homebrew, `/usr/local/bin` and `~/.local/bin`. Use the full path for a tool installed anywhere else. **Default** next to the field puts the original command back. With no command, the AI buttons are hidden. **Sync** runs `pull --rebase --autostash` then push; **Pull**/**Push** run alone.
 
 **Discard Changes** (right-click a file in the list, or ⌘⌫) puts it back as HEAD has it, after a confirm in cuckcode's dialog. A new file goes to the Trash instead, with no confirm.
 
@@ -150,35 +156,65 @@ Two buttons above the commit box act on **every open project** at once: ✨ comm
 - **General:** the theme (Auto, the default, follows the system; or Dark, or Light); the projects folder ⌘T opens from (the first ⌘T asks for it); notifications (on by default).
 - **Layout:** the presets and your saved layouts (see [Layout](#layout)).
 - **Panels:** README and Folders on or off, and the folders Folders lists.
-- **Playgrounds**, **Web pages**, **Agents**, **Plugins:** see below.
+- **Playgrounds:** names for up to ten playground slots (see [Playgrounds](#playgrounds)). A fresh install has one.
+- **Web pages:** a name and URL for each, up to ten (see [Web pages](#readme-folders-and-web-pages)). A bare `host:port` gets `http://` in front.
+- **Agents:** the agents and their switches (see [Agents](#agents)).
 - **Git:** the command that writes AI commit messages (see [Git](#git)).
+- **Plugins:** opens the Plugins page (see [Plugins](#plugins)).
 - **Sync:** your settings, theme, saved layouts, plugins and scratchpad as one `cuckcode-config.json`. Export… and Import… move it by hand. Or give it a git repo (use a private one: agent commands and licenses are in the file): cuckcode clones it, pulls at launch, and commits and pushes a few seconds after each change; the ↻ button next to it syncs now, and the line under it shows the last sync or what went wrong. A change made just before quitting is committed on the way out and pushed at the next launch. When you first connect, a repo that already has the file replaces this machine's settings, and an empty one starts from them. When two machines change the same setting, the one that syncs last wins. Plugins travel as the git URLs they were installed from: one added on another machine is cloned and loaded at this one's next launch, and one removed there drops off the list here. Plugin folders you added yourself, open projects and the repo URL itself stay on each machine, and paths under your home folder are written as `~/…`.
-- **Reset:** put the layout back to Default, or every setting back to a fresh install's. Open projects, installed plugins and the config repo stay.
+- **Reset:** put the layout back to Default, or every setting back to a fresh install's (one Claude Code agent, one playground, the default commit command, no web pages or folders). Open projects, installed plugins and the config repo stay.
 
 ## Agents
 
-The Agents section runs agents: real login shells (via `node-pty`) running a program, with a dropdown in its title bar to switch between them. The Terminal section is a separate plain shell in the same folder. List as many agents as you like, in the order you want them. The first one starts with each project, and the rest start the first time you pick them.
+The Agents section runs your agents, with a dropdown in its title bar to switch between them. The Terminal section is a separate plain shell in the same folder. Each project gets its own copy of every agent: the first agent in the list starts when the project opens, and the others start the first time you pick them.
 
-An agent is a name, a command, and a few switches for what cuckcode does with it. **Add** under the list starts one from a preset, and plugins can add presets of their own. Nothing depends on which preset an agent came from: every field stays editable.
+### Setting up an agent
+
+A fresh install has one agent, **claude**, which runs [Claude Code](https://claude.com/claude-code). If that's what you use, install Claude Code (so `claude` works in your terminal) and there's nothing to set up.
+
+For anything else, or to change how Claude Code starts:
+
+1. Open Settings (⌘,) and scroll to **Agents**.
+2. Click a preset button under the list: **+ Claude Code**, **+ Command** (an empty command, for any other tool), or one a plugin adds. The new agent goes at the end of the list.
+3. Give it a name (what the dropdown shows) and a command: what you'd type in a terminal to start it, such as `codex` or `junie --auth-license=<id>`.
+4. Tick the switches it should have (see below). Hover a switch for a reminder of what it does.
+5. Use the arrows to order the list (the first one is each project's default) and the bin to remove an agent. Removing one closes its terminals.
 
 <img src="docs/screenshots/settings-agents.png" alt="Settings › Agents: a Claude Code agent with every switch on, a codex and a junie Command agent with Notify on, the preset buttons, and the commit command under Git" width="640">
 
-- **Notify:** a bell or an OSC 9 / OSC 777 notification from the agent lights up the project's tab green and sends a macOS notification (unless you're already looking at it); clicking it brings you back. macOS asks once whether cuckcode may show notifications, and Settings › General turns them off.
+Every change saves at once. An edited command takes effect the next time that agent starts: click the restart button (↺) in the Agents title bar to restart it now. Renaming an agent is safe, since cuckcode tracks it by an id made when you added it. Nothing depends on which preset an agent came from, so every field stays editable. Settings › Reset puts the list back to the single Claude Code agent.
+
+### How the command runs
+
+cuckcode opens your login shell (`$SHELL -l -i`) in the project folder and runs the command there, so it sees the same `PATH`, aliases and functions as your own terminal. The command is a shell line: flags, `VAR=value cmd`, `&&` and quotes all work. When the program exits you're left in that shell, in the same folder, to rerun it or anything else; if the shell exits too, press any key to start the agent again. The restart button (↺) restarts it at any time.
+
+Two environment variables are set for the command:
+
+- `$CUCKCODE_NOTIFY`: the path of a small script. Running it with a message (`"$CUCKCODE_NOTIFY" "done"`) notifies like a terminal bell would (see Notify below), even from a hook running in the background without a terminal of its own. It's set for every agent.
+- `$CUCKCODE_PLAYGROUND`: instructions that tell the agent how to use your [playgrounds](#playgrounds). It's set only for agents with Playground on, and only while at least one playground exists. cuckcode doesn't hand it to the tool by itself: the command has to pass it however the tool takes extra instructions, as the Claude Code preset does with `--append-system-prompt "$CUCKCODE_PLAYGROUND"`.
+
+### Switches
+
+- **Notify:** a terminal bell, or an OSC 9 / OSC 777 notification from the agent, lights up the project's tab green and sends a macOS notification, unless you're already looking at that project. Clicking the notification brings you back. macOS asks once whether cuckcode may show notifications, and Settings › General turns them off (the tab still lights up). This only does something if the tool rings the bell, sends one of those notifications, or runs `$CUCKCODE_NOTIFY` from its hooks.
 - **Keep awake:** while the agent prints, cuckcode keeps the Mac from idle-sleeping, so a long task isn't cut off halfway. The display can still sleep, and closing the lid still sleeps. It lets go about 30 seconds after the agent goes quiet.
 - **@ mentions:** files dragged onto the agent, and ⌥⌘K's selection, go in as `@path#L12-20`. Off: as a quoted path. ⌥⌘K goes to the agent in front when it has mentions on, else to the first that does.
 - **⇧↩ newline:** ⇧↩ sends ESC+CR, which agents such as Claude Code read as a newline without submitting.
-- **Playground:** the agent gets `$CUCKCODE_PLAYGROUND`, the instructions for your [playgrounds](#playgrounds), and is told when you press Done in one.
+- **Playground:** the agent gets `$CUCKCODE_PLAYGROUND`, and when you press Done in a playground it's told to read your answers.
 
-Every agent's command also gets `$CUCKCODE_NOTIFY`, a script its hooks can run with a message (`"$CUCKCODE_NOTIFY" "done"`) to notify from a process that has no terminal of its own.
+### The presets
 
-The presets:
+- **Claude Code** (a fresh install's agent): every switch on, and the command
 
-- **Claude Code** (a fresh install's agent): `claude`, with every switch on. It passes `$CUCKCODE_PLAYGROUND` with `--append-system-prompt`, and through `--settings` gives Claude Code hooks that run `$CUCKCODE_NOTIFY` when it finishes or needs your input.
-- **Command:** an empty command with Notify on, for anything else (`codex`, `junie --auth-license=<id>`, `oterm`, …).
+  ```
+  claude --settings '{"hooks":{…}}' --append-system-prompt "$CUCKCODE_PLAYGROUND"
+  ```
+
+  The `--settings` part gives Claude Code hooks that run `$CUCKCODE_NOTIFY` when it finishes or needs your input. To change how Claude starts, add your flags to the end (for example `--model opus`) and leave those two parts in place, or notifications and playgrounds stop working for it.
+- **Command:** an empty command with Notify on and the rest off, for any other tool (`codex`, `junie --auth-license=<id>`, `oterm`, …). Turn on the other switches if the tool supports them: @ mentions if it reads `@path`, ⇧↩ newline if it takes ESC+CR as a newline, Playground if you pass it `$CUCKCODE_PLAYGROUND`.
 
 Usage meters for Claude Code's plan and Junie's AI credits are a plugin, [cuckcode-meters](https://github.com/bananastorycc/cuckcode-meters), which shows them in the Agents title bar.
 
-When an agent exits you land in a shell in the same folder. The toolbar button (or any key) restarts it.
+Agent commands, including any license keys in them, are part of your settings and of the [Sync](#settings) config file.
 
 ## Playgrounds
 
@@ -244,7 +280,7 @@ One notepad, shared by every project tab, autosaving to app data rather than int
 
 Open projects, which tab is active, each project's open file and agent, everything in Settings, and the recently-closed list all survive a quit and come back on the next launch: each project reopens on the agent it had in front (the first agent starts too, as always). With no project open, the welcome screen lists recently closed projects to reopen one or all of them.
 
-Settings live in `~/Library/Application Support/cuckcode/cuckcode-settings.json`, the scratchpad in `cuckcode-scratch.txt` beside it, and the config repo's clone (with [Sync](#settings)) in `config-repo/`.
+Settings live in `~/Library/Application Support/cuckcode/cuckcode-settings.json`, the scratchpad in `cuckcode-scratch.txt` beside it, and the config repo's clone (with [Sync](#settings)) in `config-repo/`. Don't edit the settings file while cuckcode runs: it rewrites the file on every change. To edit settings as JSON, use Settings › Sync: Export…, edit the file, then Import… it.
 
 ## Development
 
