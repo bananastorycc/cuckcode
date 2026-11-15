@@ -155,7 +155,7 @@ function buildMenu(): void {
   }))
   const panes = (['Left', 'Right', 'Up', 'Down'] as const).map((d) => ({
     label: `Focus Pane ${d}`,
-    accelerator: `Cmd+Alt+${d}`,
+    accelerator: `Cmd+Ctrl+${d}`,
     // Shown for reference only: createWindow intercepts these before the page sees them.
     registerAccelerator: false,
     click: menu({ type: 'pane', dir: d.toLowerCase() as PaneDir })
@@ -174,7 +174,7 @@ function buildMenu(): void {
   // Plugins get what's left: a shortcut cuckcode (or an earlier plugin) has is dropped. That
   // includes the role items' keys (a plugin on ⌘C would break copy) and the ones createWindow intercepts.
   const roles = ['Cmd+Z', 'Cmd+Shift+Z', 'Cmd+X', 'Cmd+C', 'Cmd+V', 'Cmd+Alt+Shift+V', 'Cmd+A', 'Cmd+M', 'Cmd+Alt+H', 'Cmd+Alt+I', 'Cmd+R', 'Cmd+Ctrl+F']
-  const intercepted = ['Cmd+Left', 'Cmd+Right', 'Cmd+Shift+[', 'Cmd+Shift+]', 'Cmd+Shift+{', 'Cmd+Shift+}', ...panes.map((p) => p.accelerator)]
+  const intercepted = ['Cmd+Shift+[', 'Cmd+Shift+]', 'Cmd+Shift+{', 'Cmd+Shift+}', ...panes.map((p) => p.accelerator)]
   const taken = new Set(
     ['Cmd+N', 'Cmd+T', 'Cmd+O', 'Cmd+Shift+W', 'Cmd+W', 'Cmd+Shift+F', 'Cmd+Alt+K', 'Cmd+E', 'Cmd+B', 'Cmd+,', 'Cmd+Q', 'Cmd+H', 'Cmd+K', 'Cmd+S']
       .concat(roles, intercepted)
@@ -216,8 +216,8 @@ function buildMenu(): void {
           { label: 'Open Project…', accelerator: 'Cmd+T', click: menu({ type: 'open' }) },
           { label: 'Go to File…', accelerator: 'Cmd+O', click: menu({ type: 'quickOpen' }) },
           { type: 'separator' },
-          { label: 'Close File', accelerator: 'Cmd+Shift+W', click: menu({ type: 'closeFile' }) },
-          { label: 'Close Project', accelerator: 'Cmd+W', click: menu({ type: 'close' }) }
+          { label: 'Close File', accelerator: 'Cmd+W', click: menu({ type: 'closeFile' }) },
+          { label: 'Close Project…', accelerator: 'Cmd+Shift+W', click: menu({ type: 'close' }) }
         ]
       },
       {
@@ -247,9 +247,9 @@ function buildMenu(): void {
           ...(pluginItems.length ? [sep, ...pluginItems] : []),
           { type: 'separator' },
           ...tabs,
-          // Shown for reference only: createWindow intercepts these (⌘⇧[/] work too).
-          { label: 'Previous Project', accelerator: 'Cmd+Left', registerAccelerator: false, click: menu({ type: 'cycle', step: -1 }) },
-          { label: 'Next Project', accelerator: 'Cmd+Right', registerAccelerator: false, click: menu({ type: 'cycle', step: 1 }) },
+          // Shown for reference only: createWindow intercepts these.
+          { label: 'Previous Project', accelerator: 'Cmd+Shift+[', registerAccelerator: false, click: menu({ type: 'cycle', step: -1 }) },
+          { label: 'Next Project', accelerator: 'Cmd+Shift+]', registerAccelerator: false, click: menu({ type: 'cycle', step: 1 }) },
           { type: 'separator' },
           ...panes,
           { type: 'separator' },
@@ -263,7 +263,6 @@ function buildMenu(): void {
 }
 
 const ARROWS: Record<string, PaneDir> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }
-const STEPS: Record<string, 1 | -1> = { ArrowLeft: -1, ArrowRight: 1 }
 // By physical key, since ⌘⇧[ reports key '{'.
 const BRACKETS: Record<string, 1 | -1> = { BracketLeft: -1, BracketRight: 1 }
 
@@ -306,14 +305,14 @@ function createWindow(): void {
     e.preventDefault()
     app.quit()
   })
-  // Monaco and xterm consume arrow combos (⌘⌥↑ adds a cursor, ⌘← jumps to line start), so a
-  // menu accelerator never fires while they have focus. Catch pane and tab moves before the page does.
+  // Monaco and xterm consume key combos, so a menu accelerator may never fire while they have
+  // focus. Catch pane moves (⌃⌘arrows) and tab moves (⇧⌘[ ]) before the page does.
   win.webContents.on('before-input-event', (e, input) => {
-    if (input.type !== 'keyDown' || !input.meta || input.control) return
-    const dir = ARROWS[input.key]
-    const step = input.shift ? BRACKETS[input.code] : STEPS[input.key]
-    if (dir && input.alt && !input.shift) send('menu', { type: 'pane', dir })
-    else if (step && !input.alt) send('menu', { type: 'cycle', step })
+    if (input.type !== 'keyDown' || !input.meta || input.alt) return
+    const dir = input.control && !input.shift ? ARROWS[input.key] : undefined
+    const step = input.shift && !input.control ? BRACKETS[input.code] : undefined
+    if (dir) send('menu', { type: 'pane', dir })
+    else if (step) send('menu', { type: 'cycle', step })
     else return
     e.preventDefault()
   })

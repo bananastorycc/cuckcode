@@ -62,13 +62,13 @@ Quitting (⌘Q, or closing the window) saves any unsaved edits, kills every term
 | Key | Action |
 | --- | --- |
 | ⌘T | Open project |
-| ⌘W | Close project (kills its terminals) |
+| ⇧⌘W | Close project (asks first: it kills its terminals) |
 | ⌘N | New file, next to the open file (or in the selected folder) |
 | ⌘O | Go to file: fuzzy-find any file in the project (↑/↓ + ↩, Esc to cancel) |
-| ⇧⌘W | Close the open file |
+| ⌘W | Close the open file |
 | ⌘1–9 | Switch project |
-| ⌘← / ⌘→, or ⇧⌘[ / ⇧⌘] | Previous / next project |
-| ⌥⌘← / → / ↑ / ↓ | Move focus to the section on screen in that direction |
+| ⇧⌘[ / ⇧⌘] | Previous / next project |
+| ⌃⌘← / → / ↑ / ↓ | Move focus to the section on screen in that direction |
 | ⇧⌘F | Find in files |
 | ⌘S | Save the open file |
 | ⌘K | Clear the focused terminal |

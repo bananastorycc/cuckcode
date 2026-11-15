@@ -87,7 +87,7 @@ export default function Header(p: Props): React.JSX.Element {
                 p.onClose(path)
               }}
               className="rounded-sm opacity-0 hover:text-del group-hover:opacity-100"
-              title="Close  ⌘W"
+              title="Close  ⇧⌘W"
             >
               <X className="h-3 w-3" />
             </button>

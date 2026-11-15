@@ -23,7 +23,7 @@ export const hosts = {} as Record<Section, HTMLElement>
 for (const s of SECTIONS) {
   const el = document.createElement('div')
   el.className = 'relative h-full w-full overflow-hidden'
-  // ⌘⌥+arrows move focus between these.
+  // ⌃⌘+arrows move focus between these.
   el.dataset.pane = s
   hosts[s] = el
 }

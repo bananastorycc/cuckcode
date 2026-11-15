@@ -380,7 +380,8 @@ export default function App(): React.JSX.Element {
   const onMenu = useRef<(cmd: MenuCommand) => void>(() => {})
   onMenu.current = (cmd) => {
     if (cmd.type === 'open') open()
-    else if (cmd.type === 'close' && active) close(active)
+    // Kills the project's terminals, so the shortcut asks first; the tab's × is deliberate enough.
+    else if (cmd.type === 'close' && active && confirm(`Close ${projectName(active)}? Its terminals and agents are stopped.`)) close(active)
     else if (cmd.type === 'closeFile') closeFile()
     else if (cmd.type === 'newFile') setNewFile((n) => n + 1)
     else if (cmd.type === 'quickOpen') setQuickOpen((n) => n + 1)
@@ -770,7 +771,7 @@ function focusSoon(pane: Section, frames = 30): void {
   if (!focusIn(pane) && frames > 0) requestAnimationFrame(() => focusSoon(pane, frames - 1))
 }
 
-// ⌘⌥+arrows: the nearest section on screen in that direction, among those showing (a tab in
+// ⌃⌘+arrows: the nearest section on screen in that direction, among those showing (a tab in
 // front) with something to focus. Distance is measured from the focused section's center.
 function focusPane(dir: PaneDir): void {
   const from = document.activeElement?.closest<HTMLElement>('[data-pane]')

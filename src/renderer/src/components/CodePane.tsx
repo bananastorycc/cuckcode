@@ -158,7 +158,7 @@ export default function CodePane({ root, file, theme, tick, reveal, onSaved, onC
       minimap: { enabled: false },
       padding: { top: 6 },
       renderWhitespace: 'selection',
-      // Type into the hidden textarea, as before Monaco 0.53: pane focus (⌘⌥arrows) finds
+      // Type into the hidden textarea, as before Monaco 0.53: pane focus (⌃⌘arrows) finds
       // the editor by it, and the native Edit menu's copy/paste is proven on it.
       editContext: false
     }
@@ -319,7 +319,7 @@ export default function CodePane({ root, file, theme, tick, reveal, onSaved, onC
                 ))}
               </div>
             )}
-            <button className="rounded-sm text-muted hover:text-fg" onClick={onClose} title="Close file  ⇧⌘W">
+            <button className="rounded-sm text-muted hover:text-fg" onClick={onClose} title="Close file  ⌘W">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>

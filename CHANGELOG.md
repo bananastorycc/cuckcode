@@ -2,6 +2,12 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.30.0 — 2026-11-14
+
+- ⌘W now closes the open file, and ⇧⌘W closes the project. Closing a project from the keyboard or menu asks first, since it stops its terminals.
+- ⌘← and ⌘→ go back to jumping to the start and end of the line everywhere. Switch projects with ⇧⌘[ and ⇧⌘].
+- Moving focus between sections is now ⌃⌘ + arrows, so ⌥⌘↑/↓ adds cursors in the editor again.
+
 ## 1.29.4 — 2026-11-14
 
 - A plugin can no longer take a shortcut that copy, paste, undo, select all, minimize or project/pane switching already use; it keeps its menu item without the shortcut.
