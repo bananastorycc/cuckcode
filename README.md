@@ -1,14 +1,16 @@
 # cuckcode
 
-> Built by one human and one Claude, for ourselves. Fuck you. (Affectionately. Mostly.)
+> Built by one human and one Claude, for ourselves. You're welcome to watch.
 
 A macOS-first shell for vibe coding with [Claude Code](https://claude.com/claude-code) or any terminal agent. One window with one tab per project. Each tab has your agents' terminals, a live diff of the working tree against HEAD, a small git panel and a file tree. Playgrounds for pages your agent builds, a folder browser and your own web pages are each a keystroke away. Almost everything is configured in Settings (⌘,), and [plugins](#plugins) add more.
 
-It's deliberately small: Electron, Monaco, xterm and git, with no language servers and nothing running while you type. You wanted an IDE? There are forty of them, they all want to be your best friend, and they all phone home. This one doesn't care about you. It cares about the diff.
+It's deliberately small: Electron, Monaco, xterm and git, with no language servers and nothing running while you type. You wanted an IDE? Cute. Claude writes the code now. You review it, you nod, you press Enter. What exactly were you planning to type into all those panels? There are forty IDEs out there that want to be your best friend and phone home about it. This one doesn't care about you. It cares about the diff.
 
-It runs on macOS today. Linux and Windows are planned (see [Platform support](#platform-support)), and no, there's no ETA, fuck you.
+Yes, there's an editor. It's for fixing the one typo Claude left in to keep you feeling useful.
 
-We wrote it together, a person and Claude, mostly with Claude typing and the person yelling. We use it every day. We're not asking you to.
+It runs on macOS today. Linux and Windows are planned (see [Platform support](#platform-support)). ETA: yes.
+
+We wrote it together, a person and Claude, mostly with Claude typing and the person yelling. Which, if we're honest, is the workflow this whole app is built around. We use it every day. We're not asking you to.
 
 Website: [cuckcode.cc](https://cuckcode.cc). Changes in each release: [CHANGELOG.md](CHANGELOG.md).
 
@@ -16,7 +18,7 @@ Website: [cuckcode.cc](https://cuckcode.cc). Changes in each release: [CHANGELOG
 
 What's different from a terminal next to an editor, since you were going to ask:
 
-- **The diff is live.** Every file your agent touches shows up in the git panel and diffs against HEAD as it's written, images and video included. Typing in the diff edits the file.
+- **The diff is live.** Every file your agent touches shows up in the git panel and diffs against HEAD as it's written, images and video included. Watching it is your job now. Typing in the diff edits the file, should the mood strike.
 - **Your agent can show you things.** In a [playground](#playgrounds), the agent builds a page for what's easier to look at than read: design options side by side, a plan to tick off, a form of questions. Your answers go straight back to it.
 - **Your edits and your agent's don't collide.** Pressing Enter in a terminal saves your open files first, so the agent always reads what's on screen.
 - **One window for every project.** Each project tab keeps its own agents, terminal, diff and git panel. Commit or sync them all at once.
@@ -142,7 +144,7 @@ Images (`.png` `.jpg` `.jpeg` `.gif` `.webp` `.avif` `.svg`) and video (`.mp4` `
 <img src="docs/screenshots/image-diff.png" alt="A changed logo.png shown side by side: HEAD on the left, the working tree on the right" width="500">
 
 
-There's no "Save changes?" dialog to click through. Edits save on ⌘S, when you press Enter in a terminal (so the agent always reads what's on screen and can't be overwritten by it later; an agent prompt that saved anything shows a note listing the files), when you leave the file (open another, close the project), and on quit; there's no save-as-you-type and no prompt. Unsaved files show ●, and are also saved before a commit, a branch switch, or a rename. To undo, discard the change in git. That's what git is for.
+For the rare occasion you type something yourself: there's no "Save changes?" dialog to click through. Edits save on ⌘S, when you press Enter in a terminal (so the agent always reads what's on screen and can't be overwritten by it later; an agent prompt that saved anything shows a note listing the files), when you leave the file (open another, close the project), and on quit; there's no save-as-you-type and no prompt. Unsaved files show ●, and are also saved before a commit, a branch switch, or a rename. To undo, discard the change in git. That's what git is for.
 
 ## Search
 
@@ -237,7 +239,7 @@ You pick, tick, drag or type. Answers save as you go (to `data/answers.json` nex
 
 <img src="docs/screenshots/playground-done.png" alt="After Done: Claude reports that it restyled the card in the picked direction, with the note applied" width="480">
 
-Pages are built from the playground kit (`src/kit`, served at `media://kit/`): blocks for choices, image and video reviews, forms, plans, triage boards, tables, live design tuning, image annotation, charts, progress and Markdown reports. A page is a few lines naming its blocks, which keeps it cheap for the agent to write, and it follows cuckcode's light or dark theme. The **Templates** button in a playground shows every block live, and [`src/kit/README.md`](src/kit/README.md) documents them. Clicking an image (in a review, a choice or a report) opens it fitted whole to the playground, however tall; pinch or ⌘-scroll zooms at the pointer, drag pans, double-click toggles fit and a closer look. When the agent rewrites a page you're on, it reloads where you were, with your answers and open tabs. The ✕ in a playground's bar (or ⌥⌘<n> again) closes it; answers are kept. Pages can also be plain HTML, with `window.cuckcode.save/load` to keep answers.
+Pages are built from the playground kit (`src/kit`, served at `media://kit/`): blocks for choices, image and video reviews, forms, plans, triage boards, tables, live design tuning, image annotation, charts, progress and Markdown reports. A page is a few lines naming its blocks, which keeps it cheap for the agent to write, and it follows cuckcode's light or dark theme. The **Templates** button in a playground shows every block live, and [`src/kit/README.md`](src/kit/README.md) documents them. Clicking an image (in a review, a choice or a report) opens it fitted whole to the playground, however tall; pinch or ⌘-scroll zooms at the pointer (or + / − / 0 to zoom in, out and back to fit), drag pans, double-click toggles fit and a closer look. When the agent rewrites a page you're on, it reloads where you were, with your answers and open tabs. The ✕ in a playground's bar (or ⌥⌘<n> again) closes it; answers are kept. Pages can also be plain HTML, with `window.cuckcode.save/load` to keep answers.
 
 ![The Templates page's Tune tab: sliders, a toggle, a font picker and a text field driving a live card preview](docs/screenshots/playground-templates.png)
 
@@ -346,4 +348,4 @@ cuckcode is free software: you can redistribute it and/or modify it under the te
 
 ---
 
-Made by a human and Claude, who say fuck you together. 🖕🤖
+Made by a human and Claude. One of them did the typing. Guess which. 🤖
