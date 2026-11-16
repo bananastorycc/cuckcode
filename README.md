@@ -112,6 +112,10 @@ Plugins add their own shortcuts, listed under View. The theme is in Settings: Au
 
 The workspace is made of seven sections: Files, Search, Editor, Terminal, Agents, Git and Scratch. Each is a tab. A section alone in its group shows only a thin strip where its tab bar would be; hover it to bring up the tab. Drag a tab onto another group (or onto the middle of a section) to stack them, onto a group's edge to split it, or drag the borders to resize. Whatever you arrange is kept: quitting and reopening brings it back exactly, sizes included.
 
+Sections you don't want can be minimized with the – on their tab (it shows on the tab in front, and on any tab you hover). A minimized section leaves the workspace and waits as a button at the right of the title bar; click it to put the section back where it was, at the size it had, or back among the tabs it shared. Something that needs a section brings it back on its own: opening a file shows the Editor, ⇧⌘F shows Search, and sending a selection or finishing a playground shows Agents. The last section showing can't be minimized. Minimized sections are part of the layout, so they're kept across launches and in saved layouts; switching to a preset shows everything again.
+
+![Terminal and Scratch minimized to the title bar](docs/screenshots/minimize.png)
+
 Settings › Layout switches between layouts:
 
 - **Default**: files over git, search and scratch (tabbed); the editor over a terminal; your agent with the whole right side

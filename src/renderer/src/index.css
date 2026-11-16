@@ -297,8 +297,25 @@ html {
   color-scheme: inherit;
 }
 
-/* Every section stays: tabs move, they don't close. */
-.cc-dock .dv-tab .dv-default-tab .dv-default-tab-action {
+/* Tabs don't close, they minimize: the button shows on the tab in front and on hover, and goes
+   from the last section showing. */
+.cc-dock .cc-minimize {
+  display: flex;
+  margin-left: 0.25rem;
+  padding: 1px;
+  border-radius: 3px;
+  color: var(--muted);
+  visibility: hidden;
+}
+.cc-dock .dv-active-tab .cc-minimize,
+.cc-dock .dv-tab:hover .cc-minimize {
+  visibility: visible;
+}
+.cc-dock .cc-minimize:hover {
+  color: var(--fg);
+  background-color: var(--hover);
+}
+.cc-last .cc-minimize {
   display: none;
 }
 

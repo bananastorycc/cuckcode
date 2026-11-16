@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.45.0 — 2026-11-15
+
+- ✨ Minimize sections you don't need with the – on their tab. They wait as buttons in the title bar and come back where they were, at the same size.
+- Opening a file, ⇧⌘F and sending a selection bring the Editor, Search and Agents back (or to the front of their tabs) when they're minimized or hidden behind another tab.
+
 ## 1.44.0 — 2026-11-15
 
 - ✨ Playground review tiles show the whole picture (tall sprites were cropped to the head) and turn portrait when most pictures are tall.

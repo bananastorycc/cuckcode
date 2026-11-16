@@ -23,7 +23,7 @@ import Settings from './components/Settings'
 import Terminal, { pasteInto, shellQuote, whenReady } from './components/Terminal'
 import Toasts, { toast } from './components/Toasts'
 import WebPage from './components/WebPage'
-import { apply, hosts, mount, PRESETS, SECTIONS, type Section } from './layout'
+import { apply, hidden, hosts, mount, PRESETS, reveal as revealSection, SECTIONS, show as showSection, type Section } from './layout'
 import { loadPlugins, runCommand, setCurrent, setOpenFile, usePlugins, type Registered } from './plugins'
 
 // What's shown: the README over the code pane, or a playground slot (from 1) or a plugin's
@@ -66,6 +66,8 @@ export default function App(): React.JSX.Element {
   const [layoutSaves, bumpLayout] = useReducer((n: number) => n + 1, 0)
   const [layouts, setLayouts] = useState<SavedLayout[]>([])
   const dockEl = useRef<HTMLDivElement>(null)
+  // The minimized sections, joined, so a divider drag (a layout change every frame) doesn't rerender.
+  const [minimized, setMinimized] = useState('')
   // Per project: what's shown over the code pane or workspace. Per `${slot}:${path}`: the
   // playground page's version, and whether it changed since last shown.
   const [view, setView] = useState<Record<string, View | undefined>>({})
@@ -123,6 +125,7 @@ export default function App(): React.JSX.Element {
     let timer: ReturnType<typeof setTimeout> | undefined
     const unmount = mount(dockEl.current, layoutRef.current, (layout) => {
       layoutRef.current = layout
+      setMinimized(hidden().join())
       clearTimeout(timer)
       timer = setTimeout(bumpLayout, 300)
     })
@@ -405,7 +408,10 @@ export default function App(): React.JSX.Element {
     else if (cmd.type === 'quickOpen') setQuickOpen((n) => n + 1)
     else if (cmd.type === 'sendSelection') sendSelection()
     else if (cmd.type === 'tab' && projects[cmd.index]) select(projects[cmd.index])
-    else if (cmd.type === 'search') setSearchFocus((n) => n + 1)
+    else if (cmd.type === 'search') {
+      revealSection('search')
+      setSearchFocus((n) => n + 1)
+    }
     else if (cmd.type === 'playground') togglePlay(cmd.slot)
     else if (cmd.type === 'readme') toggleReadme()
     else if (cmd.type === 'plugin') onPluginCommand(cmd.plugin, cmd.command)
@@ -461,10 +467,16 @@ export default function App(): React.JSX.Element {
   const file = fresh ?? picked ?? null
   const workPath = file && !file.commit ? file.path : null
 
+  // A file to show, brought to the front if the editor is minimized or behind another tab.
+  const pick = (f: ChangedFile): void => {
+    if (!active) return
+    setSelected((s) => ({ ...s, [active]: f }))
+    revealSection('editor')
+  }
+
   const openAt = (path: string, line: number, col: number, len: number): void => {
     if (!active) return
-    const f = status?.files.find((c) => c.path === path) ?? { path, code: 'M' as const }
-    setSelected((s) => ({ ...s, [active]: f }))
+    pick(status?.files.find((c) => c.path === path) ?? { path, code: 'M' as const })
     setReveal((r) => ({ path, line, col, len, n: (r?.n ?? 0) + 1 }))
   }
 
@@ -480,6 +492,7 @@ export default function App(): React.JSX.Element {
   // Shows an agent (starting it if it wasn't running) and resolves once its prompt is up.
   const wake = (path: string, agentId: string): Promise<boolean> => {
     const id = `${agentId}:${path}`
+    revealSection('agents')
     setTerms((t) => ({ ...t, [path]: agentId }))
     setStarted((s) => (s.has(id) ? s : new Set(s).add(id)))
     return whenReady(id)
@@ -544,6 +557,8 @@ export default function App(): React.JSX.Element {
         onFolders={toggleFolders}
         configuring={configuring}
         onSettings={toggleSettings}
+        minimized={minimized ? (minimized.split(',') as Section[]) : []}
+        onRestore={showSection}
       />
       <div className="relative flex min-h-0 flex-1">
         {/* Always there, under the welcome screen too: the dock is made once per launch.
@@ -557,7 +572,7 @@ export default function App(): React.JSX.Element {
                 selected={workPath}
                 tick={tick}
                 newFile={newFile}
-                onSelect={(f) => setSelected((s) => ({ ...s, [active]: f }))}
+                onSelect={pick}
               />,
               hosts.files
             )}
@@ -632,7 +647,7 @@ export default function App(): React.JSX.Element {
                 selected={file}
                 tab={gitTab}
                 onTab={setGitTab}
-                onSelect={(f) => setSelected((s) => ({ ...s, [active]: f }))}
+                onSelect={pick}
                 onChanged={refresh}
                 onDiscarded={(path) => workPath === path && closeFile()}
               />,
@@ -644,7 +659,7 @@ export default function App(): React.JSX.Element {
               status={status}
               open={quickOpen}
               onPick={(f) => {
-                setSelected((s) => ({ ...s, [active]: f }))
+                pick(f)
                 setView((v) => ({ ...v, [active]: undefined }))
                 focusSoon('editor')
               }}

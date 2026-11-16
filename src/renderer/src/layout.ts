@@ -1,4 +1,4 @@
-import { createDockview, type DockviewApi, type DockviewTheme, type SerializedDockview } from 'dockview'
+import { createDockview, type DockviewApi, type DockviewTheme, type ITabRenderer, type SerializedDockview } from 'dockview'
 import 'dockview/dist/styles/dockview.css'
 
 // The workspace is a dockview: every section is a tab that can be dragged into any group, split
@@ -9,7 +9,7 @@ import 'dockview/dist/styles/dockview.css'
 export const SECTIONS = ['files', 'search', 'editor', 'terminal', 'agents', 'git', 'scratch'] as const
 export type Section = (typeof SECTIONS)[number]
 
-const TITLES: Record<Section, string> = {
+export const TITLES: Record<Section, string> = {
   files: 'Files',
   search: 'Search',
   editor: 'Editor',
@@ -51,11 +51,20 @@ export function mount(el: HTMLElement, saved: unknown, onChange: (layout: Serial
       const element = document.createElement('div')
       element.className = 'h-full w-full'
       return { element, init: () => element.append(hosts[name as Section]) }
-    }
+    },
+    // Every tab is ours: dockview only asks for one when a tab component is named.
+    defaultTabComponent: 'section',
+    createTabComponent: ({ id }) => tab(id as Section)
   })
   api = dock
   load(saved)
-  const sub = dock.onDidLayoutChange(() => onChange(dock.toJSON()))
+  const changed = (): void => {
+    // The last section showing can't be minimized; its button goes.
+    el.classList.toggle('cc-last', SECTIONS.length - hidden().length <= 1)
+    onChange(dock.toJSON())
+  }
+  const sub = dock.onDidLayoutChange(changed)
+  changed()
   return () => {
     sub.dispose()
     dock.dispose()
@@ -85,6 +94,90 @@ export function apply(preset: Preset): void {
 
 export const current = (): SerializedDockview | null => api?.toJSON() ?? null
 
+// --- Minimizing ---
+
+// A minimized section keeps its own group in the grid, hidden, so showing it again puts it back
+// where it was at the size it had. One that shared a group is split off first and remembers a
+// section it was tabbed with (its home), to rejoin that group if it's still showing. Both live in
+// the layout, so they're saved with it.
+
+const panelOf = (s: Section): ReturnType<DockviewApi['getPanel']> => api?.getPanel(s) ?? undefined
+
+// Read from the grid itself: after loading a layout, a group's own isVisible says true for a
+// group the grid has hidden.
+type Node = { type: 'leaf' | 'branch'; data: unknown; visible?: boolean }
+function hiddenGroups(): Set<string> {
+  const ids = new Set<string>()
+  const walk = (n: Node): void => {
+    if (n.type === 'branch') (n.data as Node[]).forEach(walk)
+    else if (n.visible === false) ids.add((n.data as { id: string }).id)
+  }
+  if (api) walk(api.toJSON().grid.root as Node)
+  return ids
+}
+
+const isHidden = (s: Section, groups = hiddenGroups()): boolean => groups.has(panelOf(s)?.group.id ?? '')
+
+export const hidden = (): Section[] => {
+  const groups = hiddenGroups()
+  return SECTIONS.filter((s) => isHidden(s, groups))
+}
+
+export function hide(s: Section): void {
+  const panel = panelOf(s)
+  if (!api || !panel || isHidden(s) || SECTIONS.length - hidden().length <= 1) return
+  const group = panel.group
+  if (group.panels.length > 1) {
+    const home = group.panels.find((p) => p.id !== s)!.id
+    panel.api.updateParameters({ home, index: group.panels.indexOf(panel) })
+    panel.api.moveTo({ group, position: 'bottom', skipSetActive: true })
+  }
+  panel.group.api.setVisible(false)
+}
+
+export function show(s: Section): void {
+  const panel = panelOf(s)
+  if (!api || !panel) return
+  const own = panel.group
+  if (!isHidden(s)) return
+  const { home, index } = (panel.params ?? {}) as { home?: Section; index?: number }
+  const to = home && panelOf(home)?.group
+  panel.api.updateParameters({})
+  if (to && to !== own && !isHidden(home)) panel.api.moveTo({ group: to, position: 'center', index })
+  else own.api.setVisible(true)
+}
+
+// Brought to the front for something that needs it on screen (a picked file, ⇧⌘F).
+export function reveal(s: Section): void {
+  show(s)
+  const panel = panelOf(s)
+  if (panel && !panel.api.isActive) panel.api.setActive()
+}
+
+// The tab: the title, and a button to minimize the section (it replaces dockview's close).
+function tab(s: Section): ITabRenderer {
+  const element = document.createElement('div')
+  element.className = 'dv-default-tab cc-tab'
+  const title = document.createElement('div')
+  title.className = 'dv-default-tab-content'
+  title.textContent = TITLES[s]
+  const button = document.createElement('button')
+  button.className = 'cc-minimize'
+  button.title = `Minimize ${TITLES[s]}`
+  button.tabIndex = -1
+  button.innerHTML =
+    '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>'
+  // Not the start of a tab drag, and not a click on the tab.
+  button.addEventListener('pointerdown', (e) => e.stopPropagation())
+  button.addEventListener('mousedown', (e) => e.stopPropagation())
+  button.addEventListener('click', (e) => {
+    e.stopPropagation()
+    hide(s)
+  })
+  element.append(title, button)
+  return { element, init: () => {} }
+}
+
 // --- Presets ---
 
 export interface Preset {
@@ -109,7 +202,7 @@ function size(api: DockviewApi, id: Section, s: { width?: number; height?: numbe
   })
 }
 
-const show = (api: DockviewApi, id: Section): void => api.getPanel(id)?.api.setActive()
+const front = (api: DockviewApi, id: Section): void => api.getPanel(id)?.api.setActive()
 
 export const PRESETS: Preset[] = [
   {
@@ -126,8 +219,8 @@ export const PRESETS: Preset[] = [
       size(api, 'files', { width: 0.2, height: 0.5 })
       size(api, 'agents', { width: 0.38 })
       size(api, 'editor', { height: 0.68 })
-      show(api, 'git')
-      show(api, 'editor')
+      front(api, 'git')
+      front(api, 'editor')
     }
   },
   {
@@ -145,7 +238,7 @@ export const PRESETS: Preset[] = [
       size(api, 'agents', { width: 0.39, height: 0.6 })
       size(api, 'editor', { height: 0.6 })
       size(api, 'git', { width: 0.195 })
-      show(api, 'editor')
+      front(api, 'editor')
     }
   },
   {
@@ -161,9 +254,9 @@ export const PRESETS: Preset[] = [
       add(api, 'terminal', { referencePanel: 'agents', direction: 'within' })
       size(api, 'files', { width: 0.2 })
       size(api, 'editor', { height: 0.65 })
-      show(api, 'files')
-      show(api, 'agents')
-      show(api, 'editor')
+      front(api, 'files')
+      front(api, 'agents')
+      front(api, 'editor')
     }
   },
   {
@@ -179,8 +272,8 @@ export const PRESETS: Preset[] = [
       add(api, 'terminal', { referencePanel: 'editor', direction: 'below' })
       size(api, 'files', { width: 0.18, height: 0.5 })
       size(api, 'editor', { width: 0.32, height: 0.65 })
-      show(api, 'git')
-      show(api, 'agents')
+      front(api, 'git')
+      front(api, 'agents')
     }
   },
   {
@@ -196,9 +289,9 @@ export const PRESETS: Preset[] = [
       add(api, 'terminal', { referencePanel: 'git', direction: 'within' })
       size(api, 'files', { width: 0.3, height: 0.5 })
       size(api, 'editor', { height: 0.5 })
-      show(api, 'files')
-      show(api, 'git')
-      show(api, 'editor')
+      front(api, 'files')
+      front(api, 'git')
+      front(api, 'editor')
     }
   }
 ]

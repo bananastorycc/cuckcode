@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { BookOpen, FolderOpen, Globe, Plus, Settings, Shapes, X } from 'lucide-react'
 import type { PlaygroundSlot, WebPage } from '../../../shared/types'
+import { TITLES, type Section } from '../layout'
 import { contextMenu } from './ContextMenu'
 
 interface Props {
@@ -33,6 +34,9 @@ interface Props {
   onFolders: () => void
   configuring: boolean
   onSettings: () => void
+  // Sections minimized from the dock, each a button that brings it back.
+  minimized: Section[]
+  onRestore: (s: Section) => void
 }
 
 const on = 'bg-bg text-fg shadow-xs ring-1 ring-line'
@@ -99,6 +103,20 @@ export default function Header(p: Props): React.JSX.Element {
       </div>
 
       <div className="no-drag ml-auto flex shrink-0 items-center gap-1 text-xs text-muted">
+        {p.active && p.minimized.length > 0 && (
+          <div className="mr-1 flex items-center gap-1 border-r border-line pr-2">
+            {p.minimized.map((s) => (
+              <button
+                key={s}
+                onClick={() => p.onRestore(s)}
+                title={`Show ${TITLES[s]}`}
+                className="shrink-0 rounded border border-dashed border-line px-1.5 text-[11px] leading-[18px] hover:border-solid hover:bg-hover hover:text-fg"
+              >
+                {TITLES[s]}
+              </button>
+            ))}
+          </div>
+        )}
         {p.pluginViews.map((v) => (
           <button
             key={v.id}

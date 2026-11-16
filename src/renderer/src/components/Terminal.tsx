@@ -154,16 +154,19 @@ export default function Terminal({ project, agent, name, mentions, newline, acti
     })
     t.onResize(({ cols, rows }) => window.api.ptyResize(id, cols, rows))
 
+    // Only at a real size: a minimized section's host can be squashed to 0 high, and fitting
+    // that would shrink the PTY to one row and reflow everything in it.
+    const shown = (): boolean => !!host.current?.offsetWidth && !!host.current.offsetHeight
     let frame = 0
     const observer = new ResizeObserver(() => {
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
-        if (host.current?.offsetWidth) fit.fit()
+        if (shown()) fit.fit()
       })
     })
     observer.observe(host.current!)
 
-    if (host.current!.offsetWidth) fit.fit()
+    if (shown()) fit.fit()
     window.api
       .ptyStart(id, t.cols, t.rows)
       .then((replay) => replay && t.write(replay), failed)
