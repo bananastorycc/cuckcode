@@ -16,7 +16,7 @@ Playground pages are built from blocks. A page names its blocks and their conten
 - `submit`: the Done button's label, or `false` to drop it (pages with nothing to answer). Done saves, closes the playground and sends the project's Claude a message to read the answers.
 - `answers`: the data file's name (default `answers`, i.e. `data/answers.json`).
 
-Answers are saved 300ms after each change, as `{ "<block id>": answer, "_done": "<ISO time>" }`. `_done` is set when the user presses Done. Restored on reload, so Claude can rewrite the page while the user works. A block without an `id` gets `<type><n>` (by position), so give an id to every block whose answer you'll read.
+Answers are saved 300ms after each change, as `{ "<block id>": answer, "_done": "<ISO time>" }`. `_done` is set when the user presses Done. Restored on reload, so Claude can rewrite the page while the user works; the reload also keeps where they were scrolled to and which tabs are open (for a page with the same title). If the page's script throws, a banner says so at the top, so the user knows to ask for a fix. A block without an `id` gets `<type><n>` (by position), so give an id to every block whose answer you'll read.
 
 Every block also takes `title`, `text` (Markdown under the title) and `wide`.
 
@@ -35,7 +35,7 @@ Every block also takes `title`, `text` (Markdown under the title) and `wide`.
   { id: 'notes', kind: 'textarea', rows: 4 }
 ] }
 ```
-Kinds: `text` (default), `textarea`, `number`, `email`, `url`, `date`, `time`, `color`, `select`, `radio`, `checkbox`, `toggle`, `range`, `rating`. Fields with `options` but no kind are selects.
+`required: true` stars a field, and Done won't send until it's filled: it scrolls to the field and marks it. Kinds: `text` (default), `textarea`, `number`, `email`, `url`, `date`, `time`, `color`, `select`, `radio`, `checkbox`, `toggle`, `range`, `rating`. Fields with `options` but no kind are selects.
 Answer: `{ name: 'x', audience: 'devs', platforms: ['macOS'], offline: true, density: 3, confidence: 4 }`, only the fields touched, plus their defaults.
 
 ### choice
@@ -46,7 +46,7 @@ Answer: `{ name: 'x', audience: 'devs', platforms: ['macOS'], offline: true, den
   { id: 'c', label: 'Terse', code: 'const x = 1', lang: 'ts' }
 ] }
 ```
-A preview is `src` (image, video, audio), `html` (its own document with the kit's tokens, `height` in px) or `code`. `note: false` hides the note box.
+A preview is `src` (image, video, audio), `html` (its own document with the kit's tokens, `height` in px) or `code`. `note: false` hides the note box. Image previews have an Enlarge button that opens the zoomable lightbox, where Pick (or Enter) chooses the one showing.
 Answer: `{ picked: 'a', note: '' }`; with `multiple`, `picked` is an array.
 
 ### review
@@ -56,7 +56,7 @@ Answer: `{ picked: 'a', note: '' }`; with `multiple`, `picked` is an array.
   'img/other.png'
 ] }
 ```
-Items are images, video, audio, `html`, `code` or `text` (Markdown); `kind` forces one. Clicking enlarges into a lightbox: ←/→ move, number keys give that verdict, Esc closes. Images open fitted whole to the window; pinch or ⌘-scroll zooms at the pointer, scrolling or dragging pans, double-click toggles fit and a closer look, and + / − / 0 (or the bar's buttons, 1:1 for actual size) zoom in, out and back to fit. Verdicts starting approve/keep/yes show green, reject/drop/no red, the rest blue. `verdicts: false` makes a plain gallery. `size` is the tile's minimum width.
+Items are images, video, audio, `html`, `code` or `text` (Markdown); `kind` forces one. Tiles show the whole picture, and turn portrait when most pictures are tall. Clicking enlarges into a lightbox: ←/→ (or the ‹ › arrows) move, number keys give that verdict, Esc leaves the note box and then closes, and closing lands on the tile you ended on. Images open fitted whole to the window; pinch or ⌘-scroll zooms at the pointer, scrolling or dragging pans, double-click toggles fit and a closer look, and + / − / 0 (or the bar's buttons, 1:1 for actual size) zoom in, out and back to fit. An image whose file isn't there shows its path instead. Verdicts starting approve/keep/yes show green, reject/drop/no red, the rest blue. `verdicts: false` makes a plain gallery. `size` is the tile's minimum width.
 Answer: `{ hero: { verdict: 'approve', note: 'crop tighter' } }`, only items touched.
 
 ### plan / checklist
@@ -104,11 +104,11 @@ Answer: `{ radius: 12, brand: '#d97706', font: 'system-ui', shadow: true, title:
 ```js
 { type: 'annotate', id: 'pins', src: 'screenshot.png', prompt: 'Click what looks off.' }
 ```
-Answer: `[{ x: 42.5, y: 10, note: 'misaligned' }]`, x and y in % of the image.
+The image fits in the window, however tall. Answer: `[{ x: 42.5, y: 10, note: 'misaligned' }]`, x and y in % of the image.
 
 ## Showing
 
-- `markdown` (or `text`): `{ text }`. Headings, bold, italic, code, links, images, lists, task lists, quotes, tables, rules.
+- `markdown` (or `text`): `{ text }`. Headings, bold, italic, code, links, images, lists, task lists, quotes, tables, rules. Images in it enlarge into the zoomable lightbox on click.
 - `callout`: `{ tone: 'info' | 'ok' | 'warn' | 'danger', heading, text }`.
 - `code`: `{ code, lang }`, with a copy button. `lang: 'diff'` colors `+`/`-`/`@@` lines.
 - `diff`: `{ before, after }`, a line diff of two texts.

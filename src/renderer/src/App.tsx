@@ -660,6 +660,7 @@ export default function App(): React.JSX.Element {
                   version={playVersions[`${playing}:${active}`] ?? null}
                   theme={theme}
                   onDone={() => playDone(playing)}
+                  onClose={() => togglePlay(playing)}
                 />
               </div>
             )}

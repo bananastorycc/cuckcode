@@ -127,7 +127,7 @@
     if (kind === 'html') return frame(item.html, big ? null : item.height || 200)
     if (kind === 'code') return h('div', { class: 'k-media-code', html: codeHtml(item.code, item.lang) })
     if (kind === 'text') return h('div', { class: 'k-md k-media-text', html: md(item.text) })
-    return h('img', { src: item.src, alt: item.caption || '', loading: 'lazy', draggable: 'false' })
+    return missing(h('img', { src: item.src, alt: item.caption || '', loading: 'lazy', draggable: 'false' }))
   }
 
   // An HTML snippet in its own document, styled by the kit, so its CSS can't leak into the page.
@@ -178,6 +178,59 @@
   }
   addEventListener('pagehide', () => timer && persist())
 
+  // Agents rewrite a page while you're on it, and every rewrite reloads it: where you were (scroll,
+  // open tabs) comes back, per page title, in this frame only. Without storage it just doesn't.
+  let placeKey = null
+  // anchor: the top-level block at the top of the window and how far into it, which survives
+  // pictures above it loading late in a way a bare scrollY doesn't.
+  const place = { anchor: null, tabs: {} }
+  const remember = () => {
+    try {
+      if (placeKey) sessionStorage.setItem(placeKey, JSON.stringify(place))
+    } catch {}
+  }
+  function recall(key) {
+    placeKey = key
+    try {
+      Object.assign(place, JSON.parse(sessionStorage.getItem(key)) || {})
+    } catch {}
+  }
+  let scrolling = 0
+  // Until you move or the page settles, scrolls are the restore's own and must not overwrite it.
+  let restoring = null // { y: where the restore put it, stop }
+  addEventListener('scroll', () => {
+    cancelAnimationFrame(scrolling)
+    scrolling = requestAnimationFrame(() => {
+      // Anywhere else is you (a scrollbar drag fires no wheel or key).
+      if (restoring && Math.abs(scrollY - restoring.y) > 2) restoring.stop()
+      if (restoring) return
+      const top = [...document.querySelectorAll('.k-page > [data-block]')].find((el) => el.getBoundingClientRect().bottom > 0)
+      place.anchor = top && scrollY > 0 ? { id: top.dataset.block, off: -top.getBoundingClientRect().top } : null
+      remember()
+    })
+  })
+
+  // A page that throws is blank or half-drawn; say so, so it's clear the page (not you) needs fixing.
+  function broke(message) {
+    if (!document.body) return addEventListener('DOMContentLoaded', () => broke(message), { once: true })
+    if (document.querySelector('.k-broken')) return
+    document.body.prepend(
+      h('div', { class: 'k-callout danger k-broken' }, h('span', { class: 'k-callout-icon' }, '!'), h('div', null, h('strong', null, 'This page has a bug'), h('div', null, `${message}. Ask your agent to fix it; your answers so far are saved.`)))
+    )
+  }
+  // Benign: the browser saying a resize callback ran late.
+  addEventListener('error', (e) => e.message && !/ResizeObserver/.test(e.message) && broke(e.message))
+  addEventListener('unhandledrejection', (e) => broke(e.reason?.message || String(e.reason)))
+
+  // Done stops at the first required field still empty; forms register theirs here.
+  const required = []
+  const blank = (v) => v == null || v === '' || v === 0 || (Array.isArray(v) && !v.length)
+  // Into view even inside a tab that isn't showing.
+  function reveal(el) {
+    for (let p = el.closest('.k-tab-pane'); p; p = p.parentElement.closest('.k-tab-pane')) if (p.hidden) p.parentElement.showPane?.(p)
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }
+
   // ---------- overlays ----------
 
   function toast(text, tone) {
@@ -189,10 +242,21 @@
     setTimeout(() => t.remove(), 3600)
   }
 
+  function copy(text, btn) {
+    const label = btn.textContent
+    navigator.clipboard.writeText(text).then(
+      () => {
+        btn.textContent = 'Copied'
+        setTimeout(() => (btn.textContent = label), 1500)
+      },
+      (e) => toast(`Couldn't copy: ${e.message}`, 'danger')
+    )
+  }
+
   // An image that opens fitted whole to its box. Pinch or ⌘/Ctrl-scroll zooms at the pointer, scrolling or
   // dragging pans, double-click toggles fit and a closer look, + − 0 from keys(e). onEmpty: a click off the image.
   function zoomer(src, alt, onEmpty) {
-    const img = h('img', { src, alt, draggable: 'false' })
+    const img = missing(h('img', { src, alt, draggable: 'false' }))
     const level = h('button', { class: 'k-btn ghost small k-zoom-level', title: 'Fit (0)', onclick: () => fit() })
     const bar = h(
       'div',
@@ -300,41 +364,71 @@
     return view
   }
 
-  // A full-window viewer over a list; keys(e, i) handles extra shortcuts (verdicts in review).
-  function lightbox(items, start, { render, keys } = {}) {
+  // A full-window viewer over a list; keys(e, i) handles extra shortcuts (verdicts in review),
+  // render(item, i) adds tools under it, onClose(i) gets the item it closed on.
+  function lightbox(items, start, { render, keys, onClose } = {}) {
     let i = start
     let view = null
     const stage = h('div', { class: 'k-lb-stage' })
     const info = h('div', { class: 'k-lb-info' })
     const box = h('div', { class: 'k-lb', tabindex: '-1' }, stage, info, h('button', { class: 'k-lb-x k-btn ghost', onclick: () => done(), title: 'Close (Esc)' }, '✕'))
+    const multi = items.length > 1
+    const nav = (d) => h('button', { class: 'k-btn ghost k-lb-nav', title: d < 0 ? 'Previous (←)' : 'Next (→)', onclick: () => go(d) }, d < 0 ? '‹' : '›')
+    const tools = () => {
+      const item = items[i]
+      info.replaceChildren(view.bar || null, multi ? h('span', { class: 'k-muted k-mono' }, `${i + 1} / ${items.length}`) : null, item.caption ? h('strong', null, item.caption) : null, render ? render(item, i) : null)
+    }
     const show = () => {
       const item = items[i]
       view?.dispose?.()
       view = kindOf(item) === 'image' ? zoomer(item.src, item.caption || '', done) : media(item, true)
       stage.replaceChildren(view)
-      info.replaceChildren(view.bar || null, h('span', { class: 'k-muted' }, `${i + 1} / ${items.length}`), item.caption ? h('strong', null, item.caption) : null, render ? render(item, i) : null)
+      if (multi) stage.append(nav(-1), nav(1))
+      tools()
+    }
+    function go(d) {
+      i = (i + d + items.length) % items.length
+      show()
     }
     const key = (e) => {
-      if (e.target.closest && e.target.closest('input, textarea, select')) return
+      if (e.target.closest && e.target.closest('input, textarea, select')) {
+        // Out of the note first, so the arrows and verdict keys work again; Esc again closes.
+        if (e.key === 'Escape') (e.preventDefault(), e.target.blur(), box.focus())
+        return
+      }
       if (view.keys && view.keys(e)) return e.preventDefault()
       if (e.key === 'Escape') done()
-      else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') i = (i + 1) % items.length
-      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') i = (i - 1 + items.length) % items.length
-      else if (!(keys && keys(e, i))) return
+      else if (multi && (e.key === 'ArrowRight' || e.key === 'ArrowDown')) go(1)
+      else if (multi && (e.key === 'ArrowLeft' || e.key === 'ArrowUp')) go(-1)
+      // A verdict changes the tools, not the picture: keep the zoom.
+      else if (keys && keys(e, i)) tools()
+      else return
       e.preventDefault()
-      if (box.isConnected) show()
     }
+    const scroller = document.documentElement
+    const overflow = scroller.style.overflow
     function done() {
+      if (!box.isConnected) return
       removeEventListener('keydown', key)
       view?.dispose?.()
       box.remove()
+      scroller.style.overflow = overflow
+      onClose?.(i)
     }
     box.addEventListener('click', (e) => (e.target === box || e.target === stage) && done())
     addEventListener('keydown', key)
+    scroller.style.overflow = 'hidden'
     document.body.append(box)
     show()
     box.focus()
-    return { refresh: show }
+    return { refresh: tools, close: done }
+  }
+
+  // Where a src didn't load: say which, so it can be fixed (usually a path outside the playground).
+  const notFound = (img) => img.replaceWith(h('div', { class: 'k-missing', title: img.getAttribute('src') }, h('strong', null, 'Image not found'), h('span', { class: 'k-mono' }, img.getAttribute('src'))))
+  function missing(img) {
+    img.addEventListener('error', () => notFound(img), { once: true })
+    return img
   }
 
   // ---------- blocks ----------
@@ -378,7 +472,7 @@
   block('code', (b) => {
     const wrap = h('div', { class: 'k-codebox', html: codeHtml(b.code, b.lang) })
     wrap.append(
-      h('button', { class: 'k-btn ghost small k-copy', onclick: (e) => navigator.clipboard.writeText(b.code).then(() => (e.target.textContent = 'Copied')) }, 'Copy')
+      h('button', { class: 'k-btn ghost small k-copy', onclick: (e) => copy(b.code, e.currentTarget) }, 'Copy')
     )
     return wrap
   })
@@ -416,14 +510,18 @@
 
   block('form', (b, ctx) => {
     const value = { ...Object.fromEntries((b.fields || []).filter((f) => f.default !== undefined).map((f) => [f.id, f.default])), ...(ctx.value || {}) }
+    const els = {}
     const put = (id, v) => {
       value[id] = v
+      els[id]?.classList.remove('missing')
       ctx.set({ ...value })
     }
     return h(
       'div',
       { class: 'k-form' },
       (b.fields || []).map((f) => {
+        const field = (els[f.id] = h('div', { class: `k-field ${f.kind || (f.options ? 'select' : 'text')}` }))
+        if (f.required) required.push({ el: field, label: f.label || words(f.id), empty: () => blank(typeof value[f.id] === 'string' ? value[f.id].trim() : value[f.id]) })
         const kind = f.kind || (f.options ? 'select' : 'text')
         const v = value[f.id]
         const id = `${ctx.id}-${f.id}`
@@ -466,7 +564,8 @@
           draw()
           input = stars
         } else input = h('input', { id, type: kind, placeholder: f.placeholder, min: f.min, max: f.max, step: f.step, value: v ?? '', oninput: (e) => put(f.id, kind === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value) })
-        return h('div', { class: `k-field ${kind}` }, h('label', { class: 'k-label', for: id }, f.label || words(f.id), f.required ? h('span', { class: 'k-req' }, ' *') : null), f.help ? h('div', { class: 'k-help' }, f.help) : null, input)
+        field.append(...[h('label', { class: 'k-label', for: id }, f.label || words(f.id), f.required ? h('span', { class: 'k-req', title: 'Required' }, ' *') : null), f.help ? h('div', { class: 'k-help' }, f.help) : null, input].filter(Boolean))
+        return field
       })
     )
   })
@@ -487,13 +586,22 @@
           onclick: (e) => !e.target.closest('textarea, button, a, video, audio') && pick(o.id),
           onkeydown: (e) => (e.key === ' ' || e.key === 'Enter') && e.target === card && (e.preventDefault(), pick(o.id))
         },
-        o.src || o.html || o.code ? h('div', { class: 'k-choice-media' }, media(o, false), o.src && kindOf(o) === 'image' ? h('button', { class: 'k-btn ghost small k-zoom', title: 'Enlarge', onclick: () => lightbox(options.filter((x) => x.src), options.filter((x) => x.src).indexOf(o)) }, '⤢') : null) : null,
+        o.src || o.html || o.code ? h('div', { class: 'k-choice-media' }, media(o, false), kindOf(o) === 'image' ? h('button', { class: 'k-btn small k-zoom', title: 'Enlarge', onclick: () => enlarge(o) }, '⤢ Enlarge') : null) : null,
         h('div', { class: 'k-choice-body' }, h('div', { class: 'k-choice-head' }, h('span', { class: `k-mark ${multi ? 'square' : ''}` }), h('strong', null, o.label || `Option ${o.id}`), o.badge ? h('span', { class: 'k-badge' }, o.badge) : null), o.text ? h('div', { class: 'k-md k-muted', html: md(o.text) }) : null, o.pros || o.cons ? h('div', { class: 'k-proscons' }, (o.pros || []).map((p) => h('div', { class: 'pro' }, '+ ', p)), (o.cons || []).map((p) => h('div', { class: 'con' }, '− ', p))) : null)
       )
       card.dataset.id = o.id
       return card
     })
-    const paint = () => cards.forEach((c) => c.setAttribute('aria-checked', String(multi ? state.picked.includes(c.dataset.id) : state.picked === c.dataset.id)))
+    const isPicked = (id) => (multi ? state.picked.includes(id) : state.picked === id)
+    const paint = () => cards.forEach((c) => c.setAttribute('aria-checked', String(isPicked(c.dataset.id))))
+    // The big view picks too, so you needn't close it to choose what you're looking at.
+    const pictures = options.filter((x) => kindOf(x) === 'image').map((x) => ({ ...x, caption: x.caption ?? x.label }))
+    const enlarge = (o) => {
+      const box = lightbox(pictures, pictures.findIndex((x) => x.id === o.id), {
+        render: (x) => h('button', { class: `k-btn ${isPicked(x.id) ? 'primary' : ''}`, onclick: () => (pick(x.id), box.refresh()) }, isPicked(x.id) ? `✓ Picked` : `Pick ${x.label || ''}`.trim()),
+        keys: (e, n) => e.key === 'Enter' && (pick(pictures[n].id), true)
+      })
+    }
     function pick(id) {
       if (multi) state.picked = state.picked.includes(id) ? state.picked.filter((x) => x !== id) : [...state.picked, id]
       else state.picked = state.picked === id ? null : id
@@ -549,6 +657,34 @@
       }
       if (verdicts.length) count.textContent = `${items.filter((it) => state[it.id]?.verdict).length} of ${items.length} reviewed`
     }
+    // Back on the grid where the lightbox was left, so you can see what you just went through.
+    const land = (n) => {
+      const tile = tiles.get(items[n].id)
+      if (!tile) return
+      tile.scrollIntoView({ block: 'nearest' })
+      tile.classList.remove('flash')
+      void tile.offsetWidth
+      tile.classList.add('flash')
+    }
+    const open = (i) =>
+      lightbox(items, i, {
+        render: (x) => h('div', { class: 'k-lb-tools' }, verdictButtons(x), noteBox(x)),
+        keys: (e, n) => {
+          const v = verdicts[Number(e.key) - 1]
+          if (!v || e.metaKey || e.ctrlKey || e.altKey) return false
+          update(items[n].id, { verdict: state[items[n].id]?.verdict === v.value ? undefined : v.value })
+          return true
+        },
+        onClose: land
+      })
+    // Tiles take the shape most of the pictures have: tall sprites get tall tiles, not slivers in wide ones.
+    const shape = { tall: 0, wide: 0 }
+    const measure = (e) => {
+      const img = e.target
+      if (img.tagName !== 'IMG' || !img.naturalWidth) return
+      shape[img.naturalHeight > img.naturalWidth * 1.15 ? 'tall' : 'wide']++
+      grid.classList.toggle('tall', shape.tall > shape.wide)
+    }
     const grid = h(
       'div',
       { class: 'k-gallery', style: { '--min': `${b.size || 220}px` } },
@@ -556,20 +692,17 @@
         const tile = h(
           'figure',
           { class: 'k-tile' },
-          h('div', { class: 'k-tile-media', onclick: (e) => !e.target.closest('video[controls], audio') && (lightbox(items, i, { render: (x) => h('div', { class: 'k-lb-tools' }, verdictButtons(x), noteBox(x)), keys: (e, n) => {
-            const v = verdicts[Number(e.key) - 1]
-            if (!v) return false
-            update(items[n].id, { verdict: state[items[n].id]?.verdict === v.value ? undefined : v.value })
-            return true
-          } })) }, media(it, false)),
+          h('div', { class: 'k-tile-media', title: 'Enlarge', onclick: (e) => !e.target.closest('video[controls], audio') && open(i) }, media(it, false)),
           h('figcaption', null, it.caption ? h('div', { class: 'k-tile-cap' }, it.caption) : null, it.text ? h('div', { class: 'k-muted small k-md', html: md(it.text) }) : null, verdictButtons(it), noteBox(it))
         )
         tiles.set(it.id, tile)
         return tile
       })
     )
+    grid.addEventListener('load', measure, true)
     paint()
-    return h('div', null, verdicts.length ? h('div', { class: 'k-row between' }, count, h('span', { class: 'k-muted small' }, 'Click to enlarge · ←/→ to move · ', verdicts.map((v, n) => `${n + 1} ${v.label === v.value ? words(v.label) : v.label}`).join(' · '))) : null, grid)
+    const keysHint = verdicts.map((v, n) => `${n + 1} ${v.label === v.value ? words(v.label) : v.label}`).join(' · ')
+    return h('div', null, h('div', { class: 'k-row between' }, verdicts.length ? count : h('span'), h('span', { class: 'k-muted small' }, `Click a picture to enlarge it · ←/→ move${verdicts.length ? ` · ${keysHint}` : ''} · Esc closes`)), grid)
   })
   block('gallery', (b, ctx) => blocks.review({ verdicts: false, notes: false, ...b }, ctx))
 
@@ -584,8 +717,9 @@
         ...items.map((it, i) => {
           const li = h(
             'li',
-            { class: `k-plan-item ${check && !it.checked ? 'off' : ''}`, draggable: b.reorder === false ? 'false' : 'true' },
-            b.reorder === false ? h('span', { class: 'k-plan-n' }, i + 1) : h('span', { class: 'k-grip', title: 'Drag to reorder' }, '⋮⋮'),
+            { class: `k-plan-item ${check && !it.checked ? 'off' : ''}`, ondragend: (e) => (e.currentTarget.draggable = false) },
+            // Only the grip drags: a row that drags from anywhere steals text selection in its comment.
+            b.reorder === false ? h('span', { class: 'k-plan-n' }, i + 1) : h('span', { class: 'k-grip', title: 'Drag to reorder', onpointerdown: (e) => (e.currentTarget.parentElement.draggable = true), onpointerup: (e) => (e.currentTarget.parentElement.draggable = false) }, '⋮⋮'),
             check ? h('input', { type: 'checkbox', checked: it.checked, onchange: (e) => ((it.checked = e.target.checked), save(), draw()) }) : null,
             h(
               'div',
@@ -650,7 +784,7 @@
             {
               class: `k-col ${k.value ? '' : 'inbox'}`,
               ondragover: (e) => dragging && (e.preventDefault(), column.classList.add('over')),
-              ondragleave: () => column.classList.remove('over'),
+              ondragleave: (e) => !column.contains(e.relatedTarget) && column.classList.remove('over'),
               ondrop: (e) => {
                 e.preventDefault()
                 const card = e.target.closest('.k-card')
@@ -658,6 +792,7 @@
               }
             },
             h('div', { class: 'k-col-head' }, h('span', null, k.label), h('span', { class: 'k-badge' }, ids.length)),
+            ids.length ? null : h('div', { class: 'k-col-empty' }, k.value ? 'Drag cards here' : 'All sorted'),
             ids.map((id) => {
               const it = byId.get(id)
               if (!it) return null
@@ -761,7 +896,7 @@
     return h(
       'div',
       { class: 'k-tune' },
-      h('div', { class: 'k-tune-knobs' }, controls, h('div', { class: 'k-row' }, h('button', { class: 'k-btn ghost small', onclick: () => (Object.assign(value, initial), ctx.set({ ...value }), redraw()) }, 'Reset'), h('button', { class: 'k-btn ghost small', onclick: () => navigator.clipboard.writeText(css.textContent).then(() => toast('CSS copied')) }, 'Copy CSS')), b.showCss === false ? null : css),
+      h('div', { class: 'k-tune-knobs' }, controls, h('div', { class: 'k-row' }, h('button', { class: 'k-btn ghost small', onclick: () => (Object.assign(value, initial), ctx.set({ ...value }), redraw()) }, 'Reset'), h('button', { class: 'k-btn ghost small', onclick: (e) => copy(css.textContent, e.currentTarget) }, 'Copy CSS')), b.showCss === false ? null : css),
       preview
     )
     function redraw() {
@@ -772,7 +907,7 @@
 
   block('annotate', (b, ctx) => {
     let pins = ctx.value || []
-    const img = h('img', { src: b.src, draggable: 'false', alt: '' })
+    const img = missing(h('img', { src: b.src, draggable: 'false', alt: '' }))
     const layer = h('div', { class: 'k-pins' })
     const list = h('ol', { class: 'k-pin-list' })
     const save = () => ctx.set(pins.map((p) => ({ ...p })))
@@ -899,10 +1034,15 @@
     const show = (n) => {
       panes.forEach((p, i) => (p.hidden = i !== n))
       bar.querySelectorAll('button').forEach((btn, i) => btn.setAttribute('aria-selected', String(i === n)))
+      place.tabs[ctx.id] = n
+      remember()
     }
     bar.append(...tabs.map((t, i) => h('button', { role: 'tab', onclick: () => show(i) }, t.label || `Tab ${i + 1}`)))
-    show(0)
-    return h('div', null, bar, panes)
+    const was = place.tabs[ctx.id]
+    show(Number.isInteger(was) && was < tabs.length ? was : 0)
+    const wrap = h('div', null, bar, panes)
+    wrap.showPane = (pane) => show(panes.indexOf(pane))
+    return wrap
   })
 
   // ---------- page ----------
@@ -936,6 +1076,8 @@
     answersName = spec.answers || 'answers'
     answers = (await store.load(answersName).catch(() => null)) || {}
     auto = 0
+    required.length = 0
+    recall(`kit:${location.pathname}:${spec.title || ''}`)
     if (spec.title) document.title = spec.title
     document.body.classList.add('k-body')
     const done = spec.submit === false ? null : h('button', { class: 'k-btn primary' }, spec.submit || 'Done')
@@ -943,6 +1085,13 @@
     const stamp = () => (doneAt.textContent = answers._done ? `Sent to your agent at ${new Date(answers._done).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : '')
     if (done)
       done.onclick = () => {
+        const gap = required.find((r) => r.el.isConnected && r.empty())
+        if (gap) {
+          reveal(gap.el)
+          gap.el.classList.add('missing')
+          gap.el.querySelector('input, textarea, select, button')?.focus({ preventScroll: true })
+          return toast(`Fill in “${gap.label}” first: it's required.`, 'danger')
+        }
         answers._done = new Date().toISOString()
         persist().then((saved) => {
           // The agent would read answers that aren't there; the chip says why.
@@ -963,10 +1112,40 @@
       done ? h('footer', { class: 'k-footer' }, doneAt, done) : null
     )
     document.body.append(main)
+    // Back where you were before the agent's rewrite, and again as pictures load and move things,
+    // until you scroll yourself.
+    const anchor = place.anchor && [...main.children].find((el) => el.dataset.block === place.anchor.id)
+    if (anchor) {
+      const back = () => {
+        if (!restoring) return
+        scrollTo(0, anchor.getBoundingClientRect().top + scrollY + place.anchor.off)
+        restoring.y = scrollY
+      }
+      const ro = new ResizeObserver(back)
+      const stop = () => {
+        restoring = null
+        ro.disconnect()
+        document.documentElement.style.overflowAnchor = ''
+      }
+      restoring = { y: scrollY, stop }
+      // The browser's own anchoring would move the page as pictures load, and look like you scrolling.
+      document.documentElement.style.overflowAnchor = 'none'
+      ro.observe(main)
+      back()
+      for (const type of ['wheel', 'keydown', 'pointerdown', 'touchstart']) addEventListener(type, stop, { once: true, passive: true })
+      setTimeout(stop, 4000)
+    }
     chip.textContent = Object.keys(answers).length ? 'Restored' : ''
     chip.dataset.state = 'ok'
     return main
   }
+
+  // Pictures in Markdown (a report, an intro) enlarge like any other; ones in a choice card pick it instead.
+  document.addEventListener('click', (e) => {
+    const img = e.target.closest?.('.k-md img')
+    if (img && !img.closest('a, .k-choice')) lightbox([{ src: img.getAttribute('src'), caption: img.alt }], 0)
+  })
+  document.addEventListener('error', (e) => e.target.matches?.('.k-md img') && notFound(e.target), true)
 
   window.kit = { page, block, render, h, md, esc, toast, lightbox, set, get answers() { return answers }, save: persist }
 })()

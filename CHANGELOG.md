@@ -2,6 +2,17 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.44.0 — 2026-11-15
+
+- ✨ Playground review tiles show the whole picture (tall sprites were cropped to the head) and turn portrait when most pictures are tall.
+- ✨ The playground lightbox: ‹ › arrows, a verdict key keeps your zoom, Esc leaves the note box before closing, and closing lands on the tile you ended on.
+- ✨ Enlarge a choice's picture and Pick it from there; pictures in reports enlarge too.
+- A playground keeps your scroll position and open tab when the agent updates the page.
+- Done won't send while a required field is empty; it shows you which.
+- Copy buttons in playgrounds work.
+- Annotate fits tall images in the window; missing images say which file; a page with a bug says so instead of going blank.
+- A ✕ closes the playground. Pages can no longer scroll the whole window up under the header.
+
 ## 1.43.1 — 2026-11-15
 
 - A note typed on an enlarged image in a playground review now shows on its tile when you close it.

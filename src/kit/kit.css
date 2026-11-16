@@ -481,6 +481,37 @@ input[type='color'] {
 .k-md img {
   max-width: 100%;
   border-radius: 6px;
+  cursor: zoom-in;
+}
+.k-choice .k-md img {
+  cursor: inherit;
+}
+/* An image whose file wasn't there, in its place. */
+.k-missing {
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  min-height: 120px;
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  text-align: center;
+  color: var(--del);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  background: color-mix(in srgb, var(--del) 7%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--del) 45%, transparent);
+  border-radius: 6px;
+}
+.k-missing .k-mono {
+  color: var(--muted);
+}
+.k-broken {
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  margin: 12px;
 }
 .k-md code,
 .k-md .k-code {
@@ -740,6 +771,19 @@ input[type='color'] {
 .k-req {
   color: var(--del);
 }
+/* Done found it empty. */
+.k-field.missing input:not([type='radio']):not([type='checkbox']),
+.k-field.missing textarea,
+.k-field.missing select,
+.k-field.missing .k-options,
+.k-field.missing .k-rating {
+  border-color: var(--del);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--del) 20%, transparent);
+  border-radius: 7px;
+}
+.k-field.missing .k-label {
+  color: var(--del);
+}
 .k-help {
   font-size: 12px;
   color: var(--muted);
@@ -849,9 +893,10 @@ input[type='color'] {
 }
 .k-zoom {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  top: 8px;
+  right: 8px;
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  backdrop-filter: blur(4px);
 }
 .k-choice-body {
   padding: 12px 14px;
@@ -938,9 +983,23 @@ input[type='color'] {
 .k-tile[data-verdict='neutral'] {
   border-color: var(--new);
 }
+.k-gallery.tall .k-tile-media {
+  aspect-ratio: 3 / 4;
+}
+.k-tile.flash {
+  animation: k-flash 1.2s;
+}
+@keyframes k-flash {
+  0%,
+  40% {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+}
 .k-tile-media {
   aspect-ratio: 4 / 3;
   display: grid;
+  /* A definite track, so the media's height: 100% is the tile's and contain shows all of it. */
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
   overflow: hidden;
   cursor: zoom-in;
@@ -989,6 +1048,7 @@ input[type='color'] {
   animation: k-fade 0.15s;
 }
 .k-lb-stage {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: grid;
@@ -1065,6 +1125,26 @@ input[type='color'] {
 .k-lb-tools .k-note {
   width: 280px;
 }
+.k-lb-nav {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  width: 40px;
+  height: 56px;
+  font-size: 28px;
+  line-height: 1;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  opacity: 0.6;
+}
+.k-lb-nav:hover {
+  opacity: 1;
+}
+.k-lb-nav:first-of-type {
+  left: 16px;
+}
+.k-lb-nav:last-of-type {
+  right: 16px;
+}
 .k-lb-x {
   position: absolute;
   top: 12px;
@@ -1111,8 +1191,12 @@ input[type='color'] {
   color: var(--muted);
   cursor: grab;
   letter-spacing: -3px;
-  padding: 1px 4px 0 0;
+  padding: 1px 6px 0 2px;
   user-select: none;
+  touch-action: none;
+}
+.k-grip:hover {
+  color: var(--fg);
 }
 .k-plan-n {
   color: var(--muted);
@@ -1183,6 +1267,19 @@ input.k-plan-title {
 .k-card-title {
   font-weight: 500;
 }
+.k-col-empty {
+  display: grid;
+  place-items: center;
+  min-height: 64px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.k-col.over .k-col-empty {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .k-card-move {
   position: absolute;
   top: 4px;
@@ -1250,6 +1347,10 @@ input.k-plan-title {
 }
 .k-annotate-stage {
   position: relative;
+  /* As big as the picture, so pins (in % of the stage) land on it. */
+  width: fit-content;
+  max-width: 100%;
+  justify-self: center;
   cursor: crosshair;
   border-radius: 8px;
   overflow: hidden;
@@ -1257,7 +1358,10 @@ input.k-plan-title {
   line-height: 0;
 }
 .k-annotate-stage img {
-  width: 100%;
+  display: block;
+  max-width: 100%;
+  /* A tall picture fits in the window, so you can see all of it while pinning. */
+  max-height: 75vh;
   user-select: none;
 }
 .k-pins {
@@ -1478,6 +1582,10 @@ input.k-plan-title {
 }
 .k-toast.ok {
   background: var(--add);
+  color: #fff;
+}
+.k-toast.danger {
+  background: var(--del);
   color: #fff;
 }
 .k-toast.out {

@@ -76,6 +76,12 @@ body,
   user-select: none;
   cursor: default;
 }
+/* clip, not hidden: a hidden box can still be scrolled, and scrollIntoView in a page inside it
+   (a playground's, a web page's) would scroll the whole window up under the header. */
+body,
+#root {
+  overflow: clip;
+}
 
 /* All UI sizing is rem-based, so this one number scales it. Monaco and xterm set px sizes and are unaffected. */
 html {
