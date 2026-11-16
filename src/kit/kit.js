@@ -543,6 +543,9 @@
       for (const [id, t] of tiles) {
         t.dataset.verdict = state[id]?.verdict ? tone(state[id].verdict) : ''
         t.querySelectorAll('.k-seg-btn').forEach((btn, n) => btn.setAttribute('aria-pressed', String(state[id]?.verdict === verdicts[n].value)))
+        // A note typed in the lightbox goes to its own box: copy it to the tile's.
+        const note = t.querySelector('.k-note')
+        if (note && note !== document.activeElement) note.value = state[id]?.note || ''
       }
       if (verdicts.length) count.textContent = `${items.filter((it) => state[it.id]?.verdict).length} of ${items.length} reviewed`
     }
