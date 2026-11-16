@@ -209,8 +209,6 @@ function buildMenu(): void {
   const panes = (['Left', 'Right', 'Up', 'Down'] as const).map((d) => ({
     label: `Focus Pane ${d}`,
     accelerator: `Cmd+Ctrl+${d}`,
-    // Shown for reference only: createWindow intercepts these before the page sees them.
-    registerAccelerator: false,
     click: menu({ type: 'pane', dir: d.toLowerCase() as PaneDir })
   }))
   const webPages = settings.webPages.map((p, i) => ({
@@ -225,12 +223,12 @@ function buildMenu(): void {
   }))
   const sep = { type: 'separator' as const }
   // Plugins get what's left: a shortcut cuckcode (or an earlier plugin) has is dropped. That
-  // includes the role items' keys (a plugin on ⌘C would break copy) and the ones createWindow intercepts.
+  // includes the role items' keys (a plugin on ⌘C would break copy).
   const roles = ['Cmd+Z', 'Cmd+Shift+Z', 'Cmd+X', 'Cmd+C', 'Cmd+V', 'Cmd+Alt+Shift+V', 'Cmd+A', 'Cmd+M', 'Cmd+Alt+H', 'Cmd+Alt+I', 'Cmd+R', 'Cmd+Ctrl+F']
-  const intercepted = ['Cmd+Shift+[', 'Cmd+Shift+]', 'Cmd+Shift+{', 'Cmd+Shift+}', ...panes.map((p) => p.accelerator)]
+  const moves = ['Cmd+Shift+[', 'Cmd+Shift+]', 'Cmd+Shift+{', 'Cmd+Shift+}', ...panes.map((p) => p.accelerator)]
   const taken = new Set(
     ['Cmd+N', 'Cmd+T', 'Cmd+O', 'Cmd+Shift+W', 'Cmd+W', 'Cmd+Shift+F', 'Cmd+Alt+K', 'Cmd+E', 'Cmd+B', 'Cmd+,', 'Cmd+Q', 'Cmd+H', 'Cmd+K', 'Cmd+S']
-      .concat(roles, intercepted)
+      .concat(roles, moves)
       .concat(Array.from({ length: 10 }, (_, i) => [`Cmd+${i}`, `Cmd+Ctrl+${i}`, `Cmd+Alt+${i}`]).flat())
       .map(normal)
   )
@@ -300,9 +298,8 @@ function buildMenu(): void {
           ...(pluginItems.length ? [sep, ...pluginItems] : []),
           { type: 'separator' },
           ...tabs,
-          // Shown for reference only: createWindow intercepts these.
-          { label: 'Previous Project', accelerator: 'Cmd+Shift+[', registerAccelerator: false, click: menu({ type: 'cycle', step: -1 }) },
-          { label: 'Next Project', accelerator: 'Cmd+Shift+]', registerAccelerator: false, click: menu({ type: 'cycle', step: 1 }) },
+          { label: 'Previous Project', accelerator: 'Cmd+Shift+[', click: menu({ type: 'cycle', step: -1 }) },
+          { label: 'Next Project', accelerator: 'Cmd+Shift+]', click: menu({ type: 'cycle', step: 1 }) },
           { type: 'separator' },
           ...panes,
           { type: 'separator' },
@@ -314,10 +311,6 @@ function buildMenu(): void {
     ])
   )
 }
-
-const ARROWS: Record<string, PaneDir> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }
-// By physical key, since ⌘⇧[ reports key '{'.
-const BRACKETS: Record<string, 1 | -1> = { BracketLeft: -1, BracketRight: 1 }
 
 // The saved bounds, unless the display they were on is gone: then the default size, centered.
 function savedBounds(): Partial<Bounds> {
@@ -357,17 +350,6 @@ function createWindow(): void {
     if (quitting) return
     e.preventDefault()
     app.quit()
-  })
-  // Monaco and xterm consume key combos, so a menu accelerator may never fire while they have
-  // focus. Catch pane moves (⌃⌘arrows) and tab moves (⇧⌘[ ]) before the page does.
-  win.webContents.on('before-input-event', (e, input) => {
-    if (input.type !== 'keyDown' || !input.meta || input.alt) return
-    const dir = input.control && !input.shift ? ARROWS[input.key] : undefined
-    const step = input.shift && !input.control ? BRACKETS[input.code] : undefined
-    if (dir) send('menu', { type: 'pane', dir })
-    else if (step) send('menu', { type: 'cycle', step })
-    else return
-    e.preventDefault()
   })
   // Web links only: a page (a playground, a web page) could otherwise hand openExternal a
   // file:// app or a custom scheme.
