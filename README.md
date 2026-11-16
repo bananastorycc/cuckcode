@@ -225,8 +225,6 @@ Two environment variables are set for the command:
   The `--settings` part gives Claude Code hooks that run `$CUCKCODE_NOTIFY` when it finishes or needs your input. To change how Claude starts, add your flags to the end (for example `--model opus`) and leave those two parts in place, or notifications and playgrounds stop working for it.
 - **Command:** an empty command with Notify on and the rest off, for any other tool (`codex`, `junie --auth-license=<id>`, `oterm`, …). Turn on the other switches if the tool supports them: @ mentions if it reads `@path`, ⇧↩ newline if it takes ESC+CR as a newline, Playground if you pass it `$CUCKCODE_PLAYGROUND`.
 
-Usage meters for Claude Code's plan and Junie's AI credits are a plugin, [cuckcode-meters](https://github.com/bananastorycc/cuckcode-meters), which shows them in the Agents title bar.
-
 Agent commands, including any license keys in them, are part of your settings and of the [Sync](#settings) config file. Put that config repo somewhere private. We're not your mom, but we're also not paying your bill when someone burns your credits.
 
 ## Playgrounds
@@ -278,7 +276,7 @@ A plugin is a git repo with a `cuckcode-plugin.json` at its root:
 Every field except `id` and `name` is optional. Each bundle is a single CommonJS file that exports `activate(host)`:
 
 - **main** runs in Electron's main process. It can register functions that the renderer side calls, share an API with other plugins, and get the environment cuckcode's terminals use. It must never block: use async fs and `execFile` only.
-- **renderer** runs in the window and gets React and Monaco from cuckcode, so there's only one copy of each. It can add languages and token colors to the editor, keep per-project data that reloads when relevant files change, add a full-window view with a header button and a menu shortcut, hook into the code editors (for hover previews or ⌘-click go-to-definition), add agent presets to Settings › Agents, and draw in the Agents title bar for the agent in front (as cuckcode-meters does for usage meters).
+- **renderer** runs in the window and gets React and Monaco from cuckcode, so there's only one copy of each. It can add languages and token colors to the editor, keep per-project data that reloads when relevant files change, add a full-window view with a header button and a menu shortcut, hook into the code editors (for hover previews or ⌘-click go-to-definition), add agent presets to Settings › Agents, and draw in the Agents title bar for the agent in front.
 - **style** is a stylesheet. Use the host's CSS variables (`--bg`, `--fg`, `--accent`, …) so it follows light and dark mode.
 
 If the repo's `package.json` has a `build` script, cuckcode runs it whenever the sources are newer than the bundles. `requires` lists plugin ids that must load first, and a plugin can use the API that each of them provides. The full contract, with what each side gets, is in [`src/shared/plugin.ts`](src/shared/plugin.ts).
