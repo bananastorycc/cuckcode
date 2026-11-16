@@ -2,6 +2,13 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.45.1 — 2026-11-16
+
+- A section you minimize, restore, move and minimize again comes back where you left it, not in the group it used to share.
+- A required playground field answered with 0 (a number, a slider) counts as answered, so Done goes through.
+- Dragging a divider does less work per frame.
+- The README grew an attitude. Fuck you. ❤️
+
 ## 1.45.0 — 2026-11-15
 
 - ✨ Minimize sections you don't need with the – on their tab. They wait as buttons in the title bar and come back where they were, at the same size.

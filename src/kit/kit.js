@@ -224,7 +224,8 @@
 
   // Done stops at the first required field still empty; forms register theirs here.
   const required = []
-  const blank = (v) => v == null || v === '' || v === 0 || (Array.isArray(v) && !v.length)
+  // 0 is an answer (a number, a range); only a rating uses it for none.
+  const blank = (v) => v == null || v === '' || (Array.isArray(v) && !v.length)
   // Into view even inside a tab that isn't showing.
   function reveal(el) {
     for (let p = el.closest('.k-tab-pane'); p; p = p.parentElement.closest('.k-tab-pane')) if (p.hidden) p.parentElement.showPane?.(p)
@@ -521,7 +522,7 @@
       { class: 'k-form' },
       (b.fields || []).map((f) => {
         const field = (els[f.id] = h('div', { class: `k-field ${f.kind || (f.options ? 'select' : 'text')}` }))
-        if (f.required) required.push({ el: field, label: f.label || words(f.id), empty: () => blank(typeof value[f.id] === 'string' ? value[f.id].trim() : value[f.id]) })
+        if (f.required) required.push({ el: field, label: f.label || words(f.id), empty: () => (f.kind === 'rating' ? !value[f.id] : blank(typeof value[f.id] === 'string' ? value[f.id].trim() : value[f.id])) })
         const kind = f.kind || (f.options ? 'select' : 'text')
         const v = value[f.id]
         const id = `${ctx.id}-${f.id}`

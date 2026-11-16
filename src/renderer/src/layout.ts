@@ -41,7 +41,7 @@ export function valid(layout: unknown): layout is SerializedDockview {
   return ids.length === SECTIONS.length && SECTIONS.every((s) => ids.includes(s))
 }
 
-export function mount(el: HTMLElement, saved: unknown, onChange: (layout: SerializedDockview) => void): () => void {
+export function mount(el: HTMLElement, saved: unknown, onChange: (layout: SerializedDockview, minimized: Section[]) => void): () => void {
   const dock = createDockview(el, {
     theme: THEME,
     disableFloatingGroups: true,
@@ -58,10 +58,13 @@ export function mount(el: HTMLElement, saved: unknown, onChange: (layout: Serial
   })
   api = dock
   load(saved)
+  // Once per change: a divider drag changes the layout every frame.
   const changed = (): void => {
+    const layout = dock.toJSON()
+    const minimized = hidden(layout)
     // The last section showing can't be minimized; its button goes.
-    el.classList.toggle('cc-last', SECTIONS.length - hidden().length <= 1)
-    onChange(dock.toJSON())
+    el.classList.toggle('cc-last', SECTIONS.length - minimized.length <= 1)
+    onChange(layout, minimized)
   }
   const sub = dock.onDidLayoutChange(changed)
   changed()
@@ -106,20 +109,20 @@ const panelOf = (s: Section): ReturnType<DockviewApi['getPanel']> => api?.getPan
 // Read from the grid itself: after loading a layout, a group's own isVisible says true for a
 // group the grid has hidden.
 type Node = { type: 'leaf' | 'branch'; data: unknown; visible?: boolean }
-function hiddenGroups(): Set<string> {
+function hiddenGroups(layout = api?.toJSON()): Set<string> {
   const ids = new Set<string>()
   const walk = (n: Node): void => {
     if (n.type === 'branch') (n.data as Node[]).forEach(walk)
     else if (n.visible === false) ids.add((n.data as { id: string }).id)
   }
-  if (api) walk(api.toJSON().grid.root as Node)
+  if (layout) walk(layout.grid.root as Node)
   return ids
 }
 
 const isHidden = (s: Section, groups = hiddenGroups()): boolean => groups.has(panelOf(s)?.group.id ?? '')
 
-export const hidden = (): Section[] => {
-  const groups = hiddenGroups()
+export const hidden = (layout?: SerializedDockview): Section[] => {
+  const groups = hiddenGroups(layout)
   return SECTIONS.filter((s) => isHidden(s, groups))
 }
 
@@ -142,7 +145,8 @@ export function show(s: Section): void {
   if (!isHidden(s)) return
   const { home, index } = (panel.params ?? {}) as { home?: Section; index?: number }
   const to = home && panelOf(home)?.group
-  panel.api.updateParameters({})
+  // Params merge: only undefined deletes a key, so {} would leave a stale home for next time.
+  panel.api.updateParameters({ home: undefined, index: undefined })
   if (to && to !== own && !isHidden(home)) panel.api.moveTo({ group: to, position: 'center', index })
   else own.api.setVisible(true)
 }

@@ -23,7 +23,7 @@ import Settings from './components/Settings'
 import Terminal, { pasteInto, shellQuote, whenReady } from './components/Terminal'
 import Toasts, { toast } from './components/Toasts'
 import WebPage from './components/WebPage'
-import { apply, hidden, hosts, mount, PRESETS, reveal as revealSection, SECTIONS, show as showSection, type Section } from './layout'
+import { apply, hosts, mount, PRESETS, reveal as revealSection, SECTIONS, show as showSection, type Section } from './layout'
 import { loadPlugins, runCommand, setCurrent, setOpenFile, usePlugins, type Registered } from './plugins'
 
 // What's shown: the README over the code pane, or a playground slot (from 1) or a plugin's
@@ -123,9 +123,9 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     if (!loaded || !dockEl.current) return
     let timer: ReturnType<typeof setTimeout> | undefined
-    const unmount = mount(dockEl.current, layoutRef.current, (layout) => {
+    const unmount = mount(dockEl.current, layoutRef.current, (layout, minimized) => {
       layoutRef.current = layout
-      setMinimized(hidden().join())
+      setMinimized(minimized.join())
       clearTimeout(timer)
       timer = setTimeout(bumpLayout, 300)
     })

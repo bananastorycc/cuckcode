@@ -1,19 +1,26 @@
 # cuckcode
 
+> Built by one human and one Claude, for ourselves. Fuck you. (Affectionately. Mostly.)
+
 A macOS-first shell for vibe coding with [Claude Code](https://claude.com/claude-code) or any terminal agent. One window with one tab per project. Each tab has your agents' terminals, a live diff of the working tree against HEAD, a small git panel and a file tree. Playgrounds for pages your agent builds, a folder browser and your own web pages are each a keystroke away. Almost everything is configured in Settings (⌘,), and [plugins](#plugins) add more.
 
-It's deliberately small: Electron, Monaco, xterm and git, with no language servers and nothing running while you type. It runs on macOS today. Linux and Windows are planned (see [Platform support](#platform-support)).
+It's deliberately small: Electron, Monaco, xterm and git, with no language servers and nothing running while you type. You wanted an IDE? There are forty of them, they all want to be your best friend, and they all phone home. This one doesn't care about you. It cares about the diff.
+
+It runs on macOS today. Linux and Windows are planned (see [Platform support](#platform-support)), and no, there's no ETA, fuck you.
+
+We wrote it together, a person and Claude, mostly with Claude typing and the person yelling. We use it every day. We're not asking you to.
 
 Website: [cuckcode.cc](https://cuckcode.cc). Changes in each release: [CHANGELOG.md](CHANGELOG.md).
 
 ![cuckcode: the file tree and git panel on the left, a live diff of the file Claude is editing in the middle, Claude Code on the right](docs/screenshots/workspace.png)
 
-What's different from a terminal next to an editor:
+What's different from a terminal next to an editor, since you were going to ask:
 
 - **The diff is live.** Every file your agent touches shows up in the git panel and diffs against HEAD as it's written, images and video included. Typing in the diff edits the file.
 - **Your agent can show you things.** In a [playground](#playgrounds), the agent builds a page for what's easier to look at than read: design options side by side, a plan to tick off, a form of questions. Your answers go straight back to it.
 - **Your edits and your agent's don't collide.** Pressing Enter in a terminal saves your open files first, so the agent always reads what's on screen.
 - **One window for every project.** Each project tab keeps its own agents, terminal, diff and git panel. Commit or sync them all at once.
+- **It doesn't want anything from you.** No account, no telemetry, no "what's new" carousel, no AI sidebar begging to help. Your agent already lives in a terminal. We just put a window around it.
 
 ## Platform support
 
@@ -31,14 +38,14 @@ cuckcode is built on Electron, git and node-pty, which all run on Linux and Wind
 - **The window** uses the macOS title bar and app menu.
 - **Installer:** `install.sh` and `npm run app` build a macOS `.app`.
 
-Linux comes first. If you'd like to help with either port, [open an issue](https://github.com/bananastorycc/cuckcode/issues).
+Linux comes first. If you'd like to help with either port, [open an issue](https://github.com/bananastorycc/cuckcode/issues). If you'd like to complain that it doesn't run on your ThinkPad, read the table again.
 
 ## Requirements
 
-- macOS
+- macOS (yes, still)
 - git (`xcode-select --install`)
 - Node.js (`brew install node`)
-- At least one agent CLI, such as [Claude Code](https://claude.com/claude-code), [Junie](https://www.jetbrains.com/junie/), or any program you run in a terminal. cuckcode starts with Claude Code set up; any other takes a minute in Settings (see [Agents](#agents)).
+- At least one agent CLI (that's the whole point), such as [Claude Code](https://claude.com/claude-code), [Junie](https://www.jetbrains.com/junie/), or any program you run in a terminal. cuckcode starts with Claude Code set up; any other takes a minute in Settings (see [Agents](#agents)).
 
 ## Install
 
@@ -48,7 +55,7 @@ curl -fsSL https://raw.githubusercontent.com/bananastorycc/cuckcode/main/install
 
 The installer clones this repo to `~/repos/cuckcode` (set `CUCKCODE_DIR` to put it elsewhere), installs dependencies, builds `/Applications/cuckcode.app` and opens it. You can rerun it safely. After that, launch cuckcode from Spotlight, Launchpad or the Dock.
 
-To install by hand, clone the repo anywhere, then run `npm install && npm run app`.
+To install by hand, clone the repo anywhere, then run `npm install && npm run app`. Yes, you're piping curl into bash. Read [install.sh](install.sh) first if that bothers you; it's short, and we'd respect you more.
 
 On first launch:
 
@@ -65,11 +72,11 @@ The installed app is a thin launcher (`boot/index.js`) around your git checkout.
 3. rebuilds if the source changed
 4. opens the app
 
-**This means you run whatever is on the branch you track.** To stay on a release, check out its tag (`git -C ~/repos/cuckcode checkout v1.26.2`) or remove the upstream, and the launcher will run what's there. If a build fails, the launcher offers to start the previous build. After an update, a note in the corner shows the new version and what changed.
+**This means you run whatever is on the branch you track.** We push to `main`. We push to `main` a lot. That's the deal. To stay on a release, check out its tag (`git -C ~/repos/cuckcode checkout v1.26.2`) or remove the upstream, and the launcher will run what's there. If a build fails, the launcher offers to start the previous build. After an update, a note in the corner shows the new version and what changed.
 
 Rerun `npm run app` only when the Electron version in `package.json` changes (the app tells you) or the launcher itself (`boot/index.js`) does (the update note says so).
 
-Quitting (⌘Q, or closing the window) saves any unsaved edits, kills every terminal, and exits within a few seconds. It doesn't ask anything. Nothing is pulled or pushed on the way out (a synced config change is only committed), and nothing keeps running in the background.
+Quitting (⌘Q, or closing the window) saves any unsaved edits, kills every terminal, and exits within a few seconds. It doesn't ask "Are you sure?" You're an adult. Nothing is pulled or pushed on the way out (a synced config change is only committed), and nothing keeps running in the background.
 
 ## Keybindings
 
@@ -94,7 +101,7 @@ Quitting (⌘Q, or closing the window) saves any unsaved edits, kills every term
 | ⌘E | Toggle README |
 | ⌘B | Toggle folders |
 
-Plugins add their own shortcuts, listed under View. The theme is in Settings: Auto (the default) follows the system's appearance and is dark when it can't tell; Dark and Light pin it.
+No, you can't rebind them. Plugins add their own shortcuts, listed under View. The theme is in Settings: Auto (the default) follows the system's appearance and is dark when it can't tell; Dark and Light pin it.
 
 **File tree:** ↑/↓ move the cursor and open files as you go, → expands a folder or steps into it, ← collapses it or jumps to its parent, ↩ renames, ⌘⌫ moves to the Trash, right-click for New File / Rename / Move to Trash / Reveal in Finder / Copy Path / Copy Relative Path. Drag a file onto a terminal to paste its path (as an `@` mention in agents with @ mentions on).
 
@@ -106,13 +113,13 @@ Plugins add their own shortcuts, listed under View. The theme is in Settings: Au
 
 ## Projects
 
-⌘T lists the folders in your projects folder (the first ⌘T asks where that is) and opens the one you pick as a new tab. Paste a git remote instead and cuckcode clones it there. An empty remote gets a fresh repo: `git init` on `main`, an empty first commit, and a push that sets the upstream, so committing and syncing work from the start.
+Your repos live in one folder, like a civilized person's. ⌘T lists the folders in your projects folder (the first ⌘T asks where that is) and opens the one you pick as a new tab. Paste a git remote instead and cuckcode clones it there. An empty remote gets a fresh repo: `git init` on `main`, an empty first commit, and a push that sets the upstream, so committing and syncing work from the start.
 
 ## Layout
 
 The workspace is made of seven sections: Files, Search, Editor, Terminal, Agents, Git and Scratch. Each is a tab. A section alone in its group shows only a thin strip where its tab bar would be; hover it to bring up the tab. Drag a tab onto another group (or onto the middle of a section) to stack them, onto a group's edge to split it, or drag the borders to resize. Whatever you arrange is kept: quitting and reopening brings it back exactly, sizes included.
 
-Sections you don't want can be minimized with the – on their tab (it shows on the tab in front, and on any tab you hover). A minimized section leaves the workspace and waits as a button at the right of the title bar; click it to put the section back where it was, at the size it had, or back among the tabs it shared. Something that needs a section brings it back on its own: opening a file shows the Editor, ⇧⌘F shows Search, and sending a selection or finishing a playground shows Agents. The last section showing can't be minimized. Minimized sections are part of the layout, so they're kept across launches and in saved layouts; switching to a preset shows everything again.
+Don't like a section? Neither do we, some days. Sections you don't want can be minimized with the – on their tab (it shows on the tab in front, and on any tab you hover). A minimized section leaves the workspace and waits as a button at the right of the title bar; click it to put the section back where it was, at the size it had, or back among the tabs it shared. Something that needs a section brings it back on its own: opening a file shows the Editor, ⇧⌘F shows Search, and sending a selection or finishing a playground shows Agents. The last section showing can't be minimized. Minimized sections are part of the layout, so they're kept across launches and in saved layouts; switching to a preset shows everything again.
 
 ![Terminal and Scratch minimized to the title bar](docs/screenshots/minimize.png)
 
@@ -135,7 +142,7 @@ Images (`.png` `.jpg` `.jpeg` `.gif` `.webp` `.avif` `.svg`) and video (`.mp4` `
 <img src="docs/screenshots/image-diff.png" alt="A changed logo.png shown side by side: HEAD on the left, the working tree on the right" width="500">
 
 
-Edits save on ⌘S, when you press Enter in a terminal (so the agent always reads what's on screen and can't be overwritten by it later; an agent prompt that saved anything shows a note listing the files), when you leave the file (open another, close the project), and on quit; there's no save-as-you-type and no prompt. Unsaved files show ●, and are also saved before a commit, a branch switch, or a rename. To undo, discard the change in git.
+There's no "Save changes?" dialog to click through. Edits save on ⌘S, when you press Enter in a terminal (so the agent always reads what's on screen and can't be overwritten by it later; an agent prompt that saved anything shows a note listing the files), when you leave the file (open another, close the project), and on quit; there's no save-as-you-type and no prompt. Unsaved files show ●, and are also saved before a commit, a branch switch, or a rename. To undo, discard the change in git. That's what git is for.
 
 ## Search
 
@@ -143,7 +150,7 @@ Edits save on ⌘S, when you press Enter in a terminal (so the agent always read
 
 ## Git
 
-**Commit** stages everything (`git add -A`), commits, and then, if the repo has a remote, syncs straight away: every commit is pushed. **AI** (✨) has your commit command write the message from the diff, recent commit style, and new files, then commits the same way. The command is set in Settings › Git and defaults to a headless `claude -p` on Haiku; any program works that reads the changes on stdin (its instructions are in `$CUCKCODE_COMMIT_PROMPT`) and prints a message. Unlike an agent, it runs with `/bin/sh` in the repo, not your login shell, so your aliases don't apply and `PATH` is cuckcode's own: the system folders plus Homebrew, `/usr/local/bin` and `~/.local/bin`. Use the full path for a tool installed anywhere else. **Default** next to the field puts the original command back. With no command, the AI buttons are hidden. **Sync** runs `pull --rebase --autostash` then push; **Pull**/**Push** run alone.
+**Commit** stages everything (`git add -A`), commits, and then, if the repo has a remote, syncs straight away: every commit is pushed. No staging hunks, no interactive rebase, no feelings. Want partial staging? You have a terminal right there. **AI** (✨) has your commit command write the message from the diff, recent commit style, and new files, then commits the same way. The command is set in Settings › Git and defaults to a headless `claude -p` on Haiku; any program works that reads the changes on stdin (its instructions are in `$CUCKCODE_COMMIT_PROMPT`) and prints a message. Unlike an agent, it runs with `/bin/sh` in the repo, not your login shell, so your aliases don't apply and `PATH` is cuckcode's own: the system folders plus Homebrew, `/usr/local/bin` and `~/.local/bin`. Use the full path for a tool installed anywhere else. **Default** next to the field puts the original command back. With no command, the AI buttons are hidden. **Sync** runs `pull --rebase --autostash` then push; **Pull**/**Push** run alone.
 
 **Discard Changes** (right-click a file in the list, or ⌘⌫) puts it back as HEAD has it, after a confirm in cuckcode's dialog. A new file goes to the Trash instead, with no confirm.
 
@@ -151,11 +158,11 @@ Edits save on ⌘S, when you press Enter in a terminal (so the agent always read
 
 The **branch picker** (click the branch name) switches or creates branches, and its Remote section shows where each remote points, edits its URL, or adds `origin` to a repo that has none.
 
-Two buttons above the commit box act on **every open project** at once: ✨ commits each repo with changes, each with its own AI-written message, and the sync button syncs them all. They're a quick way to leave everything committed and pushed before you walk away. Each asks first, saying what it will do; tick **Don't ask again** to skip that from then on, and turn **Confirm all-repo actions** back on in Settings › Git.
+Two buttons above the commit box act on **every open project** at once: ✨ commits each repo with changes, each with its own AI-written message, and the sync button syncs them all. They're a quick way to leave everything committed and pushed before you walk away and touch grass. Each asks first, saying what it will do; tick **Don't ask again** to skip that from then on, and turn **Confirm all-repo actions** back on in Settings › Git.
 
 ## Settings
 
-⌘, (or the gear in the header) opens Settings. Every change saves at once.
+⌘, (or the gear in the header) opens Settings. Every change saves at once. There's no Apply button, because what would that even be for.
 
 - **General:** the theme (Auto, the default, follows the system; or Dark, or Light); the projects folder ⌘T opens from (the first ⌘T asks for it); notifications (on by default).
 - **Layout:** the presets and your saved layouts (see [Layout](#layout)).
@@ -218,11 +225,11 @@ Two environment variables are set for the command:
 
 Usage meters for Claude Code's plan and Junie's AI credits are a plugin, [cuckcode-meters](https://github.com/bananastorycc/cuckcode-meters), which shows them in the Agents title bar.
 
-Agent commands, including any license keys in them, are part of your settings and of the [Sync](#settings) config file.
+Agent commands, including any license keys in them, are part of your settings and of the [Sync](#settings) config file. Put that config repo somewhere private. We're not your mom, but we're also not paying your bill when someone burns your credits.
 
 ## Playgrounds
 
-A playground is a page your agent builds for you to look at or fill in, when showing beats describing. Agents with Playground on are told about your playgrounds when they start (Claude Code's preset uses them on its own, without being asked). You say "show me three directions for the sky card"; the agent writes a page into `.cuckcode/playground/<n>/index.html`, and the playground's icon in the header lights up. ⌥⌘<n> shows it over the whole workspace.
+A playground is a page your agent builds for you to look at or fill in, when showing beats describing. This is the part that's actually new, and the part we're proudest of: instead of Claude dumping a wall of "Option A / Option B / Option C" into your terminal and making you type "b, but bluer", it builds you a page and you click the thing. Agents with Playground on are told about your playgrounds when they start (Claude Code's preset uses them on its own, without being asked). You say "show me three directions for the sky card"; the agent writes a page into `.cuckcode/playground/<n>/index.html`, and the playground's icon in the header lights up. ⌥⌘<n> shows it over the whole workspace.
 
 ![A playground page Claude built: three mockups of a card side by side, each with pros and cons, one picked, and a note added](docs/screenshots/playground.png)
 
@@ -240,7 +247,7 @@ Settings › Playgrounds names them, up to ten per project. With none, agents ar
 
 **README** (⌘E) shows the project's README, rendered, in place of the editor. It's the project folder's README, or the repo root's when the folder has none, and it updates as the file changes.
 
-**Folders** (⌘B) is a full-window thumbnail browser over the folders you add, for looking through images and video outside of git.
+**Folders** (⌘B) is a full-window thumbnail browser (Finder, minus the sorrow) over the folders you add, for looking through images and video outside of git.
 
 **Web pages** (⌃⌘1–0) each embed a URL full-window: a dev server, a dashboard, any web UI you work alongside. Each is sandboxed so it can't navigate cuckcode itself, and stays loaded in the background once opened. Right-click a page's icon to edit the list.
 
@@ -250,7 +257,7 @@ Plugins are git repos. Open **Plugins…** (in the cuckcode menu, or Settings �
 
 Every launch, before any plugin loads, cuckcode syncs your config (waiting up to 10 seconds), clones plugins your config lists but this machine lacks, pulls each plugin with a clean working tree and an upstream (fast-forward only), and rebuilds it (`npm install` when its lockfile changed or it was never installed, then `npm run build`) when its sources are newer than its build. So a launch always runs the latest of every plugin. Changes on the Plugins page take effect after a relaunch, which the page offers. Plugins installed from a URL sync with your config (see Sync under [Settings](#settings)); installing a URL that's already cloned in the plugins folder reuses that clone.
 
-A plugin is code that runs inside cuckcode with your user's full access, and it updates itself from its repo on every launch. Install only plugins whose source you trust.
+A plugin is code that runs inside cuckcode with your user's full access, and it updates itself from its repo on every launch. There's no sandbox, no store and no review. Install only plugins whose source you trust, and if you install a stranger's plugin and it eats your home folder, that one's on you.
 
 A plugin is a git repo with a `cuckcode-plugin.json` at its root:
 
@@ -278,13 +285,13 @@ cuckcode is GPL-licensed, and plugins run inside it, so a plugin you distribute 
 
 ## Scratchpad
 
-One notepad, shared by every project tab, autosaving to app data rather than into any repo — for notes that don't belong in a commit. It travels with the config file, so [Sync](#settings) and Export… carry it to your other machines.
+One notepad, for the stuff you'd otherwise type into a terminal and lose. Shared by every project tab, autosaving to app data rather than into any repo — for notes that don't belong in a commit. It travels with the config file, so [Sync](#settings) and Export… carry it to your other machines.
 
 ## Sessions
 
 Open projects, which tab is active, each project's open file and agent, everything in Settings, and the recently-closed list all survive a quit and come back on the next launch: each project reopens on the agent it had in front (the first agent starts too, as always). With no project open, the welcome screen lists recently closed projects to reopen one or all of them.
 
-Settings live in `~/Library/Application Support/cuckcode/cuckcode-settings.json`, the scratchpad in `cuckcode-scratch.txt` beside it, and the config repo's clone (with [Sync](#settings)) in `config-repo/`. Don't edit the settings file while cuckcode runs: it rewrites the file on every change. To edit settings as JSON, use Settings › Sync: Export…, edit the file, then Import… it.
+Settings live in `~/Library/Application Support/cuckcode/cuckcode-settings.json`, the scratchpad in `cuckcode-scratch.txt` beside it, and the config repo's clone (with [Sync](#settings)) in `config-repo/`. Don't edit the settings file while cuckcode runs: it rewrites the file on every change, and it will win. To edit settings as JSON, use Settings › Sync: Export…, edit the file, then Import… it.
 
 ## Development
 
@@ -301,9 +308,13 @@ For UI work, build into a scratch folder and launch Electron on it with `--user-
 
 ## Contributing
 
-Issues and pull requests are welcome. cuckcode stays small on purpose, so open an issue to discuss a new feature before building it. Anything specific to one language, project or workflow belongs in a [plugin](#plugins), not the core.
+Issues and pull requests are welcome. Bug reports especially: we'd rather hear it from you than find out ourselves.
 
-Ground rules:
+Feature requests are welcome in the sense that we'll read them. cuckcode stays small on purpose, and the default answer is no. Open an issue before building one, so you don't spend a weekend on a PR we close. Anything specific to one language, project or workflow belongs in a [plugin](#plugins), not the core. Write the plugin. That's what it's for.
+
+We won't add: a built-in chat panel, language servers, a cloud service, an account, or analytics. Don't ask.
+
+Ground rules (non-negotiable, we've been burned):
 
 - **macOS first.** Changes must keep working on macOS. Code that differs by platform lives in as few places as possible, behind one small module, not as `process.platform` checks scattered through the app.
 - **The main process never blocks.** Use async fs (`node:fs/promises`) and async `execFile` only.
@@ -323,10 +334,16 @@ Run `npm run typecheck && npm test` before sending a change.
 - **Minor:** something you can see or use is new or works differently.
 - **Patch:** fixes, polish, refactors.
 
-Releases are tagged `vX.Y.Z`.
+Releases are tagged `vX.Y.Z`. There's no LTS. There's `main`.
 
 ## License
+
+Free as in freedom, and as in "fork it and do it your way, we won't stop you."
 
 Copyright (C) 2026 bananastorycc and cuckcode contributors.
 
 cuckcode is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full text.
+
+---
+
+Made by a human and Claude, who say fuck you together. 🖕🤖
