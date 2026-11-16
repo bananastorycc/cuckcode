@@ -206,9 +206,10 @@ function buildMenu(): void {
     accelerator: `Cmd+${i + 1}`,
     click: menu({ type: 'tab', index: i })
   }))
+  // ⌃⇧arrows. Not ⌃⌘arrows: macOS beeps on those however they're handled.
   const panes = (['Left', 'Right', 'Up', 'Down'] as const).map((d) => ({
     label: `Focus Pane ${d}`,
-    accelerator: `Cmd+Ctrl+${d}`,
+    accelerator: `Ctrl+Shift+${d}`,
     // Shown for reference only: the renderer handles these before the page's editors can.
     registerAccelerator: false,
     click: menu({ type: 'pane', dir: d.toLowerCase() as PaneDir })

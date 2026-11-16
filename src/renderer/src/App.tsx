@@ -426,15 +426,16 @@ export default function App(): React.JSX.Element {
     }
   }
   useEffect(() => window.api.onMenu((cmd) => onMenu.current(cmd)), [])
-  // Pane moves (⌃⌘arrows) and project moves (⇧⌘[ ]) are handled here, before Monaco and xterm
-  // take them (⇧⌘[ folds in Monaco). Left unhandled they'd go back to macOS, which can't match
-  // them to their menu items (⇧[ arrives as '{', arrows carry the fn flag) and beeps.
+  // Pane moves (⌃⇧arrows) and project moves (⇧⌘[ ]) are handled here, before Monaco and xterm
+  // take them (⇧⌘[ folds in Monaco, ⌃⇧←/→ grow and shrink its selection). Left unhandled they'd
+  // go back to macOS, which can't match them to their menu items (⇧[ arrives as '{', arrows
+  // carry the fn flag) and beeps.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (!e.metaKey || e.altKey) return
-      const dir = e.ctrlKey && !e.shiftKey ? ARROWS[e.key] : undefined
+      if (e.altKey || !e.shiftKey) return
+      const dir = e.ctrlKey && !e.metaKey ? ARROWS[e.key] : undefined
       // By physical key, since ⌘⇧[ reports key '{'.
-      const step = e.shiftKey && !e.ctrlKey ? BRACKETS[e.code] : undefined
+      const step = e.metaKey && !e.ctrlKey ? BRACKETS[e.code] : undefined
       if (dir) onMenu.current({ type: 'pane', dir })
       else if (step) onMenu.current({ type: 'cycle', step })
       else return
@@ -884,7 +885,7 @@ function focusSoon(pane: Section, frames = 30): void {
   if (!focusIn(pane) && frames > 0) requestAnimationFrame(() => focusSoon(pane, frames - 1))
 }
 
-// ⌃⌘+arrows: the nearest section on screen in that direction, among those showing (a tab in
+// ⌃⇧arrows: the nearest section on screen in that direction, among those showing (a tab in
 // front) with something to focus. Distance is measured from the focused section's center.
 const ARROWS: Record<string, PaneDir> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }
 const BRACKETS: Record<string, 1 | -1> = { BracketLeft: -1, BracketRight: 1 }
