@@ -546,8 +546,9 @@ export default function App(): React.JSX.Element {
         onSettings={toggleSettings}
       />
       <div className="relative flex min-h-0 flex-1">
-        {/* Always there, under the welcome screen too: the dock is made once per launch. */}
-        <main ref={dockEl} className="min-h-0 min-w-0 flex-1" />
+        {/* Always there, under the welcome screen too: the dock is made once per launch.
+            isolate keeps dockview's z-indexes (sashes 99, overlays 999) inside it, under the playground. */}
+        <main ref={dockEl} className="isolate min-h-0 min-w-0 flex-1" />
         {active && (
           <>
             {createPortal(

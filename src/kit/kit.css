@@ -992,8 +992,44 @@ input[type='color'] {
   flex: 1;
   min-height: 0;
   display: grid;
+  /* A definite track, so max-height: 100% below means the stage, not the media's own height. */
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
-  padding: 24px 24px 8px;
+  padding: 12px 12px 4px;
+}
+.k-zoomer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+.k-zoomer.pannable {
+  cursor: grab;
+}
+.k-zoomer.dragging {
+  cursor: grabbing;
+}
+.k-zoomer > img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: none;
+  transform-origin: 0 0;
+  border-radius: 2px;
+  box-shadow: var(--shadow);
+}
+.k-zoom-bar {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.k-zoom-level {
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
 }
 .k-lb-stage > img,
 .k-lb-stage > video {

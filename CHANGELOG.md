@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.43.0 — 2026-11-15
+
+- ✨ Playground images open fitted whole to the window, however tall, and zoom: pinch or ⌘-scroll, drag to pan, double-click, or + / − / 0.
+- The dock's dividers no longer show through the playground as stray draggable lines.
+
 ## 1.42.1 — 2026-11-15
 
 - A confirm that replaces another one now answers the first cleanly, without React warnings.

@@ -56,7 +56,7 @@ Answer: `{ picked: 'a', note: '' }`; with `multiple`, `picked` is an array.
   'img/other.png'
 ] }
 ```
-Items are images, video, audio, `html`, `code` or `text` (Markdown); `kind` forces one. Clicking enlarges into a lightbox: ←/→ move, number keys give that verdict, Esc closes. Verdicts starting approve/keep/yes show green, reject/drop/no red, the rest blue. `verdicts: false` makes a plain gallery. `size` is the tile's minimum width.
+Items are images, video, audio, `html`, `code` or `text` (Markdown); `kind` forces one. Clicking enlarges into a lightbox: ←/→ move, number keys give that verdict, Esc closes. Images open fitted whole to the window; pinch or ⌘-scroll zooms at the pointer, scrolling or dragging pans, double-click toggles fit and a closer look, and + / − / 0 (or the bar's buttons, 1:1 for actual size) zoom in, out and back to fit. Verdicts starting approve/keep/yes show green, reject/drop/no red, the rest blue. `verdicts: false` makes a plain gallery. `size` is the tile's minimum width.
 Answer: `{ hero: { verdict: 'approve', note: 'crop tighter' } }`, only items touched.
 
 ### plan / checklist

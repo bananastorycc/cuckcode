@@ -189,19 +189,134 @@
     setTimeout(() => t.remove(), 3600)
   }
 
+  // An image that opens fitted whole to its box. Pinch or ⌘/Ctrl-scroll zooms at the pointer, scrolling or
+  // dragging pans, double-click toggles fit and a closer look, + − 0 from keys(e). onEmpty: a click off the image.
+  function zoomer(src, alt, onEmpty) {
+    const img = h('img', { src, alt, draggable: 'false' })
+    const level = h('button', { class: 'k-btn ghost small k-zoom-level', title: 'Fit (0)', onclick: () => fit() })
+    const bar = h(
+      'div',
+      { class: 'k-zoom-bar' },
+      h('button', { class: 'k-btn ghost small', title: 'Zoom out (−)', onclick: () => zoomBy(1 / 1.25) }, '−'),
+      level,
+      h('button', { class: 'k-btn ghost small', title: 'Zoom in (+)', onclick: () => zoomBy(1.25) }, '+'),
+      h('button', { class: 'k-btn ghost small', title: 'Actual size', onclick: () => zoomAt(1) }, '1:1')
+    )
+    const view = h('div', { class: 'k-zoomer' }, img)
+    view.bar = bar
+    let s = 1, x = 0, y = 0, fitted = true
+    const size = () => [view.clientWidth, view.clientHeight, img.naturalWidth, img.naturalHeight]
+    const fitScale = () => {
+      const [vw, vh, nw, nh] = size()
+      return nw && nh ? Math.min(vw / nw, vh / nh) : 1
+    }
+    // Centered on an axis the image doesn't fill, otherwise kept from sliding off the edge.
+    const clamp = () => {
+      const [vw, vh, nw, nh] = size()
+      x = nw * s <= vw ? (vw - nw * s) / 2 : Math.min(0, Math.max(vw - nw * s, x))
+      y = nh * s <= vh ? (vh - nh * s) / 2 : Math.min(0, Math.max(vh - nh * s, y))
+    }
+    const apply = () => {
+      clamp()
+      img.style.transform = `translate(${x}px, ${y}px) scale(${s})`
+      // Past 3× the pixels are what you're looking at: keep them crisp (sprites, icons, pixel art).
+      img.style.imageRendering = s >= 3 ? 'pixelated' : ''
+      level.textContent = `${Math.round(s * 100)}%`
+      const [vw, vh, nw, nh] = size()
+      view.classList.toggle('pannable', nw * s > vw + 1 || nh * s > vh + 1)
+    }
+    function fit() {
+      if (!img.naturalWidth || !view.clientWidth) return
+      s = fitScale()
+      fitted = true
+      apply()
+    }
+    function zoomAt(to, px = view.clientWidth / 2, py = view.clientHeight / 2) {
+      if (!img.naturalWidth) return
+      to = Math.min(32, Math.max(Math.min(fitScale(), 1) / 2, to))
+      x = px - ((px - x) * to) / s
+      y = py - ((py - y) * to) / s
+      s = to
+      fitted = false
+      apply()
+    }
+    const zoomBy = (f, px, py) => zoomAt(s * f, px, py)
+    const at = (e) => {
+      const r = view.getBoundingClientRect()
+      return [e.clientX - r.left, e.clientY - r.top]
+    }
+    view.addEventListener('wheel', (e) => {
+      e.preventDefault()
+      // A trackpad pinch arrives as a wheel with ctrlKey.
+      if (e.ctrlKey || e.metaKey) return zoomBy(Math.exp(-e.deltaY * 0.01), ...at(e))
+      x -= e.deltaX
+      y -= e.deltaY
+      apply()
+    }, { passive: false })
+    view.addEventListener('dblclick', (e) => {
+      const f = fitScale()
+      Math.abs(s - f) < 0.01 ? zoomAt(f < 1 ? 1 : f * 2, ...at(e)) : fit()
+    })
+    let drag = null
+    view.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false }
+      view.setPointerCapture(e.pointerId)
+    })
+    view.addEventListener('pointermove', (e) => {
+      if (!drag || drag.id !== e.pointerId) return
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y
+      if (!drag.moved && Math.hypot(dx, dy) < 4) return
+      drag.moved = true
+      view.classList.add('dragging')
+      x += dx
+      y += dy
+      drag.x = e.clientX
+      drag.y = e.clientY
+      apply()
+    })
+    const release = (e) => {
+      if (!drag || drag.id !== e.pointerId) return
+      const r = img.getBoundingClientRect()
+      const off = e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom
+      if (!drag.moved && off && e.type === 'pointerup' && onEmpty) onEmpty()
+      drag = null
+      view.classList.remove('dragging')
+    }
+    view.addEventListener('pointerup', release)
+    view.addEventListener('pointercancel', release)
+    img.addEventListener('load', fit)
+    const ro = new ResizeObserver(() => (fitted ? fit() : img.naturalWidth && apply()))
+    ro.observe(view)
+    view.dispose = () => ro.disconnect()
+    view.keys = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return false
+      if (e.key === '+' || e.key === '=') zoomBy(1.25)
+      else if (e.key === '-' || e.key === '_') zoomBy(1 / 1.25)
+      else if (e.key === '0') fit()
+      else return false
+      return true
+    }
+    return view
+  }
+
   // A full-window viewer over a list; keys(e, i) handles extra shortcuts (verdicts in review).
   function lightbox(items, start, { render, keys } = {}) {
     let i = start
+    let view = null
     const stage = h('div', { class: 'k-lb-stage' })
     const info = h('div', { class: 'k-lb-info' })
     const box = h('div', { class: 'k-lb', tabindex: '-1' }, stage, info, h('button', { class: 'k-lb-x k-btn ghost', onclick: () => done(), title: 'Close (Esc)' }, '✕'))
     const show = () => {
       const item = items[i]
-      stage.replaceChildren(media(item, true))
-      info.replaceChildren(h('span', { class: 'k-muted' }, `${i + 1} / ${items.length}`), item.caption ? h('strong', null, item.caption) : null, render ? render(item, i) : null)
+      view?.dispose?.()
+      view = kindOf(item) === 'image' ? zoomer(item.src, item.caption || '', done) : media(item, true)
+      stage.replaceChildren(view)
+      info.replaceChildren(view.bar || null, h('span', { class: 'k-muted' }, `${i + 1} / ${items.length}`), item.caption ? h('strong', null, item.caption) : null, render ? render(item, i) : null)
     }
     const key = (e) => {
       if (e.target.closest && e.target.closest('input, textarea, select')) return
+      if (view.keys && view.keys(e)) return e.preventDefault()
       if (e.key === 'Escape') done()
       else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') i = (i + 1) % items.length
       else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') i = (i - 1 + items.length) % items.length
@@ -211,9 +326,10 @@
     }
     function done() {
       removeEventListener('keydown', key)
+      view?.dispose?.()
       box.remove()
     }
-    box.addEventListener('click', (e) => e.target === box && done())
+    box.addEventListener('click', (e) => (e.target === box || e.target === stage) && done())
     addEventListener('keydown', key)
     document.body.append(box)
     show()

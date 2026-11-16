@@ -226,7 +226,7 @@ You pick, tick, drag or type. Answers save as you go (to `data/answers.json` nex
 
 <img src="docs/screenshots/playground-done.png" alt="After Done: Claude reports that it restyled the card in the picked direction, with the note applied" width="480">
 
-Pages are built from the playground kit (`src/kit`, served at `media://kit/`): blocks for choices, image and video reviews, forms, plans, triage boards, tables, live design tuning, image annotation, charts, progress and Markdown reports. A page is a few lines naming its blocks, which keeps it cheap for the agent to write, and it follows cuckcode's light or dark theme. The **Templates** button in a playground shows every block live, and [`src/kit/README.md`](src/kit/README.md) documents them. Pages can also be plain HTML, with `window.cuckcode.save/load` to keep answers.
+Pages are built from the playground kit (`src/kit`, served at `media://kit/`): blocks for choices, image and video reviews, forms, plans, triage boards, tables, live design tuning, image annotation, charts, progress and Markdown reports. A page is a few lines naming its blocks, which keeps it cheap for the agent to write, and it follows cuckcode's light or dark theme. The **Templates** button in a playground shows every block live, and [`src/kit/README.md`](src/kit/README.md) documents them. Clicking an image in a review or choice opens it fitted whole to the playground, however tall; pinch or ⌘-scroll zooms at the pointer, drag pans, double-click toggles fit and a closer look. Pages can also be plain HTML, with `window.cuckcode.save/load` to keep answers.
 
 ![The Templates page's Tune tab: sliders, a toggle, a font picker and a text field driving a live card preview](docs/screenshots/playground-templates.png)
 
