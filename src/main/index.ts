@@ -209,6 +209,8 @@ function buildMenu(): void {
   const panes = (['Left', 'Right', 'Up', 'Down'] as const).map((d) => ({
     label: `Focus Pane ${d}`,
     accelerator: `Cmd+Ctrl+${d}`,
+    // Shown for reference only: the renderer handles these before the page's editors can.
+    registerAccelerator: false,
     click: menu({ type: 'pane', dir: d.toLowerCase() as PaneDir })
   }))
   const webPages = settings.webPages.map((p, i) => ({
@@ -298,8 +300,9 @@ function buildMenu(): void {
           ...(pluginItems.length ? [sep, ...pluginItems] : []),
           { type: 'separator' },
           ...tabs,
-          { label: 'Previous Project', accelerator: 'Cmd+Shift+[', click: menu({ type: 'cycle', step: -1 }) },
-          { label: 'Next Project', accelerator: 'Cmd+Shift+]', click: menu({ type: 'cycle', step: 1 }) },
+          // Shown for reference only: the renderer handles these.
+          { label: 'Previous Project', accelerator: 'Cmd+Shift+[', registerAccelerator: false, click: menu({ type: 'cycle', step: -1 }) },
+          { label: 'Next Project', accelerator: 'Cmd+Shift+]', registerAccelerator: false, click: menu({ type: 'cycle', step: 1 }) },
           { type: 'separator' },
           ...panes,
           { type: 'separator' },

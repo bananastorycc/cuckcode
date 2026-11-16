@@ -426,6 +426,24 @@ export default function App(): React.JSX.Element {
     }
   }
   useEffect(() => window.api.onMenu((cmd) => onMenu.current(cmd)), [])
+  // Pane moves (⌃⌘arrows) and project moves (⇧⌘[ ]) are handled here, before Monaco and xterm
+  // take them (⇧⌘[ folds in Monaco). Left unhandled they'd go back to macOS, which can't match
+  // them to their menu items (⇧[ arrives as '{', arrows carry the fn flag) and beeps.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (!e.metaKey || e.altKey) return
+      const dir = e.ctrlKey && !e.shiftKey ? ARROWS[e.key] : undefined
+      // By physical key, since ⌘⇧[ reports key '{'.
+      const step = e.shiftKey && !e.ctrlKey ? BRACKETS[e.code] : undefined
+      if (dir) onMenu.current({ type: 'pane', dir })
+      else if (step) onMenu.current({ type: 'cycle', step })
+      else return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [])
 
   const lastNotified = useRef(new Map<string, number>())
   const notify = (path: string, message: string): void => {
@@ -868,6 +886,9 @@ function focusSoon(pane: Section, frames = 30): void {
 
 // ⌃⌘+arrows: the nearest section on screen in that direction, among those showing (a tab in
 // front) with something to focus. Distance is measured from the focused section's center.
+const ARROWS: Record<string, PaneDir> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }
+const BRACKETS: Record<string, 1 | -1> = { BracketLeft: -1, BracketRight: 1 }
+
 function focusPane(dir: PaneDir): void {
   const from = document.activeElement?.closest<HTMLElement>('[data-pane]')
   const shown = SECTIONS.map((s) => ({ s, r: hosts[s].getBoundingClientRect() })).filter(({ r }) => r.width > 0 && r.height > 0)
