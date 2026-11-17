@@ -56,6 +56,7 @@ const apis = new Map<string, unknown>()
 // Per plugin: its data for the active project. App keeps it current.
 const current = new Map<string, unknown>()
 let openFile: (abs: string, line: number) => void = () => {}
+let sendToAgent: (text: string, submit: boolean, from: string) => Promise<boolean> = async () => false
 
 export const usePlugins = (): Registered[] =>
   useSyncExternalStore(
@@ -72,6 +73,10 @@ export function setCurrent(id: string, data: unknown): void {
 
 export function setOpenFile(fn: (abs: string, line: number) => void): void {
   openFile = fn
+}
+
+export function setSendToAgent(fn: typeof sendToAgent): void {
+  sendToAgent = fn
 }
 
 export const mediaUrl = (abs: string): string => `media://local/?path=${encodeURIComponent(abs)}`
@@ -145,6 +150,8 @@ export async function loadPlugins(): Promise<void> {
         editorHooks.push(h)
         for (const editor of editors.keys()) hook(editor, h)
       },
+      sendToAgent: (text, opts) => sendToAgent(text, opts?.submit ?? true, p.name),
+      mediaUrl,
       agentPreset: (preset) => reg.presets.push(preset),
       agentBar: (item) => reg.bar.push(item)
     }
