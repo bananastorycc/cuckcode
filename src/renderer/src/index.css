@@ -171,6 +171,19 @@ html {
 }
 
 /* A tab whose agent finished while you were elsewhere. */
+/* The project in front, in the accent so it stands out among many tabs. */
+.tab-active {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+/* The project strip scrolls (trackpad, or switching projects) without a bar covering the tabs. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 .tab-done {
   background: color-mix(in srgb, var(--add) 22%, transparent);
   color: var(--fg);

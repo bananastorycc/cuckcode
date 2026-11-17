@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { BookOpen, FolderOpen, Globe, Plus, Settings, Shapes, X } from 'lucide-react'
 import type { PlaygroundSlot, WebPage } from '../../../shared/types'
 import { TITLES, type Section } from '../layout'
@@ -50,9 +50,18 @@ export const tildify = (path: string): string => path.replace(/^\/Users\/[^/]+/,
 
 export default function Header(p: Props): React.JSX.Element {
   const dragging = useRef<number | null>(null)
+  const strip = useRef<HTMLDivElement>(null)
+  // Keep the active tab in view when ⌘<n> or ⇧⌘[ / ] switches to one scrolled off the strip.
+  useEffect(() => {
+    const el = strip.current?.querySelector<HTMLElement>('[data-active]')
+    if (!strip.current || !el) return
+    const s = strip.current
+    if (el.offsetLeft < s.scrollLeft) s.scrollLeft = el.offsetLeft
+    else if (el.offsetLeft + el.offsetWidth > s.scrollLeft + s.clientWidth) s.scrollLeft = el.offsetLeft + el.offsetWidth - s.clientWidth
+  }, [p.active, p.projects])
   return (
     <header className="drag flex h-8 shrink-0 items-center gap-1 border-b border-line bg-panel pl-[78px] pr-2">
-      <div className="no-drag flex min-w-0 items-center gap-1 overflow-x-auto p-px">
+      <div ref={strip} className="no-drag no-scrollbar relative flex min-w-0 items-center gap-1 overflow-x-auto p-px">
         {p.projects.map((path, i) => (
           <div
             key={path}
@@ -75,12 +84,13 @@ export default function Header(p: Props): React.JSX.Element {
               dragging.current = i
             }}
             onClick={() => p.onSelect(path)}
+            data-active={path === p.active || undefined}
             title={i < 9 ? `${path}  ⌘${i + 1}` : path}
             className={`group flex shrink-0 items-center gap-1.5 rounded px-2 py-0.5 font-mono text-xs ${
               p.done.has(path)
                 ? 'tab-done'
                 : path === p.active
-                  ? 'bg-bg text-fg shadow-xs ring-1 ring-line'
+                  ? 'tab-active'
                   : 'text-muted hover:bg-hover'
             }`}
           >
