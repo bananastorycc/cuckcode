@@ -24,7 +24,7 @@ import Terminal, { pasteInto, shellQuote, whenReady } from './components/Termina
 import Toasts, { toast } from './components/Toasts'
 import WebPage from './components/WebPage'
 import { apply, hosts, mount, PRESETS, reveal as revealSection, SECTIONS, show as showSection, type Section } from './layout'
-import { loadPlugins, runCommand, setCurrent, setOpenFile, usePlugins, type Registered } from './plugins'
+import { loadPlugins, runCommand, setCurrent, setOpenFile, setSendToAgent, usePlugins, type Registered } from './plugins'
 
 // What's shown: the README over the code pane, or a playground slot (from 1) or a plugin's
 // view (`plugin:<id>`) over the whole workspace.
@@ -536,17 +536,26 @@ export default function App(): React.JSX.Element {
   // answers (the one in front, else the first) to read them, as if typed there. The Enter goes
   // separately, after the paste, or the agent takes it as part of the pasted text.
   const playDone = (slot: number): void => {
-    if (!active) return
-    const to = target(agents, agentOf(active), (a) => a.playground)
-    if (!to) return toast(false, 'Playground', 'No agent takes playground answers. Turn Playground on for one in Settings › Agents.')
-    const id = `${to.id}:${active}`
     const name = config.playgrounds[slot - 1]?.name || `playground ${slot}`
-    setView((v) => ({ ...v, [active]: undefined }))
-    void wake(active, to.id).then((ready) => {
-      if (!ready || !pasteInto(id, `I'm done in the ${name}: read .cuckcode/playground/${slot}/data/answers.json and act on it.`)) return
-      setTimeout(() => window.api.ptyWrite(id, '\r'), 150)
-    })
+    void tellAgent(`I'm done in the ${name}: read .cuckcode/playground/${slot}/data/answers.json and act on it.`, true, 'Playground')
   }
+
+  // Back to the workspace, and type text into the agent that takes playground answers, as if
+  // typed there; with submit, Enter follows. Playground Done and plugins (sendToAgent) use it.
+  const tellAgent = async (text: string, submit: boolean, from: string): Promise<boolean> => {
+    if (!active) return false
+    const to = target(agents, agentOf(active), (a) => a.playground)
+    if (!to) {
+      toast(false, from, 'No agent takes playground answers. Turn Playground on for one in Settings › Agents.')
+      return false
+    }
+    const id = `${to.id}:${active}`
+    setView((v) => ({ ...v, [active]: undefined }))
+    if (!(await wake(active, to.id)) || !pasteInto(id, text)) return false
+    if (submit) setTimeout(() => window.api.ptyWrite(id, '\r'), 150)
+    return true
+  }
+  useEffect(() => setSendToAgent(tellAgent))
 
   return (
     <div className="flex h-full flex-col">

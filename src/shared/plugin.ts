@@ -128,6 +128,12 @@ export interface RendererHost<T = unknown> {
   onCommand: (id: string, fn: () => void) => void
   // Called for each code editor, now and later; the disposable runs when it goes.
   onEditor: (fn: (editor: Monaco.editor.ICodeEditor, ctx: EditorContext<T>) => Monaco.IDisposable | void) => void
+  // Types text into the agent that takes playground answers (the one in front, else the first), as
+  // if typed there: closes the view, shows the agent (starting it if needed), pastes, and presses
+  // Enter unless submit is false. Resolves false when there's no such agent or it didn't start.
+  sendToAgent: (text: string, opts?: { submit?: boolean }) => Promise<boolean>
+  // A URL the page can load for a file on disk (images, video).
+  mediaUrl: (abs: string) => string
   // An agent to start from in Settings › Agents › Add, beside the built-in ones.
   agentPreset: (preset: AgentPreset) => void
   agentBar: (item: AgentBarItem) => void
