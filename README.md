@@ -249,7 +249,7 @@ Settings › Playgrounds names them, up to ten per project. With none, agents ar
 
 **Folders** (⌘B) is a full-window thumbnail browser (Finder, minus the sorrow) over the folders you add, for looking through images and video outside of git.
 
-**Web pages** (⌃⌘1–0) each embed a URL full-window: a dev server, a dashboard, any web UI you work alongside. Each is sandboxed so it can't navigate cuckcode itself, and stays loaded in the background once opened. Right-click a page's icon to edit the list.
+**Web pages** (⌃⌘1–0) each embed a URL full-window: a dev server, a dashboard, any web UI you work alongside. Each is sandboxed so it can't navigate cuckcode itself, and stays loaded in the background once opened. They share one globe button in the header: with one page it toggles it, with more it drops down a list of them (the one showing is checked; pick it again to hide it), with Edit Web Pages… at the bottom.
 
 ## Plugins
 

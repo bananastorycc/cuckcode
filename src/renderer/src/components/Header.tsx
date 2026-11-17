@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { BookOpen, FolderOpen, Globe, Plus, Settings, Shapes, X } from 'lucide-react'
+import { BookOpen, ChevronDown, FolderOpen, Globe, Plus, Settings, Shapes, X } from 'lucide-react'
 import type { PlaygroundSlot, WebPage } from '../../../shared/types'
 import { TITLES, type Section } from '../layout'
 import { contextMenu } from './ContextMenu'
@@ -160,21 +160,36 @@ export default function Header(p: Props): React.JSX.Element {
             <FolderOpen className="h-3.5 w-3.5" />
           </button>
         )}
-        {p.webPages.map((page, i) => (
+        {p.webPages.length > 0 && (
+          // One button however many pages there are: with one it toggles it, with more it drops down a list.
           <button
-            key={i}
-            onClick={() => p.onWeb(i)}
+            onClick={async (e) => {
+              if (p.webPages.length === 1) return p.onWeb(0)
+              const items = p.webPages.map(
+                (page, i) => `${p.showingWeb === i ? '✓ ' : ''}${page.name || page.url.replace(/^https?:\/\//, '')}\t⌃⌘${digit(i)}`
+              )
+              const i = await contextMenu([...items, '-', 'Edit Web Pages…'], e.currentTarget)
+              if (i === null) return
+              if (i < p.webPages.length) p.onWeb(i)
+              else p.onSettings()
+            }}
             onContextMenu={async (e) => {
               e.preventDefault()
               if ((await contextMenu(['Edit Web Pages…'])) === 0) p.onSettings()
             }}
-            title={`${page.name ? `${page.name}: ` : ''}${page.url}  ⌃⌘${digit(i)}`}
-            className={`flex shrink-0 items-end rounded p-1 ${p.showingWeb === i ? on : off}`}
+            title={
+              p.webPages.length === 1
+                ? `${p.webPages[0].name ? `${p.webPages[0].name}: ` : ''}${p.webPages[0].url}  ⌃⌘1`
+                : p.showingWeb !== null
+                  ? `Web pages (showing ${p.webPages[p.showingWeb]?.name || p.webPages[p.showingWeb]?.url})`
+                  : 'Web pages  ⌃⌘1–0'
+            }
+            className={`flex shrink-0 items-center gap-0.5 rounded p-1 ${p.showingWeb !== null ? on : off}`}
           >
             <Globe className="h-3.5 w-3.5" />
-            <span className="-mb-0.5 text-[9px] font-semibold leading-none">{digit(i)}</span>
+            {p.webPages.length > 1 && <ChevronDown className="h-2.5 w-2.5" />}
           </button>
-        ))}
+        )}
         <button onClick={p.onSettings} title="Settings  ⌘," className={`shrink-0 rounded p-1 ${p.configuring ? on : off}`}>
           <Settings className="h-3.5 w-3.5" />
         </button>
