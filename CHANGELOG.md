@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.46.2 — 2026-11-16
+
+- 🐛 The + (open project) button stays in view when the project tabs overflow, instead of scrolling off the end.
+
 ## 1.46.1 — 2026-11-16
 
 - 🎨 The project in front gets an orange tab, so it's easy to spot among many.
