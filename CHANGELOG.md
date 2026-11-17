@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.46.1 — 2026-11-16
+
+- 🎨 The project in front gets an orange tab, so it's easy to spot among many.
+- 🐛 The project tabs no longer show a scrollbar over them when they overflow, and switching projects by shortcut scrolls the active tab into view.
+
 ## 1.46.0 — 2026-11-16
 
 - ✨ Plugins can hand the agent a task: `sendToAgent(text)` types it into the agent that takes playground answers, the same way a playground's Done does. They also get `mediaUrl` for showing images from disk in their views.
