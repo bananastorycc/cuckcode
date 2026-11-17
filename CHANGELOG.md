@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.47.1 — 2026-11-16
+
+- 🧹 A bug-check pass found nothing broken: only a stray style comment to tidy.
+
 ## 1.47.0 — 2026-11-16
 
 - 🎨 Web pages share one globe button in the header, with a dropdown listing them by name, instead of a button each.

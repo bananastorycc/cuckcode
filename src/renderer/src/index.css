@@ -170,7 +170,6 @@ html {
   border-left-color: var(--del);
 }
 
-/* A tab whose agent finished while you were elsewhere. */
 /* The project in front, in the accent so it stands out among many tabs. */
 .tab-active {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
@@ -184,6 +183,7 @@ html {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+/* A tab whose agent finished while you were elsewhere. */
 .tab-done {
   background: color-mix(in srgb, var(--add) 22%, transparent);
   color: var(--fg);
