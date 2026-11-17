@@ -107,10 +107,11 @@ export default function Header(p: Props): React.JSX.Element {
             </button>
           </div>
         ))}
-        <button className="btn text-muted" onClick={p.onOpen} title="Open project  ⌘T">
-          <Plus className="h-3.5 w-3.5" />
-        </button>
       </div>
+      {/* Outside the strip, so it stays in reach however many projects are open. */}
+      <button className="no-drag btn shrink-0 text-muted" onClick={p.onOpen} title="Open project  ⌘T">
+        <Plus className="h-3.5 w-3.5" />
+      </button>
 
       <div className="no-drag ml-auto flex shrink-0 items-center gap-1 text-xs text-muted">
         {p.active && p.minimized.length > 0 && (
