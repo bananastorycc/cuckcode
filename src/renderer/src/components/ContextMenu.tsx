@@ -14,9 +14,13 @@ window.addEventListener('contextmenu', (e) => (at = { x: e.clientX, y: e.clientY
 
 let show: ((m: Open) => void) | null = null
 
-// An in-app context menu ('-' is a separator); resolves to the picked item's index, or null when dismissed.
-export function contextMenu(items: string[]): Promise<number | null> {
-  return new Promise((resolve) => (show ? show({ items, ...at, resolve }) : resolve(null)))
+// An in-app context menu ('-' is a separator, a tab splits off a right-aligned hint such as a
+// shortcut, a leading '✓ ' checks the item); resolves to the picked item's index, or null when
+// dismissed. `below` opens it under that element instead of at the right-click, as a dropdown.
+export function contextMenu(items: string[], below?: Element): Promise<number | null> {
+  const r = below?.getBoundingClientRect()
+  const where = r ? { x: r.left, y: r.bottom + 2 } : at
+  return new Promise((resolve) => (show ? show({ items, ...where, resolve }) : resolve(null)))
 }
 
 export default function ContextMenuHost(): React.JSX.Element | null {
@@ -71,6 +75,8 @@ export default function ContextMenuHost(): React.JSX.Element | null {
   }, [menu])
 
   if (!menu) return null
+  // A check column only when some item is checked, so plain menus keep their tight left edge.
+  const checks = menu.items.some((l) => l.startsWith('✓ '))
 
   const step = (by: number): void => {
     const n = menu.items.length
@@ -115,11 +121,13 @@ export default function ContextMenuHost(): React.JSX.Element | null {
               onMouseEnter={() => setIndex(i)}
               onMouseLeave={() => setIndex(-1)}
               onClick={() => close(i)}
-              className={`block w-full whitespace-nowrap px-3 py-0.5 text-left text-xs text-fg outline-hidden ${
+              className={`flex w-full items-center gap-2 whitespace-nowrap px-3 py-0.5 text-left text-xs text-fg outline-hidden ${
                 i === index ? 'bg-hover' : ''
               }`}
             >
-              {label}
+              {checks && <span className="-ml-1 w-3">{label.startsWith('✓ ') && '✓'}</span>}
+              <span className="flex-1">{label.replace(/^✓ /, '').split('\t')[0]}</span>
+              {label.includes('\t') && <span className="ml-4 text-muted">{label.split('\t')[1]}</span>}
             </button>
           )
         )}
