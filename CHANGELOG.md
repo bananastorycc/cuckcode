@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.48.2 — 2026-11-19
+
+- 🐛 AI commit messages can't come out as the model thinking out loud or echoing its instructions: output that isn't a commit message gets one more try, then an error asking you to write it yourself.
+- 🐛 A plugin whose upstream history was rewritten (force-pushed) catches up at launch or on Update, instead of staying behind for good, as long as your clone has no changes of its own.
+
 ## 1.48.1 — 2026-11-18
 
 - 🐛 The tab bar can't empty while projects sit on the shelf: the last tab stays, closing it brings a shelved project back. An empty bar used to hide every terminal and silence the shelved agents' notifications.
