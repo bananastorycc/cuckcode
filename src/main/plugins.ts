@@ -7,11 +7,13 @@ import { folderName, MANIFEST } from '../shared/plugin'
 import type { PluginRef } from '../shared/types'
 import { shellEnv } from './env'
 import { run as git } from './git'
+import { syncToUpstream } from './pluginsync'
 
 // Plugins are git repos. Installing clones one into cuckcode's own plugins folder (`dir`, set by
 // index.ts); a folder you cloned yourself works too. Once per launch: clone the ones a config
-// sync brought in, pull (fast-forward only, clean trees only), build if stale, then activate main
-// sides in dependency order. Everything is async; a broken plugin only reports its error.
+// sync brought in, pull (fast-forward only, clean trees only; a clone of ours whose upstream was
+// force-pushed is realigned when none of its commits would be lost: pluginsync.ts), build if stale,
+// then activate main sides in dependency order. Everything is async; a broken plugin only reports its error.
 
 interface Plugin {
   dir: string
@@ -243,8 +245,8 @@ export async function info(path: string, fetch: boolean): Promise<PluginInfo | n
   }
 }
 
-export function update(path: string): Promise<string> {
-  return git(path, ['pull', '--ff-only'], 120_000)
+export async function update(path: string): Promise<string> {
+  return (await syncToUpstream(path, managed(path), 120_000)) || 'Already up to date.'
 }
 
 // At launch: what changed, or why it didn't; '' when there was nothing to do.
@@ -255,9 +257,7 @@ async function pullQuietly(path: string): Promise<string> {
   if (!(await git(path, ['rev-parse', '--abbrev-ref', '@{u}']).then(() => true, () => false))) return ''
   if (i.dirty) return 'Not updated: it has local changes'
   try {
-    const out = await git(path, ['pull', '--ff-only', '-q'], 30_000)
-    const after = await info(path, false)
-    return after && after.commit !== i.commit ? `Updated to ${after.commit} ${after.subject}` : out.trim()
+    return await syncToUpstream(path, managed(path))
   } catch (err) {
     return `Not updated: ${(err as Error).message.split('\n')[0]}`
   }
