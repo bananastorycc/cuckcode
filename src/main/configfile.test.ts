@@ -4,6 +4,7 @@ import { fromFile, overStale, scratchOf, toFile, travelling } from './configfile
 
 const base: Settings = {
   projects: ['/Users/a/p'],
+  shelved: [],
   active: '/Users/a/p',
   theme: 'dark',
   files: {},

@@ -33,6 +33,9 @@ type View = number | 'readme' | `plugin:${string}`
 export default function App(): React.JSX.Element {
   const [loaded, setLoaded] = useState(false)
   const [projects, setProjects] = useState<string[]>([])
+  const [shelved, setShelved] = useState<string[]>([])
+  // The tab bar: open projects that aren't on the shelf. ⌘1–9 and ⇧⌘[ ] go by these.
+  const bar = projects.filter((p) => !shelved.includes(p))
   const [active, setActive] = useState<string | null>(null)
   const [themeChoice, setTheme] = useState<ThemeChoice>('auto')
   const systemTheme = useSystemTheme()
@@ -97,6 +100,7 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     window.api.init().then((s) => {
       setProjects(s.projects)
+      setShelved(s.shelved)
       setActive(s.active)
       setTheme(s.theme)
       setConfig(pickConfig(s))
@@ -114,9 +118,9 @@ export default function App(): React.JSX.Element {
     if (loaded) {
       // A commit's file isn't restored: it'd come back as the working copy.
       const files = Object.fromEntries(Object.entries(selected).flatMap(([p, f]) => (f.commit ? [] : [[p, f.path]])))
-      window.api.save({ ...config, projects, active, theme: themeChoice, files, agent: terms, recent, layout: layoutRef.current, layouts })
+      window.api.save({ ...config, projects, shelved, active, theme: themeChoice, files, agent: terms, recent, layout: layoutRef.current, layouts })
     }
-  }, [loaded, projects, active, themeChoice, selected, terms, config, recent, layoutSaves, layouts])
+  }, [loaded, projects, shelved, active, themeChoice, selected, terms, config, recent, layoutSaves, layouts])
 
   // The dock, once the saved layout is known. Dragging a divider changes the layout every frame;
   // it's saved once that settles.
@@ -335,9 +339,23 @@ export default function App(): React.JSX.Element {
       return next
     })
 
+  // Selecting a shelved project (from the shelf or its notification) puts it back on the bar.
   const select = (path: string): void => {
     setActive(path)
     clearDone(path)
+    setShelved((s) => (s.includes(path) ? s.filter((p) => p !== path) : s))
+  }
+
+  // The bar neighbour that takes over when the active tab leaves it.
+  const neighbour = (path: string): string | null => {
+    const i = bar.indexOf(path)
+    const next = bar.filter((p) => p !== path)
+    return next[Math.max(0, i - 1)] ?? null
+  }
+
+  const shelve = (path: string): void => {
+    setShelved((s) => [...s, path])
+    if (path === active) setActive(neighbour(path))
   }
 
   // The active tab lights up too while the window is in the background; coming back clears it.
@@ -376,16 +394,16 @@ export default function App(): React.JSX.Element {
     setTerms(({ [path]: _, ...t }) => t)
     setStarted((s) => new Set([...s].filter((id) => id.slice(id.indexOf(':') + 1) !== path)))
     touchRecent([path])
-    const i = projects.indexOf(path)
-    const next = projects.filter((p) => p !== path)
-    setProjects(next)
-    if (path === active) setActive(next[Math.max(0, i - 1)] ?? null)
+    setProjects(projects.filter((p) => p !== path))
+    setShelved((s) => s.filter((p) => p !== path))
+    if (path === active) setActive(neighbour(path))
   }
 
+  // From and to are bar positions; shelved projects keep their places in between.
   const move = (from: number, to: number): void =>
     setProjects((ps) => {
       const next = [...ps]
-      next.splice(to, 0, ...next.splice(from, 1))
+      next.splice(ps.indexOf(bar[to]), 0, ...next.splice(ps.indexOf(bar[from]), 1))
       return next
     })
 
@@ -407,7 +425,7 @@ export default function App(): React.JSX.Element {
     else if (cmd.type === 'newFile') setNewFile((n) => n + 1)
     else if (cmd.type === 'quickOpen') setQuickOpen((n) => n + 1)
     else if (cmd.type === 'sendSelection') sendSelection()
-    else if (cmd.type === 'tab' && projects[cmd.index]) select(projects[cmd.index])
+    else if (cmd.type === 'tab' && bar[cmd.index]) select(bar[cmd.index])
     else if (cmd.type === 'search') {
       revealSection('search')
       setSearchFocus((n) => n + 1)
@@ -420,9 +438,9 @@ export default function App(): React.JSX.Element {
     else if (cmd.type === 'settings') toggleSettings()
     else if (cmd.type === 'plugins') togglePlugins()
     else if (cmd.type === 'pane') focusPane(cmd.dir)
-    else if (cmd.type === 'cycle' && active && projects.length > 1) {
-      const n = projects.length
-      select(projects[(projects.indexOf(active) + cmd.step + n) % n])
+    else if (cmd.type === 'cycle' && active && bar.length > 1) {
+      const n = bar.length
+      select(bar[(bar.indexOf(active) + cmd.step + n) % n])
     }
   }
   useEffect(() => window.api.onMenu((cmd) => onMenu.current(cmd)), [])
@@ -560,11 +578,13 @@ export default function App(): React.JSX.Element {
   return (
     <div className="flex h-full flex-col">
       <Header
-        projects={projects}
+        projects={bar}
+        shelved={shelved}
         active={active}
         done={done}
         onSelect={select}
         onClose={close}
+        onShelve={shelve}
         onMove={move}
         onOpen={() => open()}
         playgrounds={config.playgrounds}

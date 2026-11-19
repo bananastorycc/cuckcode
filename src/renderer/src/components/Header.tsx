@@ -1,15 +1,19 @@
 import { useEffect, useRef } from 'react'
-import { BookOpen, ChevronDown, FolderOpen, Globe, Plus, Settings, Shapes, X } from 'lucide-react'
+import { Archive, BookOpen, ChevronDown, FolderOpen, Globe, Plus, Settings, Shapes, X } from 'lucide-react'
 import type { PlaygroundSlot, WebPage } from '../../../shared/types'
 import { TITLES, type Section } from '../layout'
 import { contextMenu } from './ContextMenu'
 
 interface Props {
+  // The tab bar's projects; the shelved ones are open too, just kept off it.
   projects: string[]
+  shelved: string[]
   active: string | null
   done: Set<string>
+  // Selecting a shelved project puts it back on the bar.
   onSelect: (path: string) => void
   onClose: (path: string) => void
+  onShelve: (path: string) => void
   onMove: (from: number, to: number) => void
   onOpen: () => void
   playgrounds: PlaygroundSlot[]
@@ -84,6 +88,12 @@ export default function Header(p: Props): React.JSX.Element {
               dragging.current = i
             }}
             onClick={() => p.onSelect(path)}
+            onContextMenu={async (e) => {
+              e.preventDefault()
+              const i = await contextMenu(['Move to Shelf', 'Close'])
+              if (i === 0) p.onShelve(path)
+              else if (i === 1) p.onClose(path)
+            }}
             data-active={path === p.active || undefined}
             title={i < 9 ? `${path}  ⌘${i + 1}` : path}
             className={`group flex shrink-0 items-center gap-1.5 rounded px-2 py-0.5 font-mono text-xs ${
@@ -112,6 +122,24 @@ export default function Header(p: Props): React.JSX.Element {
       <button className="no-drag btn shrink-0 text-muted" onClick={p.onOpen} title="Open project  ⌘T">
         <Plus className="h-3.5 w-3.5" />
       </button>
+      {p.shelved.length > 0 && (
+        <button
+          onClick={async (e) => {
+            const i = await contextMenu(
+              p.shelved.map((path) => `${p.done.has(path) ? '● ' : ''}${projectName(path)}`),
+              e.currentTarget
+            )
+            if (i !== null) p.onSelect(p.shelved[i])
+          }}
+          title="Shelf: open projects kept off the bar, still committed and synced with the rest"
+          className={`no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-xs ${
+            p.shelved.some((path) => p.done.has(path)) ? 'tab-done' : 'text-muted hover:bg-hover'
+          }`}
+        >
+          <Archive className="h-3.5 w-3.5" />
+          {p.shelved.length}
+        </button>
+      )}
 
       <div className="no-drag ml-auto flex shrink-0 items-center gap-1 text-xs text-muted">
         {p.active && p.minimized.length > 0 && (
