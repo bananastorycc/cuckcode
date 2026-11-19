@@ -90,9 +90,11 @@ export default function Header(p: Props): React.JSX.Element {
             onClick={() => p.onSelect(path)}
             onContextMenu={async (e) => {
               e.preventDefault()
-              const i = await contextMenu(['Move to Shelf', 'Close'])
-              if (i === 0) p.onShelve(path)
-              else if (i === 1) p.onClose(path)
+              // The last tab stays: an empty bar would leave no project in front.
+              const items = p.projects.length > 1 ? ['Move to Shelf', 'Close'] : ['Close']
+              const i = await contextMenu(items)
+              if (i !== null && items[i] === 'Move to Shelf') p.onShelve(path)
+              else if (i !== null) p.onClose(path)
             }}
             data-active={path === p.active || undefined}
             title={i < 9 ? `${path}  ⌘${i + 1}` : path}

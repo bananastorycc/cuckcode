@@ -353,7 +353,10 @@ export default function App(): React.JSX.Element {
     return next[Math.max(0, i - 1)] ?? null
   }
 
+  // The bar never empties while projects are open: with no active project the workspace
+  // unmounts, taking every terminal (and the shelved agents' notifications) with it.
   const shelve = (path: string): void => {
+    if (bar.length < 2) return
     setShelved((s) => [...s, path])
     if (path === active) setActive(neighbour(path))
   }
@@ -396,7 +399,12 @@ export default function App(): React.JSX.Element {
     touchRecent([path])
     setProjects(projects.filter((p) => p !== path))
     setShelved((s) => s.filter((p) => p !== path))
-    if (path === active) setActive(neighbour(path))
+    // The last tab on the bar: the first shelved project comes back in its place.
+    if (path === active) {
+      const next = neighbour(path)
+      if (!next && shelved.length) select(shelved[0])
+      else setActive(next)
+    }
   }
 
   // From and to are bar positions; shelved projects keep their places in between.
