@@ -99,7 +99,9 @@ function parse(raw: any): Settings {
     if (isStr(raw.agent?.[p])) agentIn[p] = raw.agent[p]
   }
   const agents = list(raw.agents, agent).filter((a, i, all) => all.findIndex((b) => b.id === a.id) === i)
-  const shelved = strings(raw.shelved).filter((p) => projects.includes(p))
+  // Everything shelved would leave the bar empty and no project in front, so the shelf empties instead.
+  const kept = strings(raw.shelved).filter((p) => projects.includes(p))
+  const shelved = projects.every((p) => kept.includes(p)) ? [] : kept
   const bar = projects.filter((p) => !shelved.includes(p))
   return {
     projects,

@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.48.1 — 2026-11-18
+
+- 🐛 The tab bar can't empty while projects sit on the shelf: the last tab stays, closing it brings a shelved project back. An empty bar used to hide every terminal and silence the shelved agents' notifications.
+
 ## 1.48.0 — 2026-11-18
 
 - ✨ The shelf: right-click a project tab › Move to Shelf to take it off the bar while it stays open. Shelved projects keep running and are still included in commit all and sync all; the shelf button next to + brings them back.
