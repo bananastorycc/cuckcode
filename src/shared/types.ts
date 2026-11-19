@@ -134,6 +134,8 @@ export const MAX_SLOTS = 10
 
 export interface Settings extends Config {
   projects: string[]
+  // Open projects kept off the tab bar: still running, committed and synced with the rest.
+  shelved: string[]
   // The tab in front at quit; it reopens in front regardless of tab order.
   active: string | null
   theme: ThemeChoice

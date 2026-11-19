@@ -89,7 +89,7 @@ Quitting (⌘Q, or closing the window) saves any unsaved edits, kills every term
 | ⌘N | New file, next to the open file (or in the selected folder) |
 | ⌘O | Go to file: fuzzy-find any file in the project (↑/↓ + ↩, Esc to cancel) |
 | ⌘W | Close the open file |
-| ⌘1–9 | Switch project |
+| ⌘1–9 | Switch project (tabs on the bar; shelved projects are skipped) |
 | ⇧⌘[ / ⇧⌘] | Previous / next project |
 | ⌃⇧← / → / ↑ / ↓ | Move focus to the section on screen in that direction (the focused section has an orange frame) |
 | ⇧⌘F | Find in files |
@@ -116,6 +116,8 @@ No, you can't rebind them. Plugins add their own shortcuts, listed under View. T
 ## Projects
 
 Your repos live in one folder, like a civilized person's. ⌘T lists the folders in your projects folder (the first ⌘T asks where that is) and opens the one you pick as a new tab. Paste a git remote instead and cuckcode clones it there. An empty remote gets a fresh repo: `git init` on `main`, an empty first commit, and a push that sets the upstream, so committing and syncing work from the start.
+
+Some projects need to stay open but not in your way: a repo that bots or scripts write into, say, which you never look at but still want committed and synced. Right-click its tab and pick **Move to Shelf**. It leaves the tab bar but stays open: its agents and terminal keep running, its notifications still come through, and AI commit all and sync all still include it. The shelf button next to + shows how many projects are on it (green if one of their agents is waiting) and drops down a list of them; pick one to put it back on the bar where it was, in front. ⌘1–9 and ⇧⌘[ / ] only go through the tabs on the bar.
 
 ## Layout
 
@@ -289,7 +291,7 @@ One notepad, for the stuff you'd otherwise type into a terminal and lose. Shared
 
 ## Sessions
 
-Open projects, which tab is active, each project's open file and agent, everything in Settings, and the recently-closed list all survive a quit and come back on the next launch: each project reopens on the agent it had in front (the first agent starts too, as always). With no project open, the welcome screen lists recently closed projects to reopen one or all of them.
+Open projects, which of them are shelved, which tab is active, each project's open file and agent, everything in Settings, and the recently-closed list all survive a quit and come back on the next launch: each project reopens on the agent it had in front (the first agent starts too, as always). With no project open, the welcome screen lists recently closed projects to reopen one or all of them.
 
 Settings live in `~/Library/Application Support/cuckcode/cuckcode-settings.json`, the scratchpad in `cuckcode-scratch.txt` beside it, and the config repo's clone (with [Sync](#settings)) in `config-repo/`. Don't edit the settings file while cuckcode runs: it rewrites the file on every change, and it will win. To edit settings as JSON, use Settings › Sync: Export…, edit the file, then Import… it.
 

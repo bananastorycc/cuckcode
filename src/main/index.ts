@@ -39,6 +39,7 @@ const pluginsDir = join(app.getPath('userData'), 'plugins')
 // A fresh install: the Claude Code preset and one playground, nothing else configured.
 const DEFAULTS: Settings = {
   projects: [],
+  shelved: [],
   active: null,
   theme: 'auto',
   files: {},
@@ -98,9 +99,12 @@ function parse(raw: any): Settings {
     if (isStr(raw.agent?.[p])) agentIn[p] = raw.agent[p]
   }
   const agents = list(raw.agents, agent).filter((a, i, all) => all.findIndex((b) => b.id === a.id) === i)
+  const shelved = strings(raw.shelved).filter((p) => projects.includes(p))
+  const bar = projects.filter((p) => !shelved.includes(p))
   return {
     projects,
-    active: projects.includes(raw.active) ? raw.active : (projects[0] ?? null),
+    shelved,
+    active: bar.includes(raw.active) ? raw.active : (bar[0] ?? null),
     theme: raw.theme === 'light' || raw.theme === 'dark' ? raw.theme : 'auto',
     files,
     agent: agentIn,
