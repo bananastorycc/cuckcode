@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { open, readFile, stat } from 'node:fs/promises'
 import { extname, join } from 'node:path'
-import { commitMessage } from './commitmsg'
+import { commitMessage, goodSubject } from './commitmsg'
 import { mediaKind } from './mime'
 import type { Branches, ChangeCode, ChangedFile, Commit, FileSnapshot, GitOp, GitResult, GitStatus, Remote } from '../shared/types'
 
@@ -374,7 +374,9 @@ async function changes(cwd: string): Promise<string> {
     run(root, ['ls-files', '-z', '--others', '--exclude-standard']).catch(() => ''),
     run(root, ['log', '-n', '15', '--format=%s']).catch(() => '')
   ])
-  let out = `Recent subjects:\n${log}\n${summary}\n${diff}`
+  // A bad subject that got in anyway isn't a style to match.
+  const subjects = log.split('\n').filter(goodSubject).slice(0, 10).join('\n')
+  let out = `Recent subjects:\n${subjects}\n\n${summary}\n${diff}`
   for (const path of untracked.split('\0').filter(Boolean)) {
     if (out.length > CHANGES_BUDGET) break
     const buf = await readStart(join(root, path), 8000)
