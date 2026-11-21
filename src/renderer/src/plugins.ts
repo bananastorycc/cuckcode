@@ -4,6 +4,7 @@ import * as ReactDOM from 'react-dom'
 import { useSyncExternalStore } from 'react'
 import type { AgentPreset } from '../../shared/agents'
 import type { AgentBarItem, EditorContext, HOST_MODULES, PluginView, ProjectSource, RendererHost, RendererPlugin } from '../../shared/plugin'
+import Scratch from './components/Scratch'
 import { addThemeRules, monaco } from './monaco'
 
 // The renderer side of plugins: what they registered, for App and CodePane to use. Loaded once
@@ -153,7 +154,8 @@ export async function loadPlugins(): Promise<void> {
       sendToAgent: (text, opts) => sendToAgent(text, opts?.submit ?? true, p.name),
       mediaUrl,
       agentPreset: (preset) => reg.presets.push(preset),
-      agentBar: (item) => reg.bar.push(item)
+      agentBar: (item) => reg.bar.push(item),
+      Scratch
     }
     try {
       const module = { exports: {} as Partial<RendererPlugin> }

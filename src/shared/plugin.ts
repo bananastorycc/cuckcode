@@ -137,6 +137,9 @@ export interface RendererHost<T = unknown> {
   // An agent to start from in Settings › Agents › Add, beside the built-in ones.
   agentPreset: (preset: AgentPreset) => void
   agentBar: (item: AgentBarItem) => void
+  // cuckcode's scratchpad, for a view to show (it covers the Scratch section): the same notes,
+  // kept in step as they're typed, saved the same way. actions go at the right of its title bar.
+  Scratch: ComponentType<{ actions?: ReactNode }>
 }
 
 export interface RendererPlugin {

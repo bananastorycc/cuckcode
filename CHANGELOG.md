@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.49.0 — 2026-11-21
+
+- ✨ Plugins can show the scratchpad inside their full-window view (`Scratch` on the renderer host): the same notes as the Scratch section, kept in step as you type. The asset-pipeline GUI uses it for an open/minimize scratch panel.
+
 ## 1.48.2 — 2026-11-19
 
 - 🐛 AI commit messages can't come out as the model thinking out loud or echoing its instructions: output that isn't a commit message gets one more try, then an error asking you to write it yourself.
