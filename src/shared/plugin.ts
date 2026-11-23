@@ -104,6 +104,18 @@ export interface PluginView<T> {
   render: (props: ViewProps<T>) => ReactNode
 }
 
+// A header button and a command that open a dockable panel: a tab in the workspace (beside Scratch at
+// first; drag it anywhere, like the sections), for something to keep in view while you work. The
+// button opens it, brings it to the front, or closes it when it's showing; the tab's ✕ closes it too.
+// Open panels are saved with the layout. Like a view, it's offered while the project has data.
+export interface PluginPanel<T> {
+  id: string // [\w-]+, unique within the plugin
+  command: string // one of the manifest's commands
+  title: string
+  icon: ReactNode
+  render: (props: ViewProps<T>) => ReactNode
+}
+
 export interface EditorContext<T> {
   // This plugin's data for the open project.
   data: () => T | null
@@ -125,6 +137,7 @@ export interface RendererHost<T = unknown> {
   addThemeRules: (light: Monaco.editor.ITokenThemeRule[], dark: Monaco.editor.ITokenThemeRule[]) => void
   projectData: (source: ProjectSource<T>) => void
   view: (view: PluginView<T>) => void
+  panel: (panel: PluginPanel<T>) => void
   onCommand: (id: string, fn: () => void) => void
   // Called for each code editor, now and later; the disposable runs when it goes.
   onEditor: (fn: (editor: Monaco.editor.ICodeEditor, ctx: EditorContext<T>) => Monaco.IDisposable | void) => void

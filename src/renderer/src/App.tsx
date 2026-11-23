@@ -23,7 +23,7 @@ import Settings from './components/Settings'
 import Terminal, { pasteInto, shellQuote, whenReady } from './components/Terminal'
 import Toasts, { toast } from './components/Toasts'
 import WebPage from './components/WebPage'
-import { apply, hosts, mount, PRESETS, reveal as revealSection, SECTIONS, show as showSection, type Section } from './layout'
+import { apply, hosts, mount, openPanels, panelHost, panelId, PRESETS, reveal as revealSection, SECTIONS, show as showSection, togglePanel, type Section } from './layout'
 import { loadPlugins, runCommand, setCurrent, setOpenFile, setSendToAgent, usePlugins, type Registered } from './plugins'
 
 // What's shown: the README over the code pane, or a playground slot (from 1) or a plugin's
@@ -71,6 +71,8 @@ export default function App(): React.JSX.Element {
   const dockEl = useRef<HTMLDivElement>(null)
   // The minimized sections, joined, so a divider drag (a layout change every frame) doesn't rerender.
   const [minimized, setMinimized] = useState('')
+  // The plugin panels in the dock, joined by newlines, for the same reason.
+  const [panels, setPanels] = useState('')
   // Per project: what's shown over the code pane or workspace. Per `${slot}:${path}`: the
   // playground page's version, and whether it changed since last shown.
   const [view, setView] = useState<Record<string, View | undefined>>({})
@@ -130,6 +132,7 @@ export default function App(): React.JSX.Element {
     const unmount = mount(dockEl.current, layoutRef.current, (layout, minimized) => {
       layoutRef.current = layout
       setMinimized(minimized.join())
+      setPanels(openPanels(layout).join('\n'))
       clearTimeout(timer)
       timer = setTimeout(bumpLayout, 300)
     })
@@ -280,9 +283,29 @@ export default function App(): React.JSX.Element {
     if (active && viewable.some((p) => p.id === id)) setView((v) => ({ ...v, [active]: v[active] === key ? undefined : key }))
   }
   const pluginView = viewable.find((p) => shown === `plugin:${p.id}`) ?? null
+  // Its panels are offered on the same terms as views: while the plugin has data for the project.
+  const paneled = plugins.filter((p) => p.panels.length && (!p.source || dataOf(p.id) !== null))
+  const openPanelIds = panels ? panels.split('\n') : []
   const onPluginCommand = (plugin: string, command: string): void => {
-    if (plugins.find((p) => p.id === plugin)?.view?.command === command) togglePluginView(plugin)
-    else runCommand(plugin, command)
+    const p = plugins.find((x) => x.id === plugin)
+    const panel = p?.panels.find((x) => x.command === command)
+    if (p?.view?.command === command) togglePluginView(plugin)
+    else if (panel) {
+      if (active && paneled.includes(p!)) togglePanel(panelId(plugin, panel.id), panel.title)
+    } else runCommand(plugin, command)
+  }
+  // What a plugin panel's tab shows: the plugin's content, or why there's none.
+  const panelContent = (id: string): ReactNode => {
+    const p = plugins.find((x) => id.startsWith(`plugin:${x.id}:`))
+    const panel = p?.panels.find((x) => panelId(p.id, x.id) === id)
+    const note = (text: string): ReactNode => <div className="p-3 text-xs text-muted">{text}</div>
+    if (!p || !panel) return note("This panel's plugin isn't loaded.")
+    if (p.source && dataOf(p.id) === null) return note(`${p.name} has nothing for this project.`)
+    return (
+      <Quiet what={`${p.id} panel`} reset={active} fallback={note(`${panel.title} hit an error (see the console).`)}>
+        {panel.render({ data: dataOf(p.id), openFile })}
+      </Quiet>
+    )
   }
 
   const toggleWeb = (i: number): void => {
@@ -605,6 +628,14 @@ export default function App(): React.JSX.Element {
         pluginViews={active ? viewable.map((p) => ({ id: p.id, title: p.view!.title, icon: p.view!.icon, shortcut: p.shortcut(p.view!.command) })) : []}
         pluginView={pluginView?.id ?? null}
         onPluginView={togglePluginView}
+        pluginPanels={
+          active
+            ? paneled.flatMap((p) =>
+                p.panels.map((x) => ({ id: panelId(p.id, x.id), title: x.title, icon: x.icon, shortcut: p.shortcut(x.command), open: openPanelIds.includes(panelId(p.id, x.id)) }))
+              )
+            : []
+        }
+        onPluginPanel={(id, title) => togglePanel(id, title)}
         webPages={config.webPages}
         showingWeb={showingWeb}
         onWeb={toggleWeb}
@@ -710,6 +741,7 @@ export default function App(): React.JSX.Element {
               hosts.git
             )}
             {createPortal(<Scratch />, hosts.scratch)}
+            {openPanelIds.map((id) => createPortal(panelContent(id), panelHost(id), id))}
             <QuickOpen
               root={status?.root ?? ''}
               status={status}
@@ -874,17 +906,21 @@ const pickConfig = (s: Config): Config => ({
   configRepo: s.configRepo
 })
 
-// A plugin's title-bar item that throws drops out instead of taking the window down with it.
-class Quiet extends Component<{ children: ReactNode }, { failed: boolean }> {
+// A plugin's title-bar item or panel that throws drops out (or shows fallback) instead of taking the
+// window down with it. A change of reset (the project, for a panel) gives it another try.
+class Quiet extends Component<{ children: ReactNode; what?: string; reset?: unknown; fallback?: ReactNode }, { failed: boolean }> {
   state = { failed: false }
   static getDerivedStateFromError(): { failed: boolean } {
     return { failed: true }
   }
   componentDidCatch(err: unknown): void {
-    console.error('plugin agent bar:', err)
+    console.error(`plugin ${this.props.what ?? 'agent bar'}:`, err)
+  }
+  componentDidUpdate(prev: { reset?: unknown }): void {
+    if (this.state.failed && prev.reset !== this.props.reset) this.setState({ failed: false })
   }
   render(): ReactNode {
-    return this.state.failed ? null : this.props.children
+    return this.state.failed ? (this.props.fallback ?? null) : this.props.children
   }
 }
 

@@ -15,7 +15,7 @@ describe('cleanMessage', () => {
     expect(cleanMessage('"Fix the dock"')).toBe('Fix the dock')
   })
 
-  // Messages Haiku wrote that got committed (cuckcode-asset-pipeline, Nov 19, 2026).
+  // Messages Haiku wrote that got committed (in a plugin repo, Nov 19, 2026).
   it('drops a line echoing the instructions', () => {
     const echoed = 'Make the QC fix category list say "clear" is appliable for haze\nMatch the subject style of the recent commits, under 72 characters.\n'
     expect(cleanMessage(echoed)).toBe('Make the QC fix category list say "clear" is appliable for haze')

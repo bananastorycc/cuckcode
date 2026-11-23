@@ -29,6 +29,9 @@ interface Props {
   pluginViews: { id: string; title: string; icon: React.ReactNode; shortcut: string }[]
   pluginView: string | null
   onPluginView: (id: string) => void
+  // Plugins' dockable panels the project has; open: in the dock.
+  pluginPanels: { id: string; title: string; icon: React.ReactNode; shortcut: string; open: boolean }[]
+  onPluginPanel: (id: string, title: string) => void
   webPages: WebPage[]
   // Which web page is shown, if any.
   showingWeb: number | null
@@ -164,6 +167,16 @@ export default function Header(p: Props): React.JSX.Element {
             onClick={() => p.onPluginView(v.id)}
             title={`Toggle ${v.title.toLowerCase()}${v.shortcut ? `  ${v.shortcut}` : ''}`}
             className={`shrink-0 rounded p-1 [&_svg]:h-3.5 [&_svg]:w-3.5 ${p.pluginView === v.id ? on : off}`}
+          >
+            {v.icon}
+          </button>
+        ))}
+        {p.pluginPanels.map((v) => (
+          <button
+            key={v.id}
+            onClick={() => p.onPluginPanel(v.id, v.title)}
+            title={`${v.open ? 'Show or close' : 'Open'} ${v.title.toLowerCase()} (a tab you can dock anywhere)${v.shortcut ? `  ${v.shortcut}` : ''}`}
+            className={`shrink-0 rounded p-1 [&_svg]:h-3.5 [&_svg]:w-3.5 ${v.open ? on : off}`}
           >
             {v.icon}
           </button>

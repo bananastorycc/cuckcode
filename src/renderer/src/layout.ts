@@ -32,13 +32,30 @@ const THEME: DockviewTheme = { name: 'cuckcode', className: 'dockview-theme-ligh
 
 let api: DockviewApi | null = null
 
-// A layout that names every section once and nothing else; anything else (a hand-edited or
-// stale file) is rejected rather than half-loaded.
+// Plugin panels are dock tabs too (id `plugin:<plugin id>:<panel id>`), there only while open: added
+// when opened, removed when closed, kept in saved layouts. Each gets a host element on first use,
+// which App renders the plugin's content into, like the sections'.
+const PANEL = 'plugin:'
+export const isPanel = (id: string): boolean => id.startsWith(PANEL)
+export const panelId = (plugin: string, panel: string): string => `${PANEL}${plugin}:${panel}`
+const panelHosts = new Map<string, HTMLElement>()
+export function panelHost(id: string): HTMLElement {
+  let el = panelHosts.get(id)
+  if (!el) {
+    el = document.createElement('div')
+    el.className = 'relative h-full w-full overflow-hidden'
+    panelHosts.set(id, el)
+  }
+  return el
+}
+
+// A layout that names every section once, plus any plugin panels, and nothing else; anything else
+// (a hand-edited or stale file) is rejected rather than half-loaded.
 export function valid(layout: unknown): layout is SerializedDockview {
   const panels = (layout as SerializedDockview | null)?.panels
   if (!panels || typeof panels !== 'object' || !(layout as SerializedDockview).grid?.root) return false
   const ids = Object.keys(panels)
-  return ids.length === SECTIONS.length && SECTIONS.every((s) => ids.includes(s))
+  return SECTIONS.every((s) => ids.includes(s)) && ids.every((id) => SECTIONS.includes(id as Section) || isPanel(id))
 }
 
 export function mount(el: HTMLElement, saved: unknown, onChange: (layout: SerializedDockview, minimized: Section[]) => void): () => void {
@@ -50,11 +67,11 @@ export function mount(el: HTMLElement, saved: unknown, onChange: (layout: Serial
     createComponent: ({ name }) => {
       const element = document.createElement('div')
       element.className = 'h-full w-full'
-      return { element, init: () => element.append(hosts[name as Section]) }
+      return { element, init: () => element.append(isPanel(name) ? panelHost(name) : hosts[name as Section]) }
     },
     // Every tab is ours: dockview only asks for one when a tab component is named.
     defaultTabComponent: 'section',
-    createTabComponent: ({ id }) => tab(id as Section)
+    createTabComponent: ({ id }) => (isPanel(id) ? panelTab(id) : tab(id as Section))
   })
   api = dock
   load(saved)
@@ -131,7 +148,9 @@ export function hide(s: Section): void {
   if (!api || !panel || isHidden(s) || SECTIONS.length - hidden().length <= 1) return
   const group = panel.group
   if (group.panels.length > 1) {
-    const home = group.panels.find((p) => p.id !== s)!.id
+    // A section to rejoin, rather than a plugin panel that may be closed by then.
+    const others = group.panels.filter((p) => p.id !== s)
+    const home = (others.find((p) => !isPanel(p.id)) ?? others[0]).id
     panel.api.updateParameters({ home, index: group.panels.indexOf(panel) })
     panel.api.moveTo({ group, position: 'bottom', skipSetActive: true })
   }
@@ -156,6 +175,57 @@ export function reveal(s: Section): void {
   show(s)
   const panel = panelOf(s)
   if (panel && !panel.api.isActive) panel.api.setActive()
+}
+
+// --- Plugin panels ---
+
+// The plugin panels in the layout.
+export const openPanels = (layout = api?.toJSON()): string[] => (layout ? Object.keys(layout.panels).filter(isPanel) : [])
+
+// A panel's button: opens it (a tab beside Scratch, or the first section showing of the ones that
+// usually share a group with it), brings it to the front when it's behind another tab, or closes it
+// when it's showing.
+export function togglePanel(id: string, title: string): void {
+  if (!api) return
+  const panel = api.getPanel(id)
+  if (panel) {
+    if (panel.api.isVisible && !hiddenGroups().has(panel.group.id)) api.removePanel(panel)
+    else panel.api.setActive()
+    return
+  }
+  const groups = hiddenGroups()
+  const near = (['scratch', 'git', 'search', 'files', 'terminal', 'agents'] as Section[]).find((s) => panelOf(s) && !isHidden(s, groups))
+  api.addPanel({ id, component: id, title, position: near ? { referencePanel: near, direction: 'within' } : undefined })
+}
+
+const closeIcon =
+  '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+
+// A panel's tab: its title, and a button that closes it.
+function panelTab(id: string): ITabRenderer {
+  const element = document.createElement('div')
+  element.className = 'dv-default-tab cc-tab'
+  const title = document.createElement('div')
+  title.className = 'dv-default-tab-content'
+  const button = document.createElement('button')
+  button.className = 'cc-minimize'
+  button.tabIndex = -1
+  button.innerHTML = closeIcon
+  button.addEventListener('pointerdown', (e) => e.stopPropagation())
+  button.addEventListener('mousedown', (e) => e.stopPropagation())
+  button.addEventListener('click', (e) => {
+    e.stopPropagation()
+    const panel = api?.getPanel(id)
+    if (panel) api?.removePanel(panel)
+  })
+  element.append(title, button)
+  return {
+    element,
+    init: ({ title: text }) => {
+      title.textContent = text ?? id
+      button.title = `Close ${text ?? ''}`
+    }
+  }
 }
 
 // The tab: the title, and a button to minimize the section (it replaces dockview's close).

@@ -3,7 +3,7 @@ import * as jsxRuntime from 'react/jsx-runtime'
 import * as ReactDOM from 'react-dom'
 import { useSyncExternalStore } from 'react'
 import type { AgentPreset } from '../../shared/agents'
-import type { AgentBarItem, EditorContext, HOST_MODULES, PluginView, ProjectSource, RendererHost, RendererPlugin } from '../../shared/plugin'
+import type { AgentBarItem, EditorContext, HOST_MODULES, PluginPanel, PluginView, ProjectSource, RendererHost, RendererPlugin } from '../../shared/plugin'
 import Scratch from './components/Scratch'
 import { addThemeRules, monaco } from './monaco'
 
@@ -18,6 +18,7 @@ export interface Registered {
   name: string
   source: ProjectSource<unknown> | null
   view: PluginView<unknown> | null
+  panels: PluginPanel<unknown>[]
   commands: Map<string, () => void>
   presets: AgentPreset[]
   bar: AgentBarItem[]
@@ -121,6 +122,7 @@ export async function loadPlugins(): Promise<void> {
       name: p.name,
       source: null,
       view: null,
+      panels: [],
       commands: new Map(),
       presets: [],
       bar: [],
@@ -145,6 +147,12 @@ export async function loadPlugins(): Promise<void> {
       addThemeRules,
       projectData: (source) => (reg.source = source),
       view: (view) => (reg.view = view),
+      // A panel's id names its dock tab and is saved in layouts, so a bad or repeated one is refused.
+      panel: (panel) => {
+        if (typeof panel?.id !== 'string' || !/^[\w-]+$/.test(panel.id)) console.error(`plugin ${p.id}: panel id must match [\\w-]+:`, panel?.id)
+        else if (reg.panels.some((x) => x.id === panel.id)) console.error(`plugin ${p.id}: panel ${panel.id} is already registered`)
+        else reg.panels.push(panel as PluginPanel<unknown>)
+      },
       onCommand: (id, fn) => reg.commands.set(id, fn),
       onEditor: (fn) => {
         const h = { id: p.id, fn: fn as EditorHook }

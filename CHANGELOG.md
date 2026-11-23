@@ -2,9 +2,13 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.50.0 — 2026-11-23
+
+- ✨ Plugins can add dockable panels: a tab in the workspace (beside Scratch at first, drag it anywhere) with its own header button and shortcut, for something to keep in view while you work, such as a status or activity monitor.
+
 ## 1.49.0 — 2026-11-21
 
-- ✨ Plugins can show the scratchpad inside their full-window view (`Scratch` on the renderer host): the same notes as the Scratch section, kept in step as you type. The asset-pipeline GUI uses it for an open/minimize scratch panel.
+- ✨ Plugins can show the scratchpad inside their full-window view (`Scratch` on the renderer host), since the view covers the Scratch section: the same notes, kept in step as you type.
 
 ## 1.48.2 — 2026-11-19
 
