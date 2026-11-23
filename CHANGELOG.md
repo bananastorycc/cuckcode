@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.50.1 — 2026-11-23
+
+- 🐛 An AI commit message whose subject starts with "Commit messages" isn't mistaken for the model talking about the task, and a `<message>` tag the model left open doesn't end up in the commit.
+
 ## 1.50.0 — 2026-11-23
 
 - ✨ Plugins can add dockable panels: a tab in the workspace (beside Scratch at first, drag it anywhere) with its own header button and shortcut, for something to keep in view while you work, such as a status or activity monitor.
@@ -93,7 +97,7 @@ Every change to the app bumps the version here and in `package.json` (see Versio
 - Agents are now any command plus switches for what cuckcode does with them: Notify, Keep awake, @ mentions, ⇧↩ newline and Playground. Add one from a preset (Claude Code, or a plain command) and change anything. Agents set up before this version need adding again: Claude Code is a preset, and Junie is a Command agent running `junie --auth-license=<id>`.
 - Notifications, keep-awake, file mentions, ⌥⌘K and a playground's Done work with any agent that has them switched on, not only Claude.
 - The command that writes AI commit messages is a setting (Settings › Git), still Claude Haiku by default. Empty hides the AI buttons.
-- Usage meters moved to a plugin, cuckcode-meters. Plugins can now add agent presets and draw in the Agents title bar.
+- Usage meters moved out of the core into a plugin. Plugins can now add agent presets and draw in the Agents title bar.
 - A playground's Done and ⌥⌘K say so when no agent can take them, instead of doing nothing.
 - A scratchpad edit made just before quitting is no longer lost when syncing the config through git.
 - Discard Changes asks in cuckcode's own dialog, and branch names starting with a dash are refused.

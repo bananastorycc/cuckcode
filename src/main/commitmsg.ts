@@ -9,7 +9,7 @@ fences, no notes about the diff or these instructions.`
 const SUBJECT_MAX = 100 // past the asked-for 72, but a real subject that ran long still goes in
 // How a model's talk about the task starts, where a subject should be (seen: "The diff changes ...",
 // "Commit message needed for ...", "Here is ...").
-const META = /^(the|this) (diff|change|commit)\b|^(commit message|here('s| is)|i('ll| will)|based on|looking at|sure\b|okay\b)/i
+const META = /^(the|this) (diff|change|commit)\b|^(commit message\b|here('s| is)|i('ll| will)|based on|looking at|sure\b|okay\b)/i
 // The prompt's own words, echoed back as a line of the message (seen: "Match the subject style of the
 // recent commits, under 72 characters.").
 const ECHO = /\b(under 72 characters|match the (subject )?style|imperative mood|recent subjects)\b/i
@@ -22,7 +22,8 @@ export const goodSubject = (s: string): boolean => !!s.trim() && s.length <= SUB
 // what's left doesn't start with a subject (a model thinking out loud first).
 export function cleanMessage(output: string): string | null {
   const tagged = [...output.matchAll(/<message>([\s\S]*?)<\/message>/g)].pop()
-  let msg = (tagged ? tagged[1] : output).trim().replace(/^```\w*\n?|\n?```$/g, '').trim()
+  // A lone tag (the model stopped before closing it) isn't part of the message either.
+  let msg = (tagged ? tagged[1] : output).replace(/<\/?message>/g, '').trim().replace(/^```\w*\n?|\n?```$/g, '').trim()
   if (/^"[\s\S]*"$/.test(msg)) msg = msg.slice(1, -1).trim()
   const lines = msg.split('\n').filter((line) => !ECHO.test(line))
   while (lines.length && !lines[lines.length - 1].trim()) lines.pop()

@@ -15,18 +15,23 @@ describe('cleanMessage', () => {
     expect(cleanMessage('"Fix the dock"')).toBe('Fix the dock')
   })
 
-  // Messages Haiku wrote that got committed (in a plugin repo, Nov 19, 2026).
+  // Shaped like messages a model wrote that got committed.
   it('drops a line echoing the instructions', () => {
-    const echoed = 'Make the QC fix category list say "clear" is appliable for haze\nMatch the subject style of the recent commits, under 72 characters.\n'
-    expect(cleanMessage(echoed)).toBe('Make the QC fix category list say "clear" is appliable for haze')
+    const echoed = 'Make the export list say "none" is allowed for drafts\nMatch the subject style of the recent commits, under 72 characters.\n'
+    expect(cleanMessage(echoed)).toBe('Make the export list say "none" is allowed for drafts')
   })
 
   it('refuses output that thinks out loud before the subject', () => {
     const reasoning =
-      'The diff changes the QC check and fix descriptions to match the new fix categories, and bumps the QC report to version 2 so older reports are refused. The subject needs to say what the QC copy now promises, which is why a body is useful here.\n\nDescribe the QC check and fix more precisely'
+      'The diff changes the export descriptions to match the new categories, and bumps the report to version 2 so older reports are refused. The subject needs to say what the copy now promises, which is why a body is useful here.\n\nDescribe the export options more precisely'
     expect(cleanMessage(reasoning)).toBeNull()
-    expect(cleanMessage('Commit message needed for the staged changes; the diff covers the regen set.')).toBeNull()
+    expect(cleanMessage('Commit message needed for the staged changes; the diff covers the new settings.')).toBeNull()
     expect(cleanMessage('Here is the commit message:')).toBeNull()
+  })
+
+  it('keeps a subject that is about commit messages, and drops a tag left open', () => {
+    expect(cleanMessage('Commit messages: retry once on talk')).toBe('Commit messages: retry once on talk')
+    expect(cleanMessage('<message>\nFix the dock\n')).toBe('Fix the dock')
   })
 
   it('keeps a body that is about commit messages', () => {
