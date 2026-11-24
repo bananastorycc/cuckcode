@@ -34,6 +34,12 @@ describe('cleanMessage', () => {
     expect(cleanMessage('<message>\nFix the dock\n')).toBe('Fix the dock')
   })
 
+  it('keeps a subject or body that only sounds like the instructions, and quotes inside it', () => {
+    expect(cleanMessage('Match the style of the Git tab to the Search tab')).toBe('Match the style of the Git tab to the Search tab')
+    expect(cleanMessage('<message>Restyle the shelf\n\nTabs now match the style of the header.</message>')).toBe('Restyle the shelf\n\nTabs now match the style of the header.')
+    expect(cleanMessage('"Fix" the "dock"')).toBe('"Fix" the "dock"')
+  })
+
   it('keeps a body that is about commit messages', () => {
     expect(cleanMessage('<message>Check AI commit messages\n\nA commit message that is reasoning gets retried.</message>')).toBe('Check AI commit messages\n\nA commit message that is reasoning gets retried.')
   })
