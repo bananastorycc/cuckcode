@@ -204,7 +204,9 @@ export function openPanel(id: string, title: string, dock?: Dock): void {
   const groups = hiddenGroups()
   const showing = (s: Section): boolean => !!panelOf(s) && !isHidden(s, groups)
   const asked = dock && SECTIONS.includes(dock.section) && showing(dock.section) ? dock : null
-  const near = asked?.section ?? (['scratch', 'git', 'search', 'files', 'terminal', 'agents'] as Section[]).find(showing)
+  // The editor last, as a tab over it is in the way, but always: one section always shows, and with no
+  // position dockview would add the panel to the active group, which can be a minimized one.
+  const near = asked?.section ?? (['scratch', 'git', 'search', 'files', 'terminal', 'agents', 'editor'] as Section[]).find(showing)
   const side = (['left', 'right', 'above', 'below'] as const).find((s) => s === asked?.side) ?? 'within'
   api.addPanel({ id, component: id, title, position: near ? { referencePanel: near, direction: side } : undefined })
 }

@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.52.3 — 2026-11-24
+
+- 🐛 A plugin view, playground or README opened while a web page or Folders is up comes out from under it, instead of lighting its button and showing nothing.
+- 🐛 A plugin panel opened with only the editor showing lands beside the editor, never in a minimized section's hidden group where nothing could bring it back.
+
 ## 1.52.2 — 2026-11-24
 
 - 🐛 A section alone in its group no longer shows a stray "1 ⌄" overflow badge in its top right corner.

@@ -257,10 +257,17 @@ export default function App(): React.JSX.Element {
     [refresh, checkPlay, loadData]
   )
 
+  // Shows next over the project (or the home screen, ''), or hides it when it's showing. A web page
+  // or the folders cover it, so while one's up, showing it brings it out from under them instead.
+  const toggleView = (where: string, next: View): void => {
+    const covered = showingWeb !== null || browsing
+    if (covered) setOverlay(null)
+    setView((v) => ({ ...v, [where]: v[where] === next && !covered ? undefined : next }))
+  }
   const togglePlay = (slot: number): void => {
     if (!active || slot > config.playgrounds.length) return
     const key = `${slot}:${active}`
-    setView((v) => ({ ...v, [active]: v[active] === slot ? undefined : slot }))
+    toggleView(active, slot)
     setPlayUnseen((s) => {
       if (!s.has(key)) return s
       const next = new Set(s)
@@ -273,7 +280,7 @@ export default function App(): React.JSX.Element {
   const playing = typeof shown === 'number' && shown <= config.playgrounds.length ? shown : null
 
   const toggleReadme = (): void => {
-    if (active && config.readme) setView((v) => ({ ...v, [active]: v[active] === 'readme' ? undefined : 'readme' }))
+    if (active && config.readme) toggleView(active, 'readme')
   }
   const reading = config.readme && shown === 'readme'
 
@@ -295,7 +302,7 @@ export default function App(): React.JSX.Element {
   const views = plugins.flatMap((p) => p.views.filter((v) => offered(p, v.when)).map((v) => ({ key: viewKey(p.id, v.command), plugin: p, view: v })))
   const togglePluginView = (key: string): void => {
     const found = views.find((v) => v.key === key)
-    if (found) setView((v) => ({ ...v, [here]: v[here] === found.key ? undefined : found.key }))
+    if (found) toggleView(here, found.key)
   }
   const hidePluginView = (key: string): void => setView((v) => (v[here] === key ? { ...v, [here]: undefined } : v))
   const pluginView = views.find((v) => view[here] === v.key) ?? null
@@ -323,6 +330,7 @@ export default function App(): React.JSX.Element {
       return true
     }
     if (views.some((v) => v.key === key)) {
+      if (showingWeb !== null || browsing) setOverlay(null)
       setView((v) => ({ ...v, [here]: key }))
       return true
     }
