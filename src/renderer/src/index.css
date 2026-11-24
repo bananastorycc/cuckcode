@@ -348,7 +348,10 @@ html {
   overflow: visible;
   background: transparent;
 }
+/* Everything but the chip stays hidden, including dockview's overflow dropdown ("1 ⌄"), which it
+   shows because the idle 6px chip clips its tab. */
 .cc-dock .dv-single-tab > :not(.dv-scrollable) {
+  visibility: hidden;
   pointer-events: none;
 }
 .cc-dock .dv-single-tab::after {
