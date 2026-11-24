@@ -1,13 +1,15 @@
 import { createDockview, type DockviewApi, type DockviewTheme, type ITabRenderer, type SerializedDockview } from 'dockview'
 import 'dockview/dist/styles/dockview.css'
+import type { PluginPanel } from '../../shared/plugin'
+import { SECTIONS, type Section } from '../../shared/types'
 
 // The workspace is a dockview: every section is a tab that can be dragged into any group, split
 // off, or resized. Each section's content lives in one host element made here, once, and App
 // renders into it through a portal; a dock panel only borrows the element. So moving a tab or
 // loading a whole layout re-parents DOM and never remounts the editor or a terminal.
 
-export const SECTIONS = ['files', 'search', 'editor', 'terminal', 'agents', 'git', 'scratch'] as const
-export type Section = (typeof SECTIONS)[number]
+// Shared with plugins, which name a section to dock a panel by.
+export { SECTIONS, type Section }
 
 export const TITLES: Record<Section, string> = {
   files: 'Files',
@@ -182,20 +184,34 @@ export function reveal(s: Section): void {
 // The plugin panels in the layout.
 export const openPanels = (layout = api?.toJSON()): string[] => (layout ? Object.keys(layout.panels).filter(isPanel) : [])
 
-// A panel's button: opens it (a tab beside Scratch, or the first section showing of the ones that
-// usually share a group with it), brings it to the front when it's behind another tab, or closes it
+type Dock = PluginPanel<unknown>['dock']
+
+// A panel's button: opens it, brings it to the front when it's behind another tab, or closes it
 // when it's showing.
-export function togglePanel(id: string, title: string): void {
+export function togglePanel(id: string, title: string, dock?: Dock): void {
+  const panel = api?.getPanel(id)
+  if (panel && panel.api.isVisible && !hiddenGroups().has(panel.group.id)) closePanel(id)
+  else openPanel(id, title, dock)
+}
+
+// Opens a panel where dock says (a tab with a section, or split off to one side of it), else as a
+// tab beside Scratch, or the first section showing of the ones that usually share a group with it.
+// One already open comes to the front.
+export function openPanel(id: string, title: string, dock?: Dock): void {
   if (!api) return
   const panel = api.getPanel(id)
-  if (panel) {
-    if (panel.api.isVisible && !hiddenGroups().has(panel.group.id)) api.removePanel(panel)
-    else panel.api.setActive()
-    return
-  }
+  if (panel) return panel.api.setActive()
   const groups = hiddenGroups()
-  const near = (['scratch', 'git', 'search', 'files', 'terminal', 'agents'] as Section[]).find((s) => panelOf(s) && !isHidden(s, groups))
-  api.addPanel({ id, component: id, title, position: near ? { referencePanel: near, direction: 'within' } : undefined })
+  const showing = (s: Section): boolean => !!panelOf(s) && !isHidden(s, groups)
+  const asked = dock && SECTIONS.includes(dock.section) && showing(dock.section) ? dock : null
+  const near = asked?.section ?? (['scratch', 'git', 'search', 'files', 'terminal', 'agents'] as Section[]).find(showing)
+  const side = (['left', 'right', 'above', 'below'] as const).find((s) => s === asked?.side) ?? 'within'
+  api.addPanel({ id, component: id, title, position: near ? { referencePanel: near, direction: side } : undefined })
+}
+
+export function closePanel(id: string): void {
+  const panel = api?.getPanel(id)
+  if (panel) api!.removePanel(panel)
 }
 
 const closeIcon =

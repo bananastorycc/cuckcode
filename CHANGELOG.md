@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.52.0 — 2026-11-24
+
+- ✨ Plugins can open and close their own views and panels, decide when each is offered (views on the home screen too), leave out a header button, choose where a panel first docks, and show notes in the corner.
+- 🐛 A plugin view that hits an error shows a note instead of blanking the window.
+
 ## 1.51.0 — 2026-11-24
 
 - ✨ A plugin can have several full-window views, one per command, each with its own header button that toggles it on and off.

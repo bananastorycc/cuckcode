@@ -12,7 +12,7 @@
 import type * as Monaco from 'monaco-editor/editor/editor.api'
 import type { ComponentType, ReactNode } from 'react'
 import type { AgentPreset } from './agents'
-import type { Agent } from './types'
+import type { Agent, Section } from './types'
 
 export const MANIFEST = 'cuckcode-plugin.json'
 
@@ -93,28 +93,40 @@ export interface ProjectSource<T> {
 
 export interface ViewProps<T> {
   data: T
+  root: string | null // the open project's folder; null on the home screen
   openFile: (abs: string, line: number) => void
+  close: () => void // hides this view, or closes this panel
 }
 
-// A header button and a command that show a full-workspace view, while the project has data.
-// A plugin can register several, one per command; the button toggles it on and off.
-export interface PluginView<T> {
+// When a view or panel is offered (its header button, its command, show()). By default: while a
+// project is open and has data for the plugin, or always with a project open if the plugin keeps
+// none. `when` decides instead, from the plugin's data for the open project and the project's
+// folder, both null on the home screen. Panels live in the workspace, so they're never offered
+// there. A view or panel with `when` can be offered without data, so its render gets T | null.
+export type When<T> = (data: T | null, root: string | null) => boolean
+
+// Shows a view or a panel. A plugin can have several of each, one per command.
+interface Shown<T> {
   command: string // one of the manifest's commands
   title: string
   icon: ReactNode
+  button?: boolean // false: no header button; the command and show() still open it
   render: (props: ViewProps<T>) => ReactNode
 }
 
-// A header button and a command that open a dockable panel: a tab in the workspace (beside Scratch at
-// first; drag it anywhere, like the sections), for something to keep in view while you work. The
-// button opens it, brings it to the front, or closes it when it's showing; the tab's ✕ closes it too.
-// Open panels are saved with the layout. Like a view, it's offered while the project has data.
-export interface PluginPanel<T> {
+// A full-workspace view, over everything but the header. Its button and command toggle it.
+export type PluginView<T> = Shown<T>
+
+// A dockable panel: a tab in the workspace, for something to keep in view while you work. It opens
+// where dock says (by default a tab beside Scratch, or the first section showing of the ones that
+// usually share a group with it); drag it anywhere after, like the sections. Its button and command
+// open it, bring it to the front, or close it when it's showing; the tab's ✕ closes it too. Open
+// panels are saved with the layout.
+export interface PluginPanel<T> extends Shown<T> {
   id: string // [\w-]+, unique within the plugin
-  command: string // one of the manifest's commands
-  title: string
-  icon: ReactNode
-  render: (props: ViewProps<T>) => ReactNode
+  // Where it first opens: a tab with that section, or split off to one side of it. When the
+  // section is minimized, it opens in the default place instead.
+  dock?: { section: Section; side?: 'tab' | 'left' | 'right' | 'above' | 'below' }
 }
 
 export interface EditorContext<T> {
@@ -137,8 +149,22 @@ export interface RendererHost<T = unknown> {
   // Token colors added to cuckcode's light and dark editor themes.
   addThemeRules: (light: Monaco.editor.ITokenThemeRule[], dark: Monaco.editor.ITokenThemeRule[]) => void
   projectData: (source: ProjectSource<T>) => void
-  view: (view: PluginView<T>) => void
-  panel: (panel: PluginPanel<T>) => void
+  // Registering a command's view again replaces it.
+  view: {
+    (view: PluginView<T | null> & { when: When<T> }): void
+    (view: PluginView<T>): void
+  }
+  panel: {
+    (panel: PluginPanel<T | null> & { when: When<T> }): void
+    (panel: PluginPanel<T>): void
+  }
+  // Opens the view or panel for this command, as its button would, but never toggles it closed.
+  // false when it isn't offered right now (see When).
+  show: (command: string) => boolean
+  // Hides the view or closes the panel for this command, if it's showing.
+  hide: (command: string) => void
+  // A note in the corner, titled with the plugin's name. A failure (ok false) stays up longer.
+  toast: (text: string, opts?: { ok?: boolean }) => void
   onCommand: (id: string, fn: () => void) => void
   // Called for each code editor, now and later; the disposable runs when it goes.
   onEditor: (fn: (editor: Monaco.editor.ICodeEditor, ctx: EditorContext<T>) => Monaco.IDisposable | void) => void

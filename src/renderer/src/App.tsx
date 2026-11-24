@@ -5,6 +5,7 @@ import { target } from '../../shared/agents'
 import changelog from '../../../CHANGELOG.md?raw'
 import type { ChangedFile, Config, GitStatus, MenuCommand, PaneDir, SavedLayout, Settings as AllSettings, Theme, ThemeChoice } from '../../shared/types'
 import { SHELL_ID } from '../../shared/types'
+import type { When } from '../../shared/plugin'
 import AgentMenu from './components/AgentMenu'
 import Confirm, { ask } from './components/Confirm'
 import CodePane, { saveAll, selection, type Reveal } from './components/CodePane'
@@ -23,8 +24,8 @@ import Settings from './components/Settings'
 import Terminal, { pasteInto, shellQuote, whenReady } from './components/Terminal'
 import Toasts, { toast } from './components/Toasts'
 import WebPage from './components/WebPage'
-import { apply, hosts, mount, openPanels, panelHost, panelId, PRESETS, reveal as revealSection, SECTIONS, show as showSection, togglePanel, type Section } from './layout'
-import { loadPlugins, runCommand, setCurrent, setOpenFile, setSendToAgent, usePlugins, type Registered } from './plugins'
+import { apply, closePanel, hosts, mount, openPanel, openPanels, panelHost, panelId, PRESETS, reveal as revealSection, SECTIONS, show as showSection, togglePanel, type Section } from './layout'
+import { loadPlugins, runCommand, setCurrent, setOpenFile, setSendToAgent, setShow, usePlugins, type Registered } from './plugins'
 
 // What's shown: the README over the code pane, or a playground slot (from 1) or a plugin's
 // view (`plugin:<id>:<command>`) over the whole workspace.
@@ -276,37 +277,70 @@ export default function App(): React.JSX.Element {
   }
   const reading = config.readme && shown === 'readme'
 
-  // A plugin's views show while it has data for the project (or keeps none at all). A plugin can
-  // have several, one per command, each its own header toggle.
+  // Whether a plugin's view or panel is offered: by its when, else while a project is open and has
+  // the plugin's data (or the plugin keeps none). A when that throws offers nothing.
+  const offered = (p: Registered, when: When<unknown> | undefined): boolean => {
+    if (!when) return !!active && (!p.source || dataOf(p.id) !== null)
+    try {
+      return !!when(dataOf(p.id), active)
+    } catch (err) {
+      console.error(`plugin ${p.id}:`, err)
+      return false
+    }
+  }
+  // A plugin can have several views, one per command. They can show over the home screen too, so
+  // which one is showing is kept per project, and under '' with none open.
+  const here = active ?? ''
   const viewKey = (plugin: string, command: string) => `plugin:${plugin}:${command}` as const
-  const viewable = plugins.filter((p) => p.views.length && (!p.source || dataOf(p.id) !== null))
-  const views = viewable.flatMap((p) => p.views.map((v) => ({ key: viewKey(p.id, v.command), plugin: p, view: v })))
+  const views = plugins.flatMap((p) => p.views.filter((v) => offered(p, v.when)).map((v) => ({ key: viewKey(p.id, v.command), plugin: p, view: v })))
   const togglePluginView = (key: string): void => {
     const found = views.find((v) => v.key === key)
-    if (active && found) setView((v) => ({ ...v, [active]: v[active] === found.key ? undefined : found.key }))
+    if (found) setView((v) => ({ ...v, [here]: v[here] === found.key ? undefined : found.key }))
   }
-  const pluginView = views.find((v) => shown === v.key) ?? null
-  // Its panels are offered on the same terms as views: while the plugin has data for the project.
-  const paneled = plugins.filter((p) => p.panels.length && (!p.source || dataOf(p.id) !== null))
+  const hidePluginView = (key: string): void => setView((v) => (v[here] === key ? { ...v, [here]: undefined } : v))
+  const pluginView = views.find((v) => view[here] === v.key) ?? null
+  // Panels live in the workspace, so they're offered only with a project open.
+  const paneled = active
+    ? plugins.flatMap((p) => p.panels.filter((x) => offered(p, x.when)).map((panel) => ({ id: panelId(p.id, panel.id), plugin: p, panel })))
+    : []
   const openPanelIds = panels ? panels.split('\n') : []
   const onPluginCommand = (plugin: string, command: string): void => {
     const p = plugins.find((x) => x.id === plugin)
-    const panel = p?.panels.find((x) => x.command === command)
-    if (p?.views.some((v) => v.command === command)) togglePluginView(viewKey(plugin, command))
-    else if (panel) {
-      if (active && paneled.includes(p!)) togglePanel(panelId(plugin, panel.id), panel.title)
-    } else runCommand(plugin, command)
+    const v = views.find((x) => x.plugin === p && x.view.command === command)
+    const panel = paneled.find((x) => x.plugin === p && x.panel.command === command)
+    if (v) togglePluginView(v.key)
+    else if (panel) togglePanel(panel.id, panel.panel.title, panel.panel.dock)
+    // A view's or panel's command does nothing while it isn't offered.
+    else if (!p?.views.some((x) => x.command === command) && !p?.panels.some((x) => x.command === command)) runCommand(plugin, command)
   }
+  // A plugin's show() and hide(): like its button, but only ever opening (on) or closing.
+  const showPlugin = (plugin: string, command: string, on: boolean): boolean => {
+    const key = viewKey(plugin, command)
+    const panel = plugins.find((x) => x.id === plugin)?.panels.find((x) => x.command === command)
+    if (!on) {
+      hidePluginView(key)
+      if (panel) closePanel(panelId(plugin, panel.id))
+      return true
+    }
+    if (views.some((v) => v.key === key)) {
+      setView((v) => ({ ...v, [here]: key }))
+      return true
+    }
+    const offer = paneled.find((x) => x.plugin.id === plugin && x.panel.command === command)
+    if (offer) openPanel(offer.id, offer.panel.title, offer.panel.dock)
+    return !!offer
+  }
+  useEffect(() => setShow(showPlugin))
   // What a plugin panel's tab shows: the plugin's content, or why there's none.
   const panelContent = (id: string): ReactNode => {
     const p = plugins.find((x) => id.startsWith(`plugin:${x.id}:`))
     const panel = p?.panels.find((x) => panelId(p.id, x.id) === id)
     const note = (text: string): ReactNode => <div className="p-3 text-xs text-muted">{text}</div>
     if (!p || !panel) return note("This panel's plugin isn't loaded.")
-    if (p.source && dataOf(p.id) === null) return note(`${p.name} has nothing for this project.`)
+    if (!offered(p, panel.when)) return note(`${p.name} has nothing for this project.`)
     return (
       <Quiet what={`${p.id} panel`} reset={active} fallback={note(`${panel.title} hit an error (see the console).`)}>
-        {panel.render({ data: dataOf(p.id), openFile })}
+        {panel.render({ data: dataOf(p.id), root: active, openFile, close: () => closePanel(id) })}
       </Quiet>
     )
   }
@@ -628,17 +662,15 @@ export default function App(): React.JSX.Element {
         readme={config.readme}
         reading={reading}
         onReadme={toggleReadme}
-        pluginViews={active ? views.map((v) => ({ id: v.key, title: v.view.title, icon: v.view.icon, shortcut: v.plugin.shortcut(v.view.command) })) : []}
+        pluginViews={views
+          .filter((v) => v.view.button !== false)
+          .map((v) => ({ id: v.key, title: v.view.title, icon: v.view.icon, shortcut: v.plugin.shortcut(v.view.command) }))}
         pluginView={pluginView?.key ?? null}
         onPluginView={togglePluginView}
-        pluginPanels={
-          active
-            ? paneled.flatMap((p) =>
-                p.panels.map((x) => ({ id: panelId(p.id, x.id), title: x.title, icon: x.icon, shortcut: p.shortcut(x.command), open: openPanelIds.includes(panelId(p.id, x.id)) }))
-              )
-            : []
-        }
-        onPluginPanel={(id, title) => togglePanel(id, title)}
+        pluginPanels={paneled
+          .filter((x) => x.panel.button !== false)
+          .map((x) => ({ id: x.id, title: x.panel.title, icon: x.panel.icon, shortcut: x.plugin.shortcut(x.panel.command), open: openPanelIds.includes(x.id) }))}
+        onPluginPanel={(id, title) => togglePanel(id, title, paneled.find((x) => x.id === id)?.panel.dock)}
         webPages={config.webPages}
         showingWeb={showingWeb}
         onWeb={toggleWeb}
@@ -770,12 +802,6 @@ export default function App(): React.JSX.Element {
                 />
               </div>
             )}
-            {pluginView && (
-              <div className="absolute inset-0 z-30">
-                {pluginView.view.render({ data: dataOf(pluginView.plugin.id), openFile })}
-              </div>
-            )}
-            <Toasts />
           </>
         )}
         {!active && (
@@ -825,6 +851,21 @@ export default function App(): React.JSX.Element {
             )}
           </main>
         )}
+        {/* Over the project's workspace, or the home screen for a view offered there. One that throws
+            shows a note instead of taking the window down; another project gives it another try. */}
+        {pluginView && (
+          <div className="absolute inset-0 z-30">
+            <Quiet
+              key={pluginView.key}
+              what={`${pluginView.plugin.id} view`}
+              reset={active}
+              fallback={<div className="h-full bg-bg p-3 text-xs text-muted">{pluginView.view.title} hit an error (see the console).</div>}
+            >
+              {pluginView.view.render({ data: dataOf(pluginView.plugin.id), root: active, openFile, close: () => hidePluginView(pluginView.key) })}
+            </Quiet>
+          </div>
+        )}
+        <Toasts />
         {config.webPages.map(
           ({ url }, i) =>
             webOpened.has(url) &&
@@ -909,8 +950,8 @@ const pickConfig = (s: Config): Config => ({
   configRepo: s.configRepo
 })
 
-// A plugin's title-bar item or panel that throws drops out (or shows fallback) instead of taking the
-// window down with it. A change of reset (the project, for a panel) gives it another try.
+// A plugin's title-bar item, view or panel that throws drops out (or shows fallback) instead of taking
+// the window down with it. A change of reset (the project, for a view or panel) gives it another try.
 class Quiet extends Component<{ children: ReactNode; what?: string; reset?: unknown; fallback?: ReactNode }, { failed: boolean }> {
   state = { failed: false }
   static getDerivedStateFromError(): { failed: boolean } {

@@ -3,8 +3,9 @@ import * as jsxRuntime from 'react/jsx-runtime'
 import * as ReactDOM from 'react-dom'
 import { useSyncExternalStore } from 'react'
 import type { AgentPreset } from '../../shared/agents'
-import type { AgentBarItem, EditorContext, HOST_MODULES, PluginPanel, PluginView, ProjectSource, RendererHost, RendererPlugin } from '../../shared/plugin'
+import type { AgentBarItem, EditorContext, HOST_MODULES, PluginPanel, PluginView, ProjectSource, RendererHost, RendererPlugin, When } from '../../shared/plugin'
 import Scratch from './components/Scratch'
+import { toast } from './components/Toasts'
 import { addThemeRules, monaco } from './monaco'
 
 // The renderer side of plugins: what they registered, for App and CodePane to use. Loaded once
@@ -17,8 +18,8 @@ export interface Registered {
   id: string
   name: string
   source: ProjectSource<unknown> | null
-  views: PluginView<unknown>[]
-  panels: PluginPanel<unknown>[]
+  views: (PluginView<unknown> & { when?: When<unknown> })[]
+  panels: (PluginPanel<unknown> & { when?: When<unknown> })[]
   commands: Map<string, () => void>
   presets: AgentPreset[]
   bar: AgentBarItem[]
@@ -59,6 +60,7 @@ const apis = new Map<string, unknown>()
 const current = new Map<string, unknown>()
 let openFile: (abs: string, line: number) => void = () => {}
 let sendToAgent: (text: string, submit: boolean, from: string) => Promise<boolean> = async () => false
+let show: (plugin: string, command: string, on: boolean) => boolean = () => false
 
 export const usePlugins = (): Registered[] =>
   useSyncExternalStore(
@@ -79,6 +81,11 @@ export function setOpenFile(fn: (abs: string, line: number) => void): void {
 
 export function setSendToAgent(fn: typeof sendToAgent): void {
   sendToAgent = fn
+}
+
+// Opens (on) or closes the view or panel for a plugin's command; false when it isn't offered.
+export function setShow(fn: typeof show): void {
+  show = fn
 }
 
 export const mediaUrl = (abs: string): string => `media://local/?path=${encodeURIComponent(abs)}`
@@ -148,18 +155,22 @@ export async function loadPlugins(): Promise<void> {
       projectData: (source) => (reg.source = source),
       // One per command, which names its header button, so one without a command is refused. Registering
       // a command's view again replaces it in place, keeping its button where it was.
-      view: (view) => {
-        const v = view as PluginView<unknown>
+      view: (v: PluginView<unknown> & { when?: When<unknown> }) => {
         if (typeof v?.command !== 'string') console.error(`plugin ${p.id}: view needs a command:`, v?.command)
         else if (reg.views.some((x) => x.command === v.command)) reg.views = reg.views.map((x) => (x.command === v.command ? v : x))
         else reg.views = [...reg.views, v]
       },
-      // A panel's id names its dock tab and is saved in layouts, so a bad or repeated one is refused.
-      panel: (panel) => {
+      // A panel's id names its dock tab and is saved in layouts, so a bad or repeated one is refused,
+      // as is one without a command (nothing could open it).
+      panel: (panel: PluginPanel<unknown> & { when?: When<unknown> }) => {
         if (typeof panel?.id !== 'string' || !/^[\w-]+$/.test(panel.id)) console.error(`plugin ${p.id}: panel id must match [\\w-]+:`, panel?.id)
+        else if (typeof panel.command !== 'string') console.error(`plugin ${p.id}: panel ${panel.id} needs a command:`, panel.command)
         else if (reg.panels.some((x) => x.id === panel.id)) console.error(`plugin ${p.id}: panel ${panel.id} is already registered`)
-        else reg.panels.push(panel as PluginPanel<unknown>)
+        else reg.panels.push(panel)
       },
+      show: (command) => show(p.id, command, true),
+      hide: (command) => void show(p.id, command, false),
+      toast: (text, opts) => toast(opts?.ok ?? true, p.name, String(text)),
       onCommand: (id, fn) => reg.commands.set(id, fn),
       onEditor: (fn) => {
         const h = { id: p.id, fn: fn as EditorHook }

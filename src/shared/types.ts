@@ -5,6 +5,10 @@ export type Theme = 'light' | 'dark'
 // What Settings stores: auto follows the system, dark when it can't tell.
 export type ThemeChoice = 'auto' | Theme
 
+// The workspace's sections, each a tab in the dock (the renderer's layout.ts arranges them).
+export const SECTIONS = ['files', 'search', 'editor', 'terminal', 'agents', 'git', 'scratch'] as const
+export type Section = (typeof SECTIONS)[number]
+
 export type ChangeCode = 'M' | 'A' | 'D' | 'R' | '?'
 
 export interface ChangedFile {
