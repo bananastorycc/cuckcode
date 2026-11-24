@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.51.0 — 2026-11-24
+
+- ✨ A plugin can have several full-window views, one per command, each with its own header button that toggles it on and off.
+
 ## 1.50.2 — 2026-11-24
 
 - 🐛 media:// serves audio files (`.ogg`, `.opus`, `.mp3`, `.wav`, `.flac`, `.m4a`) with their audio types, so plugins can play them in `<audio>` reliably.

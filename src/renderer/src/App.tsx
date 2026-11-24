@@ -27,7 +27,7 @@ import { apply, hosts, mount, openPanels, panelHost, panelId, PRESETS, reveal as
 import { loadPlugins, runCommand, setCurrent, setOpenFile, setSendToAgent, usePlugins, type Registered } from './plugins'
 
 // What's shown: the README over the code pane, or a playground slot (from 1) or a plugin's
-// view (`plugin:<id>`) over the whole workspace.
+// view (`plugin:<id>:<command>`) over the whole workspace.
 type View = number | 'readme' | `plugin:${string}`
 
 export default function App(): React.JSX.Element {
@@ -276,20 +276,23 @@ export default function App(): React.JSX.Element {
   }
   const reading = config.readme && shown === 'readme'
 
-  // A plugin's view shows while it has data for the project (or keeps none at all).
-  const viewable = plugins.filter((p) => p.view && (!p.source || dataOf(p.id) !== null))
-  const togglePluginView = (id: string): void => {
-    const key = `plugin:${id}` as const
-    if (active && viewable.some((p) => p.id === id)) setView((v) => ({ ...v, [active]: v[active] === key ? undefined : key }))
+  // A plugin's views show while it has data for the project (or keeps none at all). A plugin can
+  // have several, one per command, each its own header toggle.
+  const viewKey = (plugin: string, command: string) => `plugin:${plugin}:${command}` as const
+  const viewable = plugins.filter((p) => p.views.length && (!p.source || dataOf(p.id) !== null))
+  const views = viewable.flatMap((p) => p.views.map((v) => ({ key: viewKey(p.id, v.command), plugin: p, view: v })))
+  const togglePluginView = (key: string): void => {
+    const found = views.find((v) => v.key === key)
+    if (active && found) setView((v) => ({ ...v, [active]: v[active] === found.key ? undefined : found.key }))
   }
-  const pluginView = viewable.find((p) => shown === `plugin:${p.id}`) ?? null
+  const pluginView = views.find((v) => shown === v.key) ?? null
   // Its panels are offered on the same terms as views: while the plugin has data for the project.
   const paneled = plugins.filter((p) => p.panels.length && (!p.source || dataOf(p.id) !== null))
   const openPanelIds = panels ? panels.split('\n') : []
   const onPluginCommand = (plugin: string, command: string): void => {
     const p = plugins.find((x) => x.id === plugin)
     const panel = p?.panels.find((x) => x.command === command)
-    if (p?.view?.command === command) togglePluginView(plugin)
+    if (p?.views.some((v) => v.command === command)) togglePluginView(viewKey(plugin, command))
     else if (panel) {
       if (active && paneled.includes(p!)) togglePanel(panelId(plugin, panel.id), panel.title)
     } else runCommand(plugin, command)
@@ -625,8 +628,8 @@ export default function App(): React.JSX.Element {
         readme={config.readme}
         reading={reading}
         onReadme={toggleReadme}
-        pluginViews={active ? viewable.map((p) => ({ id: p.id, title: p.view!.title, icon: p.view!.icon, shortcut: p.shortcut(p.view!.command) })) : []}
-        pluginView={pluginView?.id ?? null}
+        pluginViews={active ? views.map((v) => ({ id: v.key, title: v.view.title, icon: v.view.icon, shortcut: v.plugin.shortcut(v.view.command) })) : []}
+        pluginView={pluginView?.key ?? null}
         onPluginView={togglePluginView}
         pluginPanels={
           active
@@ -769,7 +772,7 @@ export default function App(): React.JSX.Element {
             )}
             {pluginView && (
               <div className="absolute inset-0 z-30">
-                {pluginView.view!.render({ data: dataOf(pluginView.id), openFile })}
+                {pluginView.view.render({ data: dataOf(pluginView.plugin.id), openFile })}
               </div>
             )}
             <Toasts />

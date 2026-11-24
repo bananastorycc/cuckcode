@@ -97,6 +97,7 @@ export interface ViewProps<T> {
 }
 
 // A header button and a command that show a full-workspace view, while the project has data.
+// A plugin can register several, one per command; the button toggles it on and off.
 export interface PluginView<T> {
   command: string // one of the manifest's commands
   title: string

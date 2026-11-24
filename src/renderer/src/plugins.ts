@@ -17,7 +17,7 @@ export interface Registered {
   id: string
   name: string
   source: ProjectSource<unknown> | null
-  view: PluginView<unknown> | null
+  views: PluginView<unknown>[]
   panels: PluginPanel<unknown>[]
   commands: Map<string, () => void>
   presets: AgentPreset[]
@@ -121,7 +121,7 @@ export async function loadPlugins(): Promise<void> {
       id: p.id,
       name: p.name,
       source: null,
-      view: null,
+      views: [],
       panels: [],
       commands: new Map(),
       presets: [],
@@ -146,7 +146,14 @@ export async function loadPlugins(): Promise<void> {
       use: <A,>(id: string) => apis.get(id) as A | undefined,
       addThemeRules,
       projectData: (source) => (reg.source = source),
-      view: (view) => (reg.view = view),
+      // One per command, which names its header button, so one without a command is refused. Registering
+      // a command's view again replaces it in place, keeping its button where it was.
+      view: (view) => {
+        const v = view as PluginView<unknown>
+        if (typeof v?.command !== 'string') console.error(`plugin ${p.id}: view needs a command:`, v?.command)
+        else if (reg.views.some((x) => x.command === v.command)) reg.views = reg.views.map((x) => (x.command === v.command ? v : x))
+        else reg.views = [...reg.views, v]
+      },
       // A panel's id names its dock tab and is saved in layouts, so a bad or repeated one is refused.
       panel: (panel) => {
         if (typeof panel?.id !== 'string' || !/^[\w-]+$/.test(panel.id)) console.error(`plugin ${p.id}: panel id must match [\\w-]+:`, panel?.id)
