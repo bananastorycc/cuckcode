@@ -333,9 +333,11 @@ html {
 }
 
 /* A section alone in its group has nothing to switch to, so its tab bar shrinks to a thin strip
-   that shows the tab on hover, over the section's top edge: it can still be dragged away, and
-   dropping another section on it brings the bar back. dockview sizes the content from the bar's
-   real height, so the strip is all it takes; the tab overflows it, and the group must let it. */
+   over the section's top edge. Hovering the strip shows a small grip in its middle; hovering the
+   grip drops the tab down as a chip, to drag away or minimize. Nothing else of the bar paints or
+   takes the mouse, so the content beside it stays clickable, and dropping another section on the
+   section brings the bar back. dockview sizes the content from the bar's real height, so the strip
+   is all it takes; the chip overflows it, and the group must let it. */
 .cc-dock .dv-groupview:has(> .dv-single-tab) {
   overflow: visible;
 }
@@ -344,19 +346,62 @@ html {
   z-index: 7;
   height: 6px;
   overflow: visible;
+  background: transparent;
 }
-.cc-dock .dv-single-tab > * {
-  height: var(--dv-tabs-and-actions-container-height);
-  background-color: var(--panel);
-  border-bottom: 1px solid var(--line);
+.cc-dock .dv-single-tab > :not(.dv-scrollable) {
+  pointer-events: none;
+}
+.cc-dock .dv-single-tab::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  width: 28px;
+  height: 3px;
+  margin-left: -14px;
+  border-radius: 2px;
+  background-color: var(--muted);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.1s;
 }
-.cc-dock .dv-single-tab:hover > * {
+.cc-dock .dv-single-tab:hover::after {
+  opacity: 0.6;
+}
+.cc-dock .dv-single-tab:has(> .dv-scrollable:hover)::after {
+  opacity: 0;
+}
+/* The chip: idle, just the 6px over the grip, invisible, so only the grip opens it. */
+.cc-dock .dv-single-tab > .dv-scrollable {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: auto;
+  height: 6px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translate(-50%, -2px);
+  background-color: var(--panel);
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.15);
+  transition:
+    opacity 0.1s,
+    transform 0.1s,
+    height 0s 0.1s;
+}
+.cc-dock .dv-single-tab > .dv-scrollable:hover {
+  height: var(--dv-tabs-and-actions-container-height);
   opacity: 1;
-  pointer-events: auto;
-  transition-delay: 0.15s;
+  transform: translate(-50%, 0);
+  transition:
+    opacity 0.1s 0.06s,
+    transform 0.1s 0.06s,
+    height 0s 0.06s;
+}
+.cc-dock .dv-single-tab .dv-scrollbar {
+  display: none;
 }
 
 /* The section you're in (⌃⇧arrows move it) gets an accent frame. An overlay, so the editor's and
