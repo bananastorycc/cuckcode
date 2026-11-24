@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.50.2 — 2026-11-24
+
+- 🐛 media:// serves audio files (`.ogg`, `.opus`, `.mp3`, `.wav`, `.flac`, `.m4a`) with their audio types, so plugins can play them in `<audio>` reliably.
+
 ## 1.50.1 — 2026-11-23
 
 - 🐛 An AI commit message whose subject starts with "Commit messages" isn't mistaken for the model talking about the task, and a `<message>` tag the model left open doesn't end up in the commit.
