@@ -1,11 +1,11 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { Api, MenuCommand, Settings, SyncStatus } from '../shared/types'
+import type { Api, MenuCommand, RunExit, Settings, SyncStatus } from '../shared/types'
 
 // One IPC listener per channel, fanned out by PTY id, instead of every terminal
 // filtering every chunk.
-function router(channel: string): (id: string, cb: (data: string) => void) => () => void {
-  const subs = new Map<string, Set<(data: string) => void>>()
-  ipcRenderer.on(channel, (_e, id: string, data: string) => subs.get(id)?.forEach((cb) => cb(data)))
+function router<T>(channel: string): (id: string, cb: (data: T) => void) => () => void {
+  const subs = new Map<string, Set<(data: T) => void>>()
+  ipcRenderer.on(channel, (_e, id: string, data: T) => subs.get(id)?.forEach((cb) => cb(data)))
   return (id, cb) => {
     if (!subs.has(id)) subs.set(id, new Set())
     subs.get(id)!.add(cb)
@@ -37,6 +37,8 @@ const api: Api = {
   ptyWrite: (id, data) => ipcRenderer.send('pty:write', id, data),
   ptyResize: (id, cols, rows) => ipcRenderer.send('pty:resize', id, cols, rows),
   ptyKill: (id) => ipcRenderer.send('pty:kill', id),
+  runStart: (id, spec, cols, rows) => ipcRenderer.invoke('run:start', id, spec, cols, rows),
+  runStop: (id) => ipcRenderer.send('run:stop', id),
 
   status: (cwd) => ipcRenderer.invoke('git:status', cwd),
   files: (root) => ipcRenderer.invoke('git:files', root),
@@ -75,8 +77,8 @@ const api: Api = {
   syncNow: () => ipcRenderer.send('config:syncNow'),
   syncStatus: () => ipcRenderer.invoke('config:syncStatus'),
 
-  onPtyData: router('pty:data'),
-  onPtyExit: router('pty:exit'),
+  onPtyData: router<string>('pty:data'),
+  onPtyExit: router<RunExit | undefined>('pty:exit'),
   onFsChange: (cb) => {
     const fn = (_e: IpcRendererEvent, project: string, paths: string[] | null): void => cb(project, paths)
     ipcRenderer.on('fs:change', fn)

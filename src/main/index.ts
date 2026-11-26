@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Worker } from 'node:worker_threads'
-import type { Agent, Bounds, GitOp, MenuCommand, PaneDir, PluginGitOp, Settings, ChangedFile, SearchQuery, SearchResult } from '../shared/types'
+import type { Agent, Bounds, GitOp, MenuCommand, PaneDir, PluginGitOp, RunSpec, Settings, ChangedFile, SearchQuery, SearchResult } from '../shared/types'
 import { MAX_SLOTS, SHELL_ID } from '../shared/types'
 import { CLAUDE, COMMIT_COMMAND, fromPreset } from '../shared/agents'
 import { writeAtomic } from './atomic'
@@ -423,7 +423,8 @@ async function replaceAll(root: string, q: SearchQuery, replacement: string, pat
 }
 
 function registerIpc(): void {
-  const ptySink = (channel: string, id: string, data?: string): void => send(channel, id, data)
+  const reach = (dir: string): boolean => repos.pluginReach(dir, settings.projects, settings.projectsDir)
+  const ptySink = (channel: string, id: string, data?: unknown): void => send(channel, id, data)
 
   ipcMain.handle('app:init', () => settings)
   ipcMain.handle('app:defaults', () => DEFAULTS)
@@ -453,6 +454,9 @@ function registerIpc(): void {
   ipcMain.on('pty:write', (_e, id: string, data: string) => pty.write(id, data))
   ipcMain.on('pty:resize', (_e, id: string, cols: number, rows: number) => pty.resize(id, cols, rows))
   ipcMain.on('pty:kill', (_e, id: string) => pty.kill(id))
+  // A plugin's run gets the same reach as its git.
+  ipcMain.handle('run:start', (_e, id: string, spec: RunSpec, cols: number, rows: number) => pty.run(id, spec, cols, rows, ptySink, reach))
+  ipcMain.on('run:stop', (_e, id: string) => pty.stop(id))
 
   ipcMain.handle('git:status', (_e, cwd: string) => git.status(cwd))
   ipcMain.handle('git:files', (_e, root: string) => git.listFiles(root))
@@ -462,7 +466,6 @@ function registerIpc(): void {
   ipcMain.handle('git:commitFiles', (_e, root: string, sha: string) => git.commitFiles(root, sha))
   ipcMain.handle('git:op', (_e, cwd: string, op: GitOp, arg?: string) => git.op(cwd, op, arg, settings.commitCommand))
   ipcMain.handle('git:setRemote', (_e, cwd: string, name: string, url: string) => git.setRemote(cwd, name, url))
-  const reach = (dir: string): boolean => repos.pluginReach(dir, settings.projects, settings.projectsDir)
   const outOfReach = (dir: string): string => `${dir} isn't an open project or in the projects folder.`
   ipcMain.handle('git:pluginStatus', (_e, dir: string) => (reach(dir) ? git.repoStatus(dir) : Promise.reject(new Error(outOfReach(dir)))))
   ipcMain.handle('git:pluginOp', (_e, dir: string, op: PluginGitOp, message?: string) =>

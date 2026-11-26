@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.55.0 — 2026-11-26
+
+- ✨ A plugin can run a command in a terminal inside its own view, with one click: output stays in that terminal, never reaches an agent, and ✕ stops it. A script can be pinned to what you were shown: if it changed since, it's refused and nothing runs.
+
 ## 1.54.0 — 2026-11-26
 
 - ✨ A plugin whose view covers the workspace can run the git panel's commit, sync, pull and push on your repos, have your commit command draft a message to show you before committing, and see when a rebase or merge is stuck.

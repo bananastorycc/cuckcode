@@ -1,11 +1,10 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import { Terminal as XTerm } from '@xterm/xterm'
-import { FitAddon } from '@xterm/addon-fit'
+import type { Terminal as XTerm } from '@xterm/xterm'
 import { RotateCcw } from 'lucide-react'
-import '@xterm/xterm/css/xterm.css'
 import type { Theme } from '../../../shared/types'
 import { SHELL_ID } from '../../../shared/types'
-import { MONO, TERMINAL } from '../theme'
+import { TERMINAL } from '../theme'
+import { openXterm, shellQuote } from '../xterm'
 import { saveAll } from './CodePane'
 import { toast } from './Toasts'
 
@@ -50,8 +49,6 @@ export function pasteInto(id: string, text: string, focus = true): boolean {
 // The drag type FileTree rows carry: the dragged file's absolute path.
 export const PATH_DRAG = 'application/x-cuckcode-path'
 
-export const shellQuote = (s: string): string => (/^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`)
-
 export default function Terminal({ project, agent, name, mentions, newline, active, theme, title, onNotify }: Props): React.JSX.Element {
   const id = `${agent}:${project}`
   const host = useRef<HTMLDivElement>(null)
@@ -78,18 +75,7 @@ export default function Terminal({ project, agent, name, mentions, newline, acti
   }
 
   useEffect(() => {
-    const t = new XTerm({
-      fontFamily: MONO,
-      fontSize: 13,
-      lineHeight: 1.2,
-      cursorBlink: true,
-      macOptionIsMeta: true,
-      scrollback: 5_000,
-      theme: TERMINAL[theme]
-    })
-    const fit = new FitAddon()
-    t.loadAddon(fit)
-    t.open(host.current!)
+    const { term: t, dispose } = openXterm(host.current!, theme)
     term.current = t
     terms.set(id, t)
 
@@ -154,30 +140,15 @@ export default function Terminal({ project, agent, name, mentions, newline, acti
     })
     t.onResize(({ cols, rows }) => window.api.ptyResize(id, cols, rows))
 
-    // Only at a real size: a minimized section's host can be squashed to 0 high, and fitting
-    // that would shrink the PTY to one row and reflow everything in it.
-    const shown = (): boolean => !!host.current?.offsetWidth && !!host.current.offsetHeight
-    let frame = 0
-    const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(() => {
-        if (shown()) fit.fit()
-      })
-    })
-    observer.observe(host.current!)
-
-    if (shown()) fit.fit()
     window.api
       .ptyStart(id, t.cols, t.rows)
       .then((replay) => replay && t.write(replay), failed)
       .finally(() => (replayed = true))
 
     return () => {
-      cancelAnimationFrame(frame)
-      observer.disconnect()
       offData()
       offExit()
-      t.dispose()
+      dispose()
       terms.delete(id)
       term.current = null
     }

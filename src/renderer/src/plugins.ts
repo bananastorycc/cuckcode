@@ -3,9 +3,10 @@ import * as jsxRuntime from 'react/jsx-runtime'
 import * as ReactDOM from 'react-dom'
 import { useSyncExternalStore } from 'react'
 import type { AgentPreset } from '../../shared/agents'
-import type { AgentBarItem, EditorContext, HOST_MODULES, PluginGit, PluginPanel, PluginView, ProjectSource, RendererHost, RendererPlugin, When } from '../../shared/plugin'
+import type { AgentBarItem, EditorContext, HOST_MODULES, PluginGit, PluginPanel, PluginView, ProjectSource, RendererHost, RendererPlugin, RunProps, When } from '../../shared/plugin'
 import type { GitResult, PluginGitOp } from '../../shared/types'
 import { EmbeddedPlayground } from './components/Playground'
+import Run from './components/Run'
 import Scratch from './components/Scratch'
 import { toast } from './components/Toasts'
 import { addThemeRules, monaco } from './monaco'
@@ -207,6 +208,8 @@ export async function loadPlugins(): Promise<void> {
       agentBar: (item) => reg.bar.push(item),
       Scratch,
       Playground: EmbeddedPlayground,
+      // Bound to the plugin, whose id scopes its runs' names.
+      Run: (props: RunProps) => React.createElement(Run, { ...props, plugin: p.id }),
       git,
       onPlayground: (fn) =>
         onPlayChange((slot, project) => {

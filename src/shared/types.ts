@@ -50,6 +50,20 @@ export interface GitResult {
   output: string
 }
 
+// One command a plugin runs in a terminal of its own (RendererHost.Run).
+export interface RunSpec {
+  cwd: string
+  argv: string[]
+  pin?: { path: string; sha256: string }
+}
+
+// How a run ended. code is null when it was stopped (✕, a signal) or never started; refused says
+// why it never started.
+export interface RunExit {
+  code: number | null
+  refused?: string
+}
+
 // A rebase or merge git stopped in the middle of (a conflict to resolve), or null.
 export type Midway = 'rebase' | 'merge' | null
 
@@ -235,6 +249,11 @@ export interface Api {
   ptyWrite: (id: string, data: string) => void
   ptyResize: (id: string, cols: number, rows: number) => void
   ptyKill: (id: string) => void
+  // A plugin's run (id `run.<plugin>.<name>`): starts it once, or reattaches to it, running or
+  // ended. exit is set when it has ended (or was refused); then nothing more arrives.
+  runStart: (id: string, spec: RunSpec, cols: number, rows: number) => Promise<{ replay: string; exit?: RunExit }>
+  // Stops a run; its exit still arrives (code null).
+  runStop: (id: string) => void
 
   status: (cwd: string) => Promise<GitStatus>
   files: (root: string) => Promise<string[]>
@@ -293,7 +312,8 @@ export interface Api {
   syncStatus: () => Promise<SyncStatus>
 
   onPtyData: (id: string, cb: (data: string) => void) => () => void
-  onPtyExit: (id: string, cb: () => void) => () => void
+  // A run's exit carries how it ended; an agent's or shell's carries nothing.
+  onPtyExit: (id: string, cb: (exit?: RunExit) => void) => () => void
   // paths: what changed, relative to the project; null when the watcher couldn't say.
   onFsChange: (cb: (project: string, paths: string[] | null) => void) => () => void
   onMenu: (cb: (cmd: MenuCommand) => void) => () => void

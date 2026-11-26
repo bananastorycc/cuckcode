@@ -12,7 +12,7 @@
 import type * as Monaco from 'monaco-editor/editor/editor.api'
 import type { ComponentType, ReactNode } from 'react'
 import type { AgentPreset } from './agents'
-import type { Agent, GitResult, RepoStatus, Section } from './types'
+import type { Agent, GitResult, RepoStatus, RunExit, Section } from './types'
 
 export const MANIFEST = 'cuckcode-plugin.json'
 
@@ -171,6 +171,38 @@ export interface PlaygroundProps {
   actions?: ReactNode // at the right of its title bar
 }
 
+// One command in a terminal of its own, drawn where the plugin renders it: for a plugin that runs
+// a script the user has just read, with one click. It isn't the Terminal section's shell and
+// nothing in it reaches an agent: its output goes only to this terminal. Keys typed in it go to
+// the command (to answer its prompts); its ✕ stops it.
+export interface RunProps {
+  // Names the run within the plugin ([\w-]+). The command runs once, when a Run with a new id
+  // first mounts. Rendering that id again (the view reopened, the panel moved, another project's
+  // tab) shows the same run, still running or ended, whatever the other props say then. Nothing
+  // reruns it, not even a key pressed after it ends: running again takes a new id (a new click).
+  // A run that's still going when its Run unmounts carries on; quitting stops it.
+  id: string
+  // Where it runs: as for git, an open project or a folder in one, or a folder in the projects
+  // folder (Settings); any other is refused.
+  cwd: string
+  // The program and its arguments, as is: no shell reads them, so nothing needs quoting. It runs
+  // with the login shell's environment, as the terminals do (so the user's PATH finds it), and
+  // none of the CUCKCODE_* variables agents get.
+  argv: string[]
+  // Runs a script only if it's still what the user was shown. path is absolute, and one of argv's
+  // arguments, as a shell takes a script: ['bash', path, ...args]. cuckcode reads the file once,
+  // checks its sha256 (hex), and runs exactly those bytes, as `bash -c <bytes> <path> ...args`
+  // ($0 is still the path; BASH_SOURCE is empty), so a change made after the check can't run.
+  // A changed file is refused ("file changed since shown"), as is a missing or binary one: nothing runs.
+  // Only shells take a script this way: sh, bash, zsh.
+  pin?: { path: string; sha256: string }
+  title?: string // in its title bar; by default the command
+  // When the run ends, or is refused (refused says why, and the terminal shows it). Called again
+  // when a Run for a run that already ended mounts, so a view reopened later still hears how it went.
+  onExit?: (exit: RunExit) => void
+  actions?: ReactNode // at the right of its title bar, before the ✕
+}
+
 export interface RendererHost<T = unknown> {
   monaco: typeof Monaco
   invoke: <R>(name: string, ...args: unknown[]) => Promise<R>
@@ -221,6 +253,7 @@ export interface RendererHost<T = unknown> {
   // changes. While it's showing, its slot's header dot stays out. On the home screen it says to
   // open a project.
   Playground: ComponentType<PlaygroundProps>
+  Run: ComponentType<RunProps>
   git: PluginGit
   // Called when a playground slot's page in the open project changes (an agent wrote or touched
   // it): what lights the slot's dot in the header, though this fires even while the page is
