@@ -603,10 +603,13 @@ export default function App(): React.JSX.Element {
   useEffect(() => setOpenFile(openFile))
 
   // Shows an agent (starting it if it wasn't running) and resolves once its prompt is up.
-  const wake = (path: string, agentId: string): Promise<boolean> => {
+  // With stay, only starts it: the screen and the agent in front stay as they are.
+  const wake = (path: string, agentId: string, stay = false): Promise<boolean> => {
     const id = `${agentId}:${path}`
-    revealSection('agents')
-    setTerms((t) => ({ ...t, [path]: agentId }))
+    if (!stay) {
+      revealSection('agents')
+      setTerms((t) => ({ ...t, [path]: agentId }))
+    }
     setStarted((s) => (s.has(id) ? s : new Set(s).add(id)))
     return whenReady(id)
   }
@@ -636,7 +639,8 @@ export default function App(): React.JSX.Element {
 
   // Back to the workspace, and type text into the agent that takes playground answers, as if
   // typed there; with submit, Enter follows. Playground Done and plugins (sendToAgent) use it.
-  const tellAgent = async (text: string, submit: boolean, from: string): Promise<boolean> => {
+  // With stay (plugins only), the screen and focus stay put: the agent just gets the text.
+  const tellAgent = async (text: string, submit: boolean, from: string, stay = false): Promise<boolean> => {
     if (!active) return false
     const to = target(agents, agentOf(active), (a) => a.playground)
     if (!to) {
@@ -644,8 +648,8 @@ export default function App(): React.JSX.Element {
       return false
     }
     const id = `${to.id}:${active}`
-    setView((v) => ({ ...v, [active]: undefined }))
-    if (!(await wake(active, to.id)) || !pasteInto(id, text)) return false
+    if (!stay) setView((v) => ({ ...v, [active]: undefined }))
+    if (!(await wake(active, to.id, stay)) || !pasteInto(id, text, !stay)) return false
     if (submit) setTimeout(() => window.api.ptyWrite(id, '\r'), 150)
     return true
   }

@@ -59,7 +59,7 @@ const apis = new Map<string, unknown>()
 // Per plugin: its data for the active project. App keeps it current.
 const current = new Map<string, unknown>()
 let openFile: (abs: string, line: number) => void = () => {}
-let sendToAgent: (text: string, submit: boolean, from: string) => Promise<boolean> = async () => false
+let sendToAgent: (text: string, submit: boolean, from: string, stay?: boolean) => Promise<boolean> = async () => false
 let show: (plugin: string, command: string, on: boolean) => boolean = () => false
 
 export const usePlugins = (): Registered[] =>
@@ -177,7 +177,7 @@ export async function loadPlugins(): Promise<void> {
         editorHooks.push(h)
         for (const editor of editors.keys()) hook(editor, h)
       },
-      sendToAgent: (text, opts) => sendToAgent(text, opts?.submit ?? true, p.name),
+      sendToAgent: (text, opts) => sendToAgent(text, opts?.submit ?? true, p.name, opts?.stay),
       mediaUrl,
       agentPreset: (preset) => reg.presets.push(preset),
       agentBar: (item) => reg.bar.push(item),

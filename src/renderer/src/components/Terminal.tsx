@@ -40,10 +40,10 @@ export function whenReady(id: string, ms = 30_000): Promise<boolean> {
 
 // Pasted, not typed: xterm wraps it in bracketed paste when the program asked for that, so
 // the agent takes it as one input rather than keystrokes.
-export function pasteInto(id: string, text: string): boolean {
+export function pasteInto(id: string, text: string, focus = true): boolean {
   const t = terms.get(id)
   t?.paste(text)
-  t?.focus()
+  if (focus) t?.focus()
   return !!t
 }
 

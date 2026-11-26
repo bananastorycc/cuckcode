@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.53.0 — 2026-11-26
+
+- ✨ A plugin can send text to the agent and stay on screen (`sendToAgent` with `stay`): its view stays open and keeps the keyboard, and the agent gets the text without coming to the front, started first if it wasn't running.
+
 ## 1.52.3 — 2026-11-24
 
 - 🐛 A plugin view, playground or README opened while a web page or Folders is up comes out from under it, instead of lighting its button and showing nothing.

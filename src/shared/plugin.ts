@@ -171,7 +171,11 @@ export interface RendererHost<T = unknown> {
   // Types text into the agent that takes playground answers (the one in front, else the first), as
   // if typed there: closes the view, shows the agent (starting it if needed), pastes, and presses
   // Enter unless submit is false. Resolves false when there's no such agent or it didn't start.
-  sendToAgent: (text: string, opts?: { submit?: boolean }) => Promise<boolean>
+  // With stay, the screen and keyboard focus stay as they are: the view stays open and the agent
+  // isn't shown or brought to the front, though it's still started if needed. The plugin then
+  // can't see what the text lands on (a question the agent is asking, half-typed input), so it
+  // should check the agent's state itself and toast what it sent.
+  sendToAgent: (text: string, opts?: { submit?: boolean; stay?: boolean }) => Promise<boolean>
   // A URL the page can load for a file on disk (images, video).
   mediaUrl: (abs: string) => string
   // An agent to start from in Settings › Agents › Add, beside the built-in ones.
