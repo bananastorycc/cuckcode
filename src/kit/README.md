@@ -16,7 +16,7 @@ Playground pages are built from blocks. A page names its blocks and their conten
 - `submit`: the Done button's label, or `false` to drop it (pages with nothing to answer). Done saves, closes the playground and sends the project's Claude a message to read the answers.
 - `answers`: the data file's name (default `answers`, i.e. `data/answers.json`).
 
-Answers are saved 300ms after each change, as `{ "<block id>": answer, "_done": "<ISO time>" }`. `_done` is set when the user presses Done. Restored on reload, so Claude can rewrite the page while the user works; the reload also keeps where they were scrolled to and which tabs are open (for a page with the same title). If the page's script throws, a banner says so at the top, so the user knows to ask for a fix. A block without an `id` gets `<type><n>` (by position), so give an id to every block whose answer you'll read.
+Answers are saved 300ms after each change, as `{ "<block id>": answer, "_done": "<ISO time>" }`. `_done` is set when the user presses Done. A block left untouched still answers with what it showed as already chosen (a form's defaults, a plan or board as written, tune's starting values), saved by Done; an answer already saved is never replaced. Restored on reload, so Claude can rewrite the page while the user works; the reload also keeps where they were scrolled to and which tabs are open (for a page with the same title). If the page's script throws, a banner says so at the top, so the user knows to ask for a fix. A block without an `id` gets `<type><n>` (by position), so give an id to every block whose answer you'll read.
 
 Every block also takes `title`, `text` (Markdown under the title) and `wide`.
 
@@ -130,7 +130,8 @@ Blocks can't do it? Keep `kit.js` and add your own:
 
 ```js
 kit.block('swatches', (spec, ctx) => {
-  // ctx: { id, value (the saved answer), set(answer), render(block), h, md }
+  // ctx: { id, value (the saved answer), set(answer), preset(answer), render(block), h, md }
+  // preset: what Done saves if the user never calls set (what the block shows as already chosen)
   return kit.h('div', { class: 'k-row' }, spec.colors.map((c) =>
     kit.h('button', { class: 'k-btn', style: { background: c }, onclick: () => ctx.set(c) }, c)))
 })

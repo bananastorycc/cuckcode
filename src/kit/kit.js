@@ -178,6 +178,10 @@
   }
   addEventListener('pagehide', () => timer && persist())
 
+  // What a block shows as already chosen (a form's defaults, a plan as written) is its answer when
+  // Done comes before any change: otherwise agreeing with the page reads the same as not looking.
+  const presets = new Map()
+
   // Agents rewrite a page while you're on it, and every rewrite reloads it: where you were (scroll,
   // open tabs) comes back, per page title, in this frame only. Without storage it just doesn't.
   let placeKey = null
@@ -510,7 +514,9 @@
   )
 
   block('form', (b, ctx) => {
-    const value = { ...Object.fromEntries((b.fields || []).filter((f) => f.default !== undefined).map((f) => [f.id, f.default])), ...(ctx.value || {}) }
+    const defaults = Object.fromEntries((b.fields || []).filter((f) => f.default !== undefined).map((f) => [f.id, f.default]))
+    if (Object.keys(defaults).length) ctx.preset(defaults)
+    const value = { ...defaults, ...(ctx.value || {}) }
     const els = {}
     const put = (id, v) => {
       value[id] = v
@@ -712,6 +718,7 @@
     const notes = b.notes !== false
     let items = ctx.value || (b.items || []).map((it, i) => (typeof it === 'string' ? { title: it } : it)).map((it, i) => ({ id: it.id ?? String(i + 1), title: it.title, detail: it.detail, checked: check ? it.checked ?? true : undefined, note: '' }))
     const save = () => ctx.set(items.map((x) => ({ ...x })))
+    ctx.preset(items)
     const list = h('ol', { class: 'k-plan' })
     const draw = () => {
       list.replaceChildren(
@@ -760,6 +767,7 @@
     const inbox = { value: '', label: b.inbox || 'Unsorted' }
     // value: { bucket: [ids in order] }; anything not placed sits in the inbox.
     const placed = ctx.value || Object.fromEntries(buckets.map((k) => [k.value, items.filter((it) => it.bucket === k.value).map((it) => it.id)]))
+    ctx.preset(placed)
     const all = [inbox, ...buckets]
     const where = (id) => buckets.find((k) => (placed[k.value] || []).includes(id))?.value ?? ''
     const byId = new Map(items.map((it) => [it.id, it]))
@@ -864,6 +872,7 @@
   block('tune', (b, ctx) => {
     const knobs = b.knobs || []
     const initial = Object.fromEntries(knobs.map((k) => [k.id, k.value ?? (k.kind === 'color' ? '#888888' : k.kind === 'toggle' ? false : k.kind === 'select' ? opt(k.options[0]).value : k.min ?? 0)]))
+    ctx.preset(initial)
     const value = { ...initial, ...(ctx.value || {}) }
     const templated = /\{\{\s*[\w-]+\s*\}\}/.test(b.preview || '')
     const unit = (k) => (k.unit ?? '')
@@ -1054,7 +1063,7 @@
     const type = spec.type || 'markdown'
     const fn = blocks[type]
     const id = spec.id || `${type}${++auto}`
-    const ctx = { id, value: answers[id], set: (v) => set(id, v), render, md, h }
+    const ctx = { id, value: answers[id], set: (v) => set(id, v), preset: (v) => presets.set(id, JSON.parse(JSON.stringify(v))), render, md, h }
     let body
     try {
       body = fn ? fn(spec, ctx) : h('div', { class: 'k-callout danger' }, `Unknown block type "${type}"`)
@@ -1078,6 +1087,7 @@
     answers = (await store.load(answersName).catch(() => null)) || {}
     auto = 0
     required.length = 0
+    presets.clear()
     recall(`kit:${location.pathname}:${spec.title || ''}`)
     if (spec.title) document.title = spec.title
     document.body.classList.add('k-body')
@@ -1093,6 +1103,7 @@
           gap.el.querySelector('input, textarea, select, button')?.focus({ preventScroll: true })
           return toast(`Fill in “${gap.label}” first: it's required.`, 'danger')
         }
+        for (const [id, v] of presets) if (!(id in answers)) answers[id] = v
         answers._done = new Date().toISOString()
         persist().then((saved) => {
           // The agent would read answers that aren't there; the chip says why.

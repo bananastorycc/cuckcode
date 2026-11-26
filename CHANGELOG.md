@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.55.1 — 2026-11-26
+
+- 🐛 Done on a playground page saves what a block showed as already chosen when you left it as it was: a form's defaults, a plan, checklist or board as written, tune's starting values. An answer you already gave is kept.
+
 ## 1.55.0 — 2026-11-26
 
 - ✨ A plugin can run a command in a terminal inside its own view, with one click: output stays in that terminal, never reaches an agent, and ✕ stops it. A script can be pinned to what you were shown: if it changed since, it's refused and nothing runs.
