@@ -3,7 +3,7 @@ import { open, readFile, stat } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { commitMessage, goodSubject } from './commitmsg'
 import { mediaKind } from './mime'
-import type { Branches, ChangeCode, ChangedFile, Commit, FileSnapshot, GitOp, GitResult, GitStatus, Remote } from '../shared/types'
+import type { Branches, ChangeCode, ChangedFile, Commit, FileSnapshot, GitOp, GitResult, GitStatus, Midway, PluginGitOp, Remote, RepoStatus } from '../shared/types'
 
 const MAX_TEXT = 4 * 1024 * 1024
 
@@ -262,12 +262,21 @@ async function push(cwd: string): Promise<void> {
   await run(cwd, ['push', '--follow-tags', '-u', remote, 'HEAD'], 60_000)
 }
 
-async function rebasing(cwd: string): Promise<boolean> {
-  const dirs = (await run(cwd, ['rev-parse', '--path-format=absolute', '--git-path', 'rebase-merge', '--git-path', 'rebase-apply']))
+// A rebase or merge git stopped in the middle of (a conflict), or null.
+async function midway(cwd: string): Promise<Midway> {
+  const paths = (await run(cwd, ['rev-parse', '--path-format=absolute', '--git-path', 'rebase-merge', '--git-path', 'rebase-apply', '--git-path', 'MERGE_HEAD']))
     .trim()
     .split('\n')
-  const found = await Promise.all(dirs.map((d) => stat(d).then(() => true, () => false)))
-  return found.includes(true)
+  const [merge, apply, mergeHead] = await Promise.all(paths.map((p) => stat(p).then(() => true, () => false)))
+  return merge || apply ? 'rebase' : mergeHead ? 'merge' : null
+}
+
+const rebasing = async (cwd: string): Promise<boolean> => (await midway(cwd)) === 'rebase'
+
+// status, plus whether a rebase or merge is in progress.
+export async function repoStatus(cwd: string): Promise<RepoStatus> {
+  const s = await status(cwd)
+  return { ...s, midway: s.root ? await midway(cwd) : null }
 }
 
 const hasRemote = async (cwd: string): Promise<boolean> => !!(await run(cwd, ['remote']).catch(() => '')).trim()
@@ -384,6 +393,33 @@ async function changes(cwd: string): Promise<string> {
     out += `\nNew file ${path}:\n${body}\n`
   }
   return out.length > CHANGES_BUDGET ? out.slice(0, CHANGES_BUDGET) + '\n(truncated)' : out
+}
+
+// A message the commit command writes for the changes, without committing: aicommit's first half,
+// for a commit that shows its message before making it. Queued like the ops, so it never reads a
+// repo halfway through one of them.
+export async function draft(cwd: string, commitCommand: string): Promise<GitResult> {
+  return queued((await repoRoot(cwd)) || cwd, async () => {
+    try {
+      const s = await status(cwd)
+      if (!s.root) return { ok: false, output: 'Not a git repository.' }
+      if (!s.files.length) return { ok: false, output: 'Nothing to commit.' }
+      return { ok: true, output: await commitMessage(commitCommand, cwd, await changes(cwd)) }
+    } catch (err) {
+      return { ok: false, output: (err as Error).message }
+    }
+  })
+}
+
+const PLUGIN_OPS: PluginGitOp[] = ['draft', 'commit', 'sync', 'push', 'pull']
+
+// What RendererHost.git runs: the git panel's own ops, plus draft. The caller has checked the folder.
+export function pluginOp(cwd: string, kind: PluginGitOp, message: string, commitCommand: string): Promise<GitResult> {
+  if (!PLUGIN_OPS.includes(kind)) return Promise.resolve({ ok: false, output: `Not a plugin git op: ${kind}` })
+  if (kind === 'draft') return draft(cwd, commitCommand)
+  // An empty message would fail only after add -A had staged everything.
+  if (kind === 'commit' && !message.trim()) return Promise.resolve({ ok: false, output: 'No commit message.' })
+  return op(cwd, kind, message.trim())
 }
 
 async function apply(cwd: string, kind: GitOp, arg: string, commitCommand: string): Promise<GitResult> {

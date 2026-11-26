@@ -12,7 +12,7 @@
 import type * as Monaco from 'monaco-editor/editor/editor.api'
 import type { ComponentType, ReactNode } from 'react'
 import type { AgentPreset } from './agents'
-import type { Agent, Section } from './types'
+import type { Agent, GitResult, RepoStatus, Section } from './types'
 
 export const MANIFEST = 'cuckcode-plugin.json'
 
@@ -141,6 +141,36 @@ export interface EditorContext<T> {
 // Renders null for agents it has nothing for; it decides that from the agent's settings.
 export type AgentBarItem = ComponentType<{ agent: Agent }>
 
+// git for a plugin whose view covers the workspace, and so the git panel. repo is an absolute
+// folder: an open project or a folder in one, or a folder in the projects folder (Settings); any
+// other is refused. Every op is the git panel's own: unsaved editors are saved first, one op per
+// repo at a time (queued behind the panel's, a launch sync's, the others'), and a result
+// (GitResult) to toast. A failing op leaves the repo as it was, as the panel's do.
+export interface PluginGit {
+  // What the git panel shows (branch, ahead, behind, the changed files; root '' when it isn't a
+  // repo), plus midway: a rebase or merge git stopped in the middle of. Rejects for a folder out of reach.
+  status: (repo: string) => Promise<RepoStatus>
+  // The commit message the commit command (Settings › Git) writes for the changes, as ✨ would,
+  // without committing anything: output is the message. ok false says why not (no commit
+  // command set, nothing to commit, what the command printed), for the user to write one.
+  draft: (repo: string) => Promise<GitResult>
+  // The panel's Commit: stages every change (add -A), commits with message (show the user the
+  // files and the message first: what's committed is what's there now), and syncs when the
+  // repo has a remote.
+  commit: (repo: string, message: string) => Promise<GitResult>
+  // pull --rebase --autostash, then push. A pull that conflicts is backed out.
+  sync: (repo: string) => Promise<GitResult>
+  pull: (repo: string) => Promise<GitResult>
+  push: (repo: string) => Promise<GitResult>
+}
+
+export interface PlaygroundProps {
+  slot: number // from 1, as in Settings › Playgrounds
+  // After Done has told the agent; sent is false when no agent took it (the user got a toast saying why).
+  onDone?: (sent: boolean) => void
+  actions?: ReactNode // at the right of its title bar
+}
+
 export interface RendererHost<T = unknown> {
   monaco: typeof Monaco
   invoke: <R>(name: string, ...args: unknown[]) => Promise<R>
@@ -184,6 +214,18 @@ export interface RendererHost<T = unknown> {
   // cuckcode's scratchpad, for a view to show (it covers the Scratch section): the same notes,
   // kept in step as they're typed, saved the same way. actions go at the right of its title bar.
   Scratch: ComponentType<{ actions?: ReactNode }>
+  // A playground slot of the open project, for a view (or panel) to show: the same page, kit,
+  // answers and live reload as ⌥⌘<slot>, with no ✕ (put your own in actions). Its Done sends the
+  // agent the same "I'm done in …" as the full-window one does, but with stay (see sendToAgent),
+  // then calls onDone, so the view can switch back to what it was showing. Nothing else on screen
+  // changes. While it's showing, its slot's header dot stays out. On the home screen it says to
+  // open a project.
+  Playground: ComponentType<PlaygroundProps>
+  git: PluginGit
+  // Called when a playground slot's page in the open project changes (an agent wrote or touched
+  // it): what lights the slot's dot in the header, though this fires even while the page is
+  // showing. A page already there when the project opens doesn't count. Returns the unsubscribe.
+  onPlayground: (fn: (slot: number, project: string) => void) => () => void
 }
 
 export interface RendererPlugin {

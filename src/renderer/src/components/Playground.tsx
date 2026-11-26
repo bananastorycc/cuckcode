@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
+import type { PlaygroundProps } from '../../../shared/plugin'
 import type { Theme } from '../../../shared/types'
+import { playDone, playKey, useEmbedded, usePlay } from '../play'
 
 interface Props {
   project: string
@@ -11,8 +13,9 @@ interface Props {
   theme: Theme
   // The page's Done button: tell the agent.
   onDone: () => void
-  // Back to the workspace (same as ⌥⌘<slot>).
-  onClose: () => void
+  // Back to the workspace (same as ⌥⌘<slot>). Without it, no ✕.
+  onClose?: () => void
+  actions?: ReactNode // at the right of its title bar
 }
 
 type Message = { cuckcode: 'save'; id: number; root: string; name: string; text: string } | { cuckcode: 'done' }
@@ -20,7 +23,7 @@ type Message = { cuckcode: 'save'; id: number; root: string; name: string; text:
 // A slot's .cuckcode/playground/<slot>/index.html, which an agent writes. The page saves answers
 // through window.cuckcode (injected by media.ts), relayed here because only this side has the api;
 // its Done button lands here too.
-export default function Playground({ project, slot, name, version, theme, onDone, onClose }: Props): React.JSX.Element {
+export default function Playground({ project, slot, name, version, theme, onDone, onClose, actions }: Props): React.JSX.Element {
   const frame = useRef<HTMLIFrameElement>(null)
   // The kit's showcase: every block, so you can see what an agent can put here.
   const [showcase, setShowcase] = useState(false)
@@ -55,9 +58,12 @@ export default function Playground({ project, slot, name, version, theme, onDone
           <button className="rounded px-1.5 py-0.5 hover:bg-hover hover:text-fg" onClick={() => setShowcase((s) => !s)}>
             {showcase ? 'Back' : 'Templates'}
           </button>
-          <button className="rounded p-1 hover:bg-hover hover:text-fg" title={`Close (⌥⌘${slot % 10}). Answers are kept.`} onClick={onClose}>
-            <X className="h-3.5 w-3.5" />
-          </button>
+          {actions}
+          {onClose && (
+            <button className="rounded p-1 hover:bg-hover hover:text-fg" title={`Close (⌥⌘${slot % 10}). Answers are kept.`} onClick={onClose}>
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       </div>
       {showcase ? (
@@ -78,5 +84,27 @@ export default function Playground({ project, slot, name, version, theme, onDone
         />
       )}
     </div>
+  )
+}
+
+// A slot of the open project's, inside a plugin's view (RendererHost.Playground): the same page,
+// answers and live reload. Done tells the agent without leaving the view, then the plugin.
+export function EmbeddedPlayground({ slot, onDone, actions }: PlaygroundProps): React.JSX.Element {
+  const { project, names, versions, theme } = usePlay()
+  const valid = Number.isInteger(slot) && slot >= 1 && slot <= names.length
+  useEmbedded(project && valid ? playKey(slot, project) : null)
+  const note = (text: string): React.JSX.Element => <div className="flex h-full items-center justify-center bg-bg text-xs text-muted">{text}</div>
+  if (!project) return note('Open a project to see its playgrounds.')
+  if (!valid) return note(`There's no playground ${slot}. Settings › Playgrounds adds them.`)
+  return (
+    <Playground
+      project={project}
+      slot={slot}
+      name={names[slot - 1]}
+      version={versions[slot] ?? null}
+      theme={theme}
+      actions={actions}
+      onDone={() => void playDone(slot).then((sent) => onDone?.(sent))}
+    />
   )
 }

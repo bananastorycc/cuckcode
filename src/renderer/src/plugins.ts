@@ -3,10 +3,13 @@ import * as jsxRuntime from 'react/jsx-runtime'
 import * as ReactDOM from 'react-dom'
 import { useSyncExternalStore } from 'react'
 import type { AgentPreset } from '../../shared/agents'
-import type { AgentBarItem, EditorContext, HOST_MODULES, PluginPanel, PluginView, ProjectSource, RendererHost, RendererPlugin, When } from '../../shared/plugin'
+import type { AgentBarItem, EditorContext, HOST_MODULES, PluginGit, PluginPanel, PluginView, ProjectSource, RendererHost, RendererPlugin, When } from '../../shared/plugin'
+import type { GitResult, PluginGitOp } from '../../shared/types'
+import { EmbeddedPlayground } from './components/Playground'
 import Scratch from './components/Scratch'
 import { toast } from './components/Toasts'
 import { addThemeRules, monaco } from './monaco'
+import { onPlayChange } from './play'
 
 // The renderer side of plugins: what they registered, for App and CodePane to use. Loaded once
 // at startup; a plugin that throws is reported and skipped.
@@ -61,6 +64,8 @@ const current = new Map<string, unknown>()
 let openFile: (abs: string, line: number) => void = () => {}
 let sendToAgent: (text: string, submit: boolean, from: string, stay?: boolean) => Promise<boolean> = async () => false
 let show: (plugin: string, command: string, on: boolean) => boolean = () => false
+// CodePane's saveAll (CodePane imports this module, so it's handed over rather than imported).
+let saveAll: () => Promise<unknown> = async () => {}
 
 export const usePlugins = (): Registered[] =>
   useSyncExternalStore(
@@ -86,6 +91,25 @@ export function setSendToAgent(fn: typeof sendToAgent): void {
 // Opens (on) or closes the view or panel for a plugin's command; false when it isn't offered.
 export function setShow(fn: typeof show): void {
   show = fn
+}
+
+export function setSaveAll(fn: typeof saveAll): void {
+  saveAll = fn
+}
+
+// As the git panel does it: unsaved editors first, so what's committed is what's on screen.
+const gitOp = async (repo: string, op: PluginGitOp, message?: string): Promise<GitResult> => {
+  await saveAll()
+  return window.api.pluginGit(repo, op, message)
+}
+
+const git: PluginGit = {
+  status: (repo) => window.api.pluginGitStatus(repo),
+  draft: (repo) => gitOp(repo, 'draft'),
+  commit: (repo, message) => gitOp(repo, 'commit', String(message ?? '')),
+  sync: (repo) => gitOp(repo, 'sync'),
+  pull: (repo) => gitOp(repo, 'pull'),
+  push: (repo) => gitOp(repo, 'push')
 }
 
 export const mediaUrl = (abs: string): string => `media://local/?path=${encodeURIComponent(abs)}`
@@ -181,7 +205,17 @@ export async function loadPlugins(): Promise<void> {
       mediaUrl,
       agentPreset: (preset) => reg.presets.push(preset),
       agentBar: (item) => reg.bar.push(item),
-      Scratch
+      Scratch,
+      Playground: EmbeddedPlayground,
+      git,
+      onPlayground: (fn) =>
+        onPlayChange((slot, project) => {
+          try {
+            fn(slot, project)
+          } catch (err) {
+            console.error(`plugin ${p.id}:`, err)
+          }
+        })
     }
     try {
       const module = { exports: {} as Partial<RendererPlugin> }

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { branches, commitFiles, discard, log, op, parseBranches, parseNameStatus, parseRemotes, parseStatus, setRemote, snapshot, status } from './git'
+import { branches, commitFiles, discard, log, op, parseBranches, parseNameStatus, parseRemotes, parseStatus, pluginOp, repoStatus, setRemote, snapshot, status } from './git'
 
 describe('parseStatus', () => {
   it('parses branch, ahead/behind and every entry type', () => {
@@ -211,5 +211,75 @@ describe('overlapping syncs', () => {
     const results = await Promise.all([op(a, 'sync'), op(a, 'sync')])
     expect(results.map((r) => r.ok)).toEqual([true, true])
     expect(git(a, 'rev-list', '--count', '@{u}..HEAD').trim()).toBe('0')
+  })
+})
+
+describe('git for plugins', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cuckcode-'))
+  const git = (...args: string[]): string => execFileSync('git', args, { cwd: dir, stdio: 'pipe' }).toString()
+  afterAll(() => rmSync(dir, { recursive: true, force: true }))
+
+  git('init', '-q', '-b', 'main')
+  git('config', 'user.name', 'test')
+  git('config', 'user.email', 'test@test')
+  writeFileSync(join(dir, 'a.txt'), 'one\n')
+  git('add', '.')
+  git('commit', '-qm', 'Add a')
+
+  const head = (): string => git('log', '-1', '--format=%s').trim()
+
+  it('drafts a message without committing, then commits the one it was given', async () => {
+    writeFileSync(join(dir, 'a.txt'), 'two\n')
+    // The changes arrive on stdin; the message is the command's output.
+    const command = "grep -q '^+two' && printf '<message>Change a to two</message>'"
+    expect(await pluginOp(dir, 'draft', '', command)).toEqual({ ok: true, output: 'Change a to two' })
+    expect(head()).toBe('Add a')
+    expect((await status(dir)).files).toEqual([{ path: 'a.txt', code: 'M' }])
+
+    expect(await pluginOp(dir, 'commit', '  ', '')).toEqual({ ok: false, output: 'No commit message.' })
+    expect((await pluginOp(dir, 'commit', 'Edited by hand\n', '')).ok).toBe(true)
+    expect(head()).toBe('Edited by hand')
+    expect((await status(dir)).files).toEqual([])
+  })
+
+  it('says why there is no draft', async () => {
+    expect(await pluginOp(dir, 'draft', '', 'echo x')).toEqual({ ok: false, output: 'Nothing to commit.' })
+    writeFileSync(join(dir, 'b.txt'), 'b\n')
+    expect(await pluginOp(dir, 'draft', '', '')).toEqual({ ok: false, output: 'No commit command set (Settings › Git).' })
+    expect((await pluginOp(dir, 'draft', '', 'exit 3')).ok).toBe(false)
+    const outside = mkdtempSync(join(tmpdir(), 'cuckcode-'))
+    expect(await pluginOp(outside, 'draft', '', 'echo x')).toEqual({ ok: false, output: 'Not a git repository.' })
+    rmSync(outside, { recursive: true })
+    rmSync(join(dir, 'b.txt'))
+  })
+
+  it('refuses ops plugins are not given', async () => {
+    expect((await pluginOp(dir, 'switch' as never, 'other', '')).ok).toBe(false)
+    expect((await status(dir)).branch).toBe('main')
+  })
+
+  it('reports a merge or rebase stopped on a conflict', async () => {
+    expect((await repoStatus(dir)).midway).toBeNull()
+    git('switch', '-qc', 'other')
+    writeFileSync(join(dir, 'a.txt'), 'theirs\n')
+    git('commit', '-qam', 'Theirs')
+    git('switch', '-q', 'main')
+    writeFileSync(join(dir, 'a.txt'), 'ours\n')
+    git('commit', '-qam', 'Ours')
+
+    expect(() => git('merge', 'other')).toThrow()
+    expect(await repoStatus(dir)).toMatchObject({ branch: 'main', midway: 'merge' })
+    git('merge', '--abort')
+
+    expect(() => git('rebase', 'other')).toThrow()
+    expect((await repoStatus(dir)).midway).toBe('rebase')
+    git('rebase', '--abort')
+    expect((await repoStatus(dir)).midway).toBeNull()
+  })
+
+  it('has nothing midway outside a repo', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'cuckcode-'))
+    expect(await repoStatus(outside)).toMatchObject({ root: '', midway: null })
+    rmSync(outside, { recursive: true })
   })
 })

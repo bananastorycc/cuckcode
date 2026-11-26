@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.54.0 — 2026-11-26
+
+- ✨ A plugin whose view covers the workspace can run the git panel's commit, sync, pull and push on your repos, have your commit command draft a message to show you before committing, and see when a rebase or merge is stuck.
+- ✨ A plugin's view can show a playground inside itself. Done there tells the agent without leaving the view, and the plugin hears when a playground page changes.
+
 ## 1.53.0 — 2026-11-26
 
 - ✨ A plugin can send text to the agent and stay on screen (`sendToAgent` with `stay`): its view stays open and keeps the keyboard, and the agent gets the text without coming to the front, started first if it wasn't running.

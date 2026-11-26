@@ -25,7 +25,8 @@ import Terminal, { pasteInto, shellQuote, whenReady } from './components/Termina
 import Toasts, { toast } from './components/Toasts'
 import WebPage from './components/WebPage'
 import { apply, closePanel, hosts, mount, openPanel, openPanels, panelHost, panelId, PRESETS, reveal as revealSection, SECTIONS, show as showSection, togglePanel, type Section } from './layout'
-import { loadPlugins, runCommand, setCurrent, setOpenFile, setSendToAgent, setShow, usePlugins, type Registered } from './plugins'
+import { isEmbedded, playChanged, playKey, setPlay, setPlayHandlers } from './play'
+import { loadPlugins, runCommand, setCurrent, setOpenFile, setSaveAll, setSendToAgent, setShow, usePlugins, type Registered } from './plugins'
 
 // What's shown: the README over the code pane, or a playground slot (from 1) or a plugin's
 // view (`plugin:<id>:<command>`) over the whole workspace.
@@ -220,12 +221,15 @@ export default function App(): React.JSX.Element {
     const slots = Array.from({ length: slotsRef.current }, (_, i) => i + 1)
     const versions = await Promise.all(slots.map((slot) => window.api.playVersion(path, slot).catch(() => null)))
     slots.forEach((slot, i) => {
-      const key = `${slot}:${path}`
+      const key = playKey(slot, path)
       const v = versions[i]
       const seen = key in playVersionsRef.current
       if (seen && v === playVersionsRef.current[key]) return
       setPlayVersions((r) => ({ ...r, [key]: v }))
-      if (seen && v !== null && viewRef.current[path] !== slot) setPlayUnseen((s) => new Set(s).add(key))
+      if (!seen || v === null) return
+      // Showing in full or inside a plugin's view, it's seen as it changes.
+      if (viewRef.current[path] !== slot && !isEmbedded(key)) setPlayUnseen((s) => new Set(s).add(key))
+      playChanged(slot, path)
     })
   }, [])
 
@@ -264,16 +268,23 @@ export default function App(): React.JSX.Element {
     if (covered) setOverlay(null)
     setView((v) => ({ ...v, [where]: v[where] === next && !covered ? undefined : next }))
   }
-  const togglePlay = (slot: number): void => {
-    if (!active || slot > config.playgrounds.length) return
-    const key = `${slot}:${active}`
-    toggleView(active, slot)
+  // What a plugin's embedded playground shows: the open project's slots.
+  useEffect(() => {
+    const names = config.playgrounds.map((p, i) => p.name || `playground ${i + 1}`)
+    const versions = active ? Object.fromEntries(names.map((_, i) => [i + 1, playVersions[playKey(i + 1, active)] ?? null])) : {}
+    setPlay({ project: active, names, versions, theme })
+  }, [active, config.playgrounds, playVersions, theme])
+  const unseen = (key: string): void =>
     setPlayUnseen((s) => {
       if (!s.has(key)) return s
       const next = new Set(s)
       next.delete(key)
       return next
     })
+  const togglePlay = (slot: number): void => {
+    if (!active || slot > config.playgrounds.length) return
+    toggleView(active, slot)
+    unseen(playKey(slot, active))
   }
   const shown = active ? view[active] : undefined
   // A slot since removed in settings just stops showing.
@@ -631,10 +642,11 @@ export default function App(): React.JSX.Element {
 
   // A playground page's Done: back to the workspace, and tell the agent that takes playground
   // answers (the one in front, else the first) to read them, as if typed there. The Enter goes
-  // separately, after the paste, or the agent takes it as part of the pasted text.
-  const playDone = (slot: number): void => {
+  // separately, after the paste, or the agent takes it as part of the pasted text. With stay (a
+  // page inside a plugin's view), the screen stays as it is.
+  const playDone = (slot: number, stay = false): Promise<boolean> => {
     const name = config.playgrounds[slot - 1]?.name || `playground ${slot}`
-    void tellAgent(`I'm done in the ${name}: read .cuckcode/playground/${slot}/data/answers.json and act on it.`, true, 'Playground')
+    return tellAgent(`I'm done in the ${name}: read .cuckcode/playground/${slot}/data/answers.json and act on it.`, true, 'Playground', stay)
   }
 
   // Back to the workspace, and type text into the agent that takes playground answers, as if
@@ -654,6 +666,8 @@ export default function App(): React.JSX.Element {
     return true
   }
   useEffect(() => setSendToAgent(tellAgent))
+  useEffect(() => setPlayHandlers({ done: (slot) => playDone(slot, true), seen: unseen }))
+  useEffect(() => setSaveAll(saveAll), [])
 
   return (
     <div className="flex h-full flex-col">
@@ -809,7 +823,7 @@ export default function App(): React.JSX.Element {
                   name={config.playgrounds[playing - 1].name || `playground ${playing}`}
                   version={playVersions[`${playing}:${active}`] ?? null}
                   theme={theme}
-                  onDone={() => playDone(playing)}
+                  onDone={() => void playDone(playing)}
                   onClose={() => togglePlay(playing)}
                 />
               </div>

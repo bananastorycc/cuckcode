@@ -57,3 +57,21 @@ describe('repos', () => {
     expect(await repos.list(join(home, 'repos'))).not.toContain(join(home, 'repos/broken'))
   })
 })
+
+describe('pluginReach', () => {
+  const projects = ['/p/open', '/elsewhere/one']
+  it('takes open projects and folders in them, and folders in the projects folder', () => {
+    expect(repos.pluginReach('/p/open', projects, '/r')).toBe(true)
+    expect(repos.pluginReach('/p/open/sub', projects, '/r')).toBe(true)
+    expect(repos.pluginReach('/r/any', projects, '/r')).toBe(true)
+    expect(repos.pluginReach('/r/any/', projects, '/r/')).toBe(true)
+  })
+
+  it('refuses everything else', () => {
+    expect(repos.pluginReach('/p/opener', projects, '/r')).toBe(false)
+    expect(repos.pluginReach('/p', projects, '/r')).toBe(false)
+    expect(repos.pluginReach('/r/../home', projects, '/r')).toBe(false)
+    expect(repos.pluginReach('r/any', projects, '/r')).toBe(false)
+    expect(repos.pluginReach('/r/any', projects, '')).toBe(false)
+  })
+})

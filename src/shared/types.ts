@@ -50,6 +50,16 @@ export interface GitResult {
   output: string
 }
 
+// A rebase or merge git stopped in the middle of (a conflict to resolve), or null.
+export type Midway = 'rebase' | 'merge' | null
+
+export interface RepoStatus extends GitStatus {
+  midway: Midway
+}
+
+// The ops a plugin runs (RendererHost.git). draft writes a message without committing.
+export type PluginGitOp = 'draft' | 'commit' | 'sync' | 'push' | 'pull'
+
 export interface Remote {
   name: string
   url: string
@@ -239,6 +249,10 @@ export interface Api {
   discard: (root: string, file: ChangedFile) => Promise<GitResult>
   // Points a remote at url, adding it if the repo doesn't have it yet.
   setRemote: (cwd: string, name: string, url: string) => Promise<GitResult>
+  // For plugins (RendererHost.git), on a folder that's an open project, in one, or in the projects
+  // folder. Status rejects for any other folder; an op resolves ok false.
+  pluginGitStatus: (dir: string) => Promise<RepoStatus>
+  pluginGit: (dir: string, op: PluginGitOp, message?: string) => Promise<GitResult>
   writeFile: (path: string, content: string) => Promise<void>
   // Absolute paths. create and rename make missing parent directories and never overwrite.
   createFile: (path: string) => Promise<void>
