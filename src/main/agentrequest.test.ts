@@ -75,6 +75,19 @@ describe('agent requests', () => {
     expect(ended).toEqual([rb.id, ra.id])
   })
 
+  it('reads a project path split mid-character across chunks', () => {
+    const session = 'claude-1:/work/démo'
+    live.add(session)
+    const conn = new Fake()
+    handle(conn)
+    const wire = Buffer.from(`${session}\n${Buffer.from('{}').toString('base64')}\n`)
+    const cut = wire.indexOf(Buffer.from('é')) + 1
+    conn.emit('data', wire.subarray(0, cut))
+    conn.emit('data', wire.subarray(cut))
+    expect(last()).toMatchObject({ session, project: '/work/démo' })
+    expect(conn.reply).toBeNull()
+  })
+
   it('passes a payload that is not JSON on as text', () => {
     hook('not json ü')
     expect(last().payload).toBe('not json ü')

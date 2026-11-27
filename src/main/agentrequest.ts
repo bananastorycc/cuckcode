@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { chmod, rm } from 'node:fs/promises'
 import { createServer, type Server } from 'node:net'
+import { StringDecoder } from 'node:string_decoder'
 import type { AgentRequest } from '../shared/types'
 
 // An agent's hook asking a plugin to answer for it (a permission, a question), through
@@ -88,6 +89,8 @@ function ask(conn: Conn, session: string, raw: string): void {
 export function handle(conn: Conn): void {
   let buf = ''
   let asked = false
+  // The session line holds the project's path, which can be split mid-character across chunks.
+  const utf8 = new StringDecoder('utf8')
   conn.on('error', () => conn.destroy())
   // The hook's input is done: before both lines it's a broken request, after them it's nc's
   // half-close, and the request waits on.
@@ -96,7 +99,7 @@ export function handle(conn: Conn): void {
   })
   conn.on('data', (chunk) => {
     if (asked) return
-    buf += chunk.toString('utf8')
+    buf += utf8.write(chunk)
     const first = buf.indexOf('\n')
     const second = first < 0 ? -1 : buf.indexOf('\n', first + 1)
     if (second < 0) {

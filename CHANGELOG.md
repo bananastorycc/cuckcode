@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.56.2 — 2026-11-26
+
+- 🐛 A plugin can answer an agent in a project whose folder name has accented or other non-ASCII letters: such a request no longer, now and then, went straight back to the terminal.
+
 ## 1.56.1 — 2026-11-26
 
 - 🐛 A plugin can now answer what an agent is waiting on: the request no longer ends the moment it arrives, sending the prompt back to the terminal. It ends when a plugin answers, after 5 minutes, or when the agent stops.

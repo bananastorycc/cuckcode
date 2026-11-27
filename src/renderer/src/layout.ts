@@ -38,7 +38,7 @@ let api: DockviewApi | null = null
 // when opened, removed when closed, kept in saved layouts. Each gets a host element on first use,
 // which App renders the plugin's content into, like the sections'.
 const PANEL = 'plugin:'
-export const isPanel = (id: string): boolean => id.startsWith(PANEL)
+const isPanel = (id: string): boolean => id.startsWith(PANEL)
 export const panelId = (plugin: string, panel: string): string => `${PANEL}${plugin}:${panel}`
 const panelHosts = new Map<string, HTMLElement>()
 export function panelHost(id: string): HTMLElement {
@@ -233,8 +233,7 @@ function panelTab(id: string): ITabRenderer {
   button.addEventListener('mousedown', (e) => e.stopPropagation())
   button.addEventListener('click', (e) => {
     e.stopPropagation()
-    const panel = api?.getPanel(id)
-    if (panel) api?.removePanel(panel)
+    closePanel(id)
   })
   element.append(title, button)
   return {
