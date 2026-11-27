@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { AgentRequest, Api, MenuCommand, RunExit, Settings, SyncStatus } from '../shared/types'
+import type { AgentRequest, AgentRunEvent, Api, MenuCommand, RunExit, Settings, SyncStatus } from '../shared/types'
 
 // One IPC listener per channel, fanned out by PTY id, instead of every terminal
 // filtering every chunk.
@@ -41,6 +41,9 @@ const api: Api = {
   runStop: (id) => ipcRenderer.send('run:stop', id),
   agentTaken: (id, taken) => ipcRenderer.send('agent:taken', id, taken),
   agentAnswer: (id, output) => ipcRenderer.invoke('agent:answer', id, output),
+  agentRunStart: (plugin, run) => ipcRenderer.invoke('agentrun:start', plugin, run),
+  agentRunEvents: (plugin, id) => ipcRenderer.invoke('agentrun:events', plugin, id),
+  agentRunStop: (plugin, id) => ipcRenderer.send('agentrun:stop', plugin, id),
 
   status: (cwd) => ipcRenderer.invoke('git:status', cwd),
   files: (root) => ipcRenderer.invoke('git:files', root),
@@ -82,6 +85,7 @@ const api: Api = {
   onPtyData: router<string>('pty:data'),
   onPtyExit: router<RunExit | undefined>('pty:exit'),
   onAgentRequest: (cb) => listen<AgentRequest>('agent:request', cb),
+  onAgentRunEvent: router<AgentRunEvent>('agentrun:event'),
   onAgentRequestEnd: (cb) => listen<string>('agent:requestEnd', cb),
   onFsChange: (cb) => {
     const fn = (_e: IpcRendererEvent, project: string, paths: string[] | null): void => cb(project, paths)

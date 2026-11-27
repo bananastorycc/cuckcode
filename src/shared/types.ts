@@ -64,6 +64,31 @@ export interface RunExit {
   refused?: string
 }
 
+// A helper run a plugin starts (RendererHost.runAgent): the project's agent, headless, on one prompt.
+export interface AgentRun {
+  project: string
+  prompt: string
+  profile: string // a profile's name: <project>/.claude/profiles/<name>.json
+  thread?: boolean // keep the session, to resume
+  resume?: string // a session id an earlier thread or resume run ended with
+  timeout?: number // seconds
+}
+
+// How a run ended. code is null when it was stopped, timed out or never really started (error
+// says why). The rest comes from the last result line the command printed, when it printed one.
+export interface AgentRunEnd {
+  code: number | null
+  stopped?: 'stop' | 'timeout'
+  session?: string // thread and resume runs: the id to resume
+  result?: string // the agent's final answer
+  usage?: Record<string, number> // token counts, named as the agent names them
+  cost?: number // USD, where the agent says
+  error?: string
+}
+
+// What main sends for a run, numbered from 0 so a page catching up never sees one twice.
+export type AgentRunEvent = { seq: number; lines: unknown[] } | { seq: number; end: AgentRunEnd }
+
 // An agent's hook waiting for a plugin to answer it (RendererHost.onAgentRequest). session is the
 // agent's PTY key, `${agent}:${project}`; payload is what the hook got on stdin, parsed when it's
 // JSON (as Claude Code's is), else the text.
@@ -159,6 +184,9 @@ export interface Config {
   // Writes AI commit messages: run by sh with the changes on stdin, the instructions in
   // $CUCKCODE_COMMIT_PROMPT; prints the message. '' hides the AI buttons.
   commitCommand: string
+  // Runs plugins' helper runs (RendererHost.runAgent): run by sh in the project, the prompt on
+  // stdin, the profile and the kind of run in $CUCKCODE_RUN_*; prints JSON lines. '' turns them off.
+  agentRunCommand: string
   confirmAllRepos: boolean // AI commit all / sync all ask first
   readme: boolean
   folders: { enabled: boolean; dirs: string[] }
@@ -272,6 +300,11 @@ export interface Api {
   // the terminal. False when the request is no longer pending.
   agentTaken: (id: string, taken: boolean) => void
   agentAnswer: (id: string, output: unknown) => Promise<boolean>
+  // A plugin's helper runs (RendererHost.runAgent). Run ids are `<plugin>.<uuid>`; a plugin only
+  // reaches its own. events: what was sent so far, for a page that starts listening late.
+  agentRunStart: (plugin: string, run: AgentRun) => Promise<{ id: string } | { refused: string }>
+  agentRunEvents: (plugin: string, id: string) => Promise<AgentRunEvent[]>
+  agentRunStop: (plugin: string, id: string) => void
 
   status: (cwd: string) => Promise<GitStatus>
   files: (root: string) => Promise<string[]>
@@ -333,6 +366,7 @@ export interface Api {
   // A run's exit carries how it ended; an agent's or shell's carries nothing.
   onPtyExit: (id: string, cb: (exit?: RunExit) => void) => () => void
   onAgentRequest: (cb: (r: AgentRequest) => void) => () => void
+  onAgentRunEvent: (id: string, cb: (event: AgentRunEvent) => void) => () => void
   // A request ended: answered, timed out, or its hook went away.
   onAgentRequestEnd: (cb: (id: string) => void) => () => void
   // paths: what changed, relative to the project; null when the watcher couldn't say.

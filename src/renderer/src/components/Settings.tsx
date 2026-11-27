@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, Plus, Puzzle, RefreshCw, Save, Trash2, X } from 'lucide-react'
 import type { Agent, Config, SavedLayout, Settings as AllSettings, SyncStatus, ThemeChoice } from '../../../shared/types'
 import { MAX_SLOTS } from '../../../shared/types'
-import { COMMIT_COMMAND, fromPreset, PRESETS as AGENT_PRESETS } from '../../../shared/agents'
+import { COMMIT_COMMAND, fromPreset, PRESETS as AGENT_PRESETS, RUN_COMMAND } from '../../../shared/agents'
 import { usePlugins } from '../plugins'
 import { apply, current, load, PRESETS, valid } from '../layout'
 import { ask } from './Confirm'
@@ -155,6 +155,17 @@ export default function Settings({ config, theme, onTheme, layouts, onLayouts, o
                 </button>
               ))}
             </div>
+            <Row
+              label="Run command"
+              hint="Runs plugins' one-shot helpers, with nothing on screen. It runs with sh in the project, gets the prompt on stdin and the project's profile (.claude/profiles/<name>.json) in $CUCKCODE_RUN_PROFILE, with $CUCKCODE_RUN_PLAIN, _THREAD or _RESUME saying which kind of run it is, and prints JSON lines. Empty turns plugins' runs off."
+            >
+              <input className={`flex-1 ${field}`} value={config.agentRunCommand} placeholder="none" onChange={(e) => set('agentRunCommand', e.target.value)} />
+              {config.agentRunCommand !== RUN_COMMAND && (
+                <button className="btn shrink-0" onClick={() => set('agentRunCommand', RUN_COMMAND)} title={RUN_COMMAND}>
+                  Default
+                </button>
+              )}
+            </Row>
           </Section>
 
           <Section title="Git" hint="The AI commit buttons (✨) commit with a message this command writes. It runs with sh in the repo, gets the changes on stdin and its instructions in $CUCKCODE_COMMIT_PROMPT, and prints the message. Empty hides the buttons.">

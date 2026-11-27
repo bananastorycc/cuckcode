@@ -3,10 +3,11 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Worker } from 'node:worker_threads'
-import type { Agent, Bounds, GitOp, MenuCommand, PaneDir, PluginGitOp, RunSpec, Settings, ChangedFile, SearchQuery, SearchResult } from '../shared/types'
+import type { Agent, AgentRun, Bounds, GitOp, MenuCommand, PaneDir, PluginGitOp, RunSpec, Settings, ChangedFile, SearchQuery, SearchResult } from '../shared/types'
 import { MAX_SLOTS, SHELL_ID } from '../shared/types'
-import { CLAUDE, COMMIT_COMMAND, fromPreset } from '../shared/agents'
+import { CLAUDE, COMMIT_COMMAND, fromPreset, RUN_COMMAND } from '../shared/agents'
 import * as agentrequest from './agentrequest'
+import * as agentrun from './agentrun'
 import { writeAtomic } from './atomic'
 import * as configfile from './configfile'
 import * as configsync from './configsync'
@@ -49,6 +50,7 @@ const DEFAULTS: Settings = {
   projectsDir: '', // unset: ⌘T asks for it the first time
   notifications: true,
   commitCommand: COMMIT_COMMAND,
+  agentRunCommand: RUN_COMMAND,
   confirmAllRepos: true,
   readme: true,
   folders: { enabled: true, dirs: [] },
@@ -122,6 +124,7 @@ function parse(raw: any): Settings {
     window: ['x', 'y', 'width', 'height'].every((k) => Number.isFinite(raw.window?.[k])) ? raw.window : undefined,
     projectsDir: isStr(raw.projectsDir) && raw.projectsDir.startsWith('/') ? raw.projectsDir : d.projectsDir,
     commitCommand: isStr(raw.commitCommand) ? raw.commitCommand : d.commitCommand,
+    agentRunCommand: isStr(raw.agentRunCommand) ? raw.agentRunCommand : d.agentRunCommand,
     confirmAllRepos: typeof raw.confirmAllRepos === 'boolean' ? raw.confirmAllRepos : d.confirmAllRepos,
     notifications: typeof raw.notifications === 'boolean' ? raw.notifications : d.notifications,
     readme: typeof raw.readme === 'boolean' ? raw.readme : d.readme,
@@ -471,6 +474,15 @@ function registerIpc(): void {
   ipcMain.on('run:stop', (_e, id: string) => pty.stop(id))
   ipcMain.on('agent:taken', (_e, id: string, taken: boolean) => agentrequest.taken(id, taken))
   ipcMain.handle('agent:answer', (_e, id: string, output: unknown) => agentrequest.answer(id, output))
+  ipcMain.handle('agentrun:start', (_e, plugin: string, run: AgentRun) =>
+    agentrun.start(String(plugin), run, {
+      command: settings.agentRunCommand,
+      reach: (dir) => repos.projectReach(dir, settings.projects, settings.projectsDir),
+      send: (id, event) => send('agentrun:event', id, event)
+    })
+  )
+  ipcMain.handle('agentrun:events', (_e, plugin: string, id: string) => agentrun.events(String(plugin), id))
+  ipcMain.on('agentrun:stop', (_e, plugin: string, id: string) => agentrun.stop(String(plugin), id))
 
   ipcMain.handle('git:status', (_e, cwd: string) => git.status(cwd))
   ipcMain.handle('git:files', (_e, root: string) => git.listFiles(root))
@@ -622,6 +634,7 @@ app.on('before-quit', (e) => {
   Promise.all([
     flushed,
     Promise.race([pty.killAll(), cap(3000)]),
+    Promise.race([agentrun.stopAll(), cap(3000)]),
     flushed.then(() => Promise.race([configsync.flush(), cap(3000)])),
     flushed.then(() => saving)
   ]).finally(() => {

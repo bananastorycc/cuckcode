@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.58.0 — 2026-11-27
+
+- ✨ Plugins can have a project's agent do a job in the background (`runAgent`), with nothing on screen, and show the answer, its tokens and cost themselves. What such a run may do is set by the project, in a profile under `.claude/profiles/`, never by the plugin. A run is one-shot with no session kept, or a thread that a later run continues. The command it runs is in Settings › Agents (Run command), and defaults to a headless Claude Code.
+
 ## 1.57.0 — 2026-11-27
 
 - ✨ A plugin's views and panels open from any project tab, and from the welcome screen, for the project they're made for (the plugin's home). With several, the button asks which. Everything the page does belongs to that project, including what it sends to an agent: it goes to that project's agent, never to the one in the tab you're in. The button and a panel's tab show which project it's for, and a panel opened this way stays with its project across tabs and relaunches. A home that isn't open opens in the background, off the tab bar.

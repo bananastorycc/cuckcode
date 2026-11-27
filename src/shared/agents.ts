@@ -49,6 +49,13 @@ export const PRESETS: AgentPreset[] = [CLAUDE, CUSTOM]
 // Headless Claude on Haiku, no tools or MCP: it only reads stdin, and sits between a click and a commit.
 export const COMMIT_COMMAND = `claude -p --model haiku --tools '' --strict-mcp-config --no-session-persistence "$CUCKCODE_COMMIT_PROMPT"`
 
+// Plugins' helper runs (RendererHost.runAgent): headless Claude on the profile's settings (the
+// model, permissions and env the project gives the job), no MCP, the prompt on stdin. A plain run
+// keeps no session; a thread keeps its own, and a resume continues one.
+export const RUN_COMMAND =
+  'claude -p --output-format stream-json --verbose --strict-mcp-config --settings "$CUCKCODE_RUN_PROFILE"' +
+  ' ${CUCKCODE_RUN_PLAIN:+--no-session-persistence} ${CUCKCODE_RUN_RESUME:+--resume "$CUCKCODE_RUN_RESUME"}'
+
 export const agentId = (name: string): string =>
   `${name.toLowerCase().replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '') || 'agent'}-${Date.now().toString(36)}`
 

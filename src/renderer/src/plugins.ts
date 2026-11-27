@@ -3,8 +3,8 @@ import * as jsxRuntime from 'react/jsx-runtime'
 import * as ReactDOM from 'react-dom'
 import { useSyncExternalStore } from 'react'
 import type { AgentPreset } from '../../shared/agents'
-import type { AgentBarItem, EditorContext, HOST_MODULES, PluginGit, PluginPanel, PluginView, ProjectSource, RendererHost, RendererPlugin, RunProps, When } from '../../shared/plugin'
-import type { AgentRequest, GitResult, PluginGitOp } from '../../shared/types'
+import type { AgentBarItem, AgentRunHandlers, EditorContext, HOST_MODULES, PluginGit, PluginPanel, PluginView, ProjectSource, RendererHost, RendererPlugin, RunProps, When } from '../../shared/plugin'
+import type { AgentRequest, AgentRun, AgentRunEvent, GitResult, PluginGitOp } from '../../shared/types'
 import { EmbeddedPlayground } from './components/Playground'
 import Run from './components/Run'
 import Scratch from './components/Scratch'
@@ -106,6 +106,51 @@ export function setSaveAll(fn: typeof saveAll): void {
   saveAll = fn
 }
 
+// Only data crosses to main: a plugin's object may hold anything.
+const runOf = (run: AgentRun): AgentRun => ({
+  project: String(run?.project ?? ''),
+  prompt: String(run?.prompt ?? ''),
+  profile: String(run?.profile ?? ''),
+  thread: !!run?.thread,
+  ...(run?.resume !== undefined && run.resume !== null ? { resume: String(run.resume) } : {}),
+  ...(typeof run?.timeout === 'number' ? { timeout: run.timeout } : {})
+})
+
+// A run's events for a page: what main kept so far, then live ones. Live events that arrive
+// while the catch-up is on its way wait for it; seq drops any already delivered.
+function watchRun(plugin: string, id: string, on: AgentRunHandlers): () => void {
+  let next = 0
+  let caught = false
+  let off = false
+  const waiting: AgentRunEvent[] = []
+  const call = <A,>(fn: ((a: A) => void) | undefined, a: A): void => {
+    try {
+      fn?.(a)
+    } catch (err) {
+      console.error(`plugin ${plugin}:`, err)
+    }
+  }
+  const deliver = (e: AgentRunEvent): void => {
+    if (off || e.seq < next) return
+    next = e.seq + 1
+    if ('end' in e) call(on?.end, e.end)
+    else for (const line of e.lines) call(on?.output, line)
+  }
+  const unsubscribe = window.api.onAgentRunEvent(id, (e) => (caught ? deliver(e) : waiting.push(e)))
+  void window.api
+    .agentRunEvents(plugin, id)
+    .catch((): AgentRunEvent[] => [])
+    .then((kept) => {
+      kept.forEach(deliver)
+      caught = true
+      waiting.splice(0).forEach(deliver)
+    })
+  return () => {
+    off = true
+    unsubscribe()
+  }
+}
+
 // As the git panel does it: unsaved editors first, so what's committed is what's on screen.
 const gitOp = async (repo: string, op: PluginGitOp, message?: string): Promise<GitResult> => {
   await saveAll()
@@ -201,6 +246,7 @@ export async function loadPlugins(): Promise<void> {
       document.head.append(style)
     }
     if (!p.renderer) continue
+    const plugin = p.id
     const host: RendererHost = {
       monaco,
       invoke: <R,>(name: string, ...args: unknown[]) => window.api.pluginInvoke(p.id, name, args) as Promise<R>,
@@ -252,6 +298,13 @@ export async function loadPlugins(): Promise<void> {
       onAgentRequest: (fn) => subscribe(requestSubs, p.id, fn),
       answerAgent: (id, output) => window.api.agentAnswer(String(id), output ?? null),
       onAgentRequestEnd: (fn) => subscribe(endSubs, p.id, fn),
+      runAgent: async (run) => {
+        const started = await window.api.agentRunStart(plugin, runOf(run))
+        if ('refused' in started) throw new Error(`runAgent: ${started.refused}`)
+        return started.id
+      },
+      onAgentRun: (id, on) => watchRun(plugin, String(id), on),
+      stopAgentRun: (id) => window.api.agentRunStop(plugin, String(id)),
       onPlayground: (fn) =>
         onPlayChange((slot, project) => {
           try {

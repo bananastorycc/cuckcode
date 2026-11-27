@@ -1,6 +1,6 @@
 import { mkdir, readdir, rm, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { isAbsolute, join, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { run } from './git'
 
 // root is the projects folder from settings: opening a project picks from it, and making one puts it there.
@@ -49,4 +49,12 @@ export function pluginReach(dir: string, projects: string[], projectsDir: string
   const d = resolve(dir)
   const within = (root: string): boolean => isAbsolute(root) && (d === resolve(root) || d.startsWith(`${resolve(root)}/`))
   return projects.some(within) || (!!projectsDir && within(projectsDir))
+}
+
+// Where a plugin's helper run (agentrun.ts) may run: a project itself, not a folder in one, since
+// the run's profile is the project's own. An open project, or a folder right in the projects folder.
+export function projectReach(dir: string, projects: string[], projectsDir: string): boolean {
+  if (!isAbsolute(dir) || resolve(dir) !== dir) return false
+  if (projects.includes(dir)) return true
+  return !!projectsDir && isAbsolute(projectsDir) && dirname(dir) === resolve(projectsDir) && !basename(dir).startsWith('.')
 }

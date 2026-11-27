@@ -12,7 +12,7 @@
 import type * as Monaco from 'monaco-editor/editor/editor.api'
 import type { ComponentType, ReactNode } from 'react'
 import type { AgentPreset } from './agents'
-import type { Agent, AgentRequest, GitResult, RepoStatus, RunExit, Section } from './types'
+import type { Agent, AgentRequest, AgentRun, AgentRunEnd, GitResult, RepoStatus, RunExit, Section } from './types'
 
 export const MANIFEST = 'cuckcode-plugin.json'
 
@@ -218,6 +218,14 @@ export interface RunProps {
   actions?: ReactNode // at the right of its title bar, before the ✕
 }
 
+// What a helper run sends while it runs (RendererHost.onAgentRun).
+export interface AgentRunHandlers {
+  // Each line the command printed: parsed when it's a JSON object (as Claude Code's stream-json
+  // lines are), else the text.
+  output?: (line: unknown) => void
+  end?: (end: AgentRunEnd) => void
+}
+
 export interface RendererHost<T = unknown> {
   monaco: typeof Monaco
   invoke: <R>(name: string, ...args: unknown[]) => Promise<R>
@@ -275,6 +283,39 @@ export interface RendererHost<T = unknown> {
   answerAgent: (id: string, output: unknown | null) => Promise<boolean>
   // Called with the id of each request that ended, however it ended. Returns the unsubscribe.
   onAgentRequestEnd: (fn: (id: string) => void) => () => void
+  // A helper run: the project's agent, headless, on one prompt, with nothing on screen. It runs
+  // the run command (Settings › Agents; by default Claude Code's `claude -p` with stream-json)
+  // under sh in project, with the login shell's PATH as cuckcode has it and none of the agents'
+  // CUCKCODE_* variables, and the prompt on stdin. Resolves to the run's id; rejects, and runs
+  // nothing, with why not.
+  //
+  // What the run may do comes from the project, never the plugin: profile names a file the
+  // project keeps, <project>/.claude/profiles/<profile>.json, a JSON object (for Claude Code, a
+  // settings file: model, permissions, env). A plugin can't pass tools, models or flags. The
+  // name is plain ([\w-]+); a missing profile, a symlink anywhere on the way to it, or one that
+  // isn't a JSON object is refused. The command gets its text in $CUCKCODE_RUN_PROFILE (what was
+  // checked, so a later change can't slip in) and its path in $CUCKCODE_RUN_PROFILE_PATH.
+  //
+  // project is a project itself: an open project, or a folder right in the projects folder
+  // (Settings); any other is refused. Three kinds of run, each one of these set for the command:
+  // - plain (neither thread nor resume): one-shot, no session kept. $CUCKCODE_RUN_PLAIN=1.
+  // - thread: true starts a session that's kept; the end's session is its id. $CUCKCODE_RUN_THREAD=1.
+  // - resume: <id> continues that session (thread is implied); the end's session is the id again.
+  //   $CUCKCODE_RUN_RESUME=<id>.
+  // timeout is in seconds: 600 by default, 3600 at most; then the run is stopped. At most 6
+  // runs go at once (another is refused), and quitting stops them all.
+  runAgent: (run: AgentRun) => Promise<string>
+  // Hears run id (one of this plugin's): everything it sent so far first, then the rest as it
+  // comes, ending with end. The end has the exit code (null when stopped, with stopped saying
+  // why), and from the last {"type":"result"} line the command printed (as Claude Code's
+  // stream-json ends): result, usage (its token counts as the agent names them), cost
+  // (total_cost_usd) and, for thread and resume runs, session (its session_id). error says what
+  // went wrong: the result line's is_error, a timeout, or the command's stderr on a failing exit.
+  // An ended run is kept for a while, so a page reopened later still hears how it went.
+  // Returns the unsubscribe.
+  onAgentRun: (id: string, on: AgentRunHandlers) => () => void
+  // Stops run id (SIGTERM to it and what it started, SIGKILL 3 s later); its end still arrives.
+  stopAgentRun: (id: string) => void
   // A URL the page can load for a file on disk (images, video).
   mediaUrl: (abs: string) => string
   // An agent to start from in Settings › Agents › Add, beside the built-in ones.

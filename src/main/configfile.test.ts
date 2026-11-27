@@ -12,6 +12,7 @@ const base: Settings = {
   recent: [],
   projectsDir: '/Users/a/code',
   commitCommand: 'x',
+  agentRunCommand: 'y',
   confirmAllRepos: true,
   notifications: false,
   readme: true,
