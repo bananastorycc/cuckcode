@@ -64,6 +64,17 @@ export interface RunExit {
   refused?: string
 }
 
+// An agent's hook waiting for a plugin to answer it (RendererHost.onAgentRequest). session is the
+// agent's PTY key, `${agent}:${project}`; payload is what the hook got on stdin, parsed when it's
+// JSON (as Claude Code's is), else the text.
+export interface AgentRequest {
+  id: string
+  session: string
+  agent: string // the agent's id in Settings › Agents
+  project: string
+  payload: unknown
+}
+
 // A rebase or merge git stopped in the middle of (a conflict to resolve), or null.
 export type Midway = 'rebase' | 'merge' | null
 
@@ -254,6 +265,10 @@ export interface Api {
   runStart: (id: string, spec: RunSpec, cols: number, rows: number) => Promise<{ replay: string; exit?: RunExit }>
   // Stops a run; its exit still arrives (code null).
   runStop: (id: string) => void
+  // Whether a plugin took an agent request (see agentrequest.ts); then its answer, null for
+  // the terminal. False when the request is no longer pending.
+  agentTaken: (id: string, taken: boolean) => void
+  agentAnswer: (id: string, output: unknown) => Promise<boolean>
 
   status: (cwd: string) => Promise<GitStatus>
   files: (root: string) => Promise<string[]>
@@ -314,6 +329,9 @@ export interface Api {
   onPtyData: (id: string, cb: (data: string) => void) => () => void
   // A run's exit carries how it ended; an agent's or shell's carries nothing.
   onPtyExit: (id: string, cb: (exit?: RunExit) => void) => () => void
+  onAgentRequest: (cb: (r: AgentRequest) => void) => () => void
+  // A request ended: answered, timed out, or its hook went away.
+  onAgentRequestEnd: (cb: (id: string) => void) => () => void
   // paths: what changed, relative to the project; null when the watcher couldn't say.
   onFsChange: (cb: (project: string, paths: string[] | null) => void) => () => void
   onMenu: (cb: (cmd: MenuCommand) => void) => () => void

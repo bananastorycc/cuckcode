@@ -6,13 +6,19 @@ export type AgentPreset = Omit<Agent, 'id'> & { label: string }
 
 // Claude Code's hooks signal "done" and "needs input" through $CUCKCODE_NOTIFY, since Claude only
 // sends notifications itself in terminals it recognizes. Not idle_prompt: that's a reminder a
-// minute after Stop already said so. Single-quoted for the shell; Claude's hook runner expands the variable.
+// minute after Stop already said so. PermissionRequest (a permission, or approving a plan) and
+// AskUserQuestion go to $CUCKCODE_HOOK, for a plugin to answer: both take a reply on stdout
+// (hookSpecificOutput), and a hook that prints nothing leaves Claude to ask in its terminal.
+// Single-quoted for the shell; Claude's hook runner expands the variables.
+const HOOK = [{ type: 'command', command: '"$CUCKCODE_HOOK"' }]
 const CLAUDE_HOOKS = JSON.stringify({
   hooks: {
     Stop: [{ hooks: [{ type: 'command', command: '"$CUCKCODE_NOTIFY" "Claude is done"' }] }],
     Notification: [
       { matcher: 'permission_prompt|elicitation_dialog', hooks: [{ type: 'command', command: '"$CUCKCODE_NOTIFY" "Claude needs your input"' }] }
-    ]
+    ],
+    PermissionRequest: [{ hooks: HOOK }],
+    PreToolUse: [{ matcher: 'AskUserQuestion', hooks: HOOK }]
   }
 })
 

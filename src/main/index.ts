@@ -6,6 +6,7 @@ import type { Worker } from 'node:worker_threads'
 import type { Agent, Bounds, GitOp, MenuCommand, PaneDir, PluginGitOp, RunSpec, Settings, ChangedFile, SearchQuery, SearchResult } from '../shared/types'
 import { MAX_SLOTS, SHELL_ID } from '../shared/types'
 import { CLAUDE, COMMIT_COMMAND, fromPreset } from '../shared/agents'
+import * as agentrequest from './agentrequest'
 import { writeAtomic } from './atomic'
 import * as configfile from './configfile'
 import * as configsync from './configsync'
@@ -370,7 +371,10 @@ function createWindow(): void {
   // A crashed page leaves a blank window, but the PTYs live on in main, so a reload brings
   // everything back (terminals replay their tail). Once per 10s, so a crash loop can't spin.
   let crashedAt = 0
+  // A page that's gone, or loading anew, can't answer what the old one was sent.
+  win.webContents.on('did-navigate', () => agentrequest.releaseAll())
   win.webContents.on('render-process-gone', (_e, { reason }) => {
+    agentrequest.releaseAll()
     if (reason === 'clean-exit' || quitting || Date.now() - crashedAt < 10_000) return
     crashedAt = Date.now()
     win?.webContents.reload()
@@ -457,6 +461,8 @@ function registerIpc(): void {
   // A plugin's run gets the same reach as its git.
   ipcMain.handle('run:start', (_e, id: string, spec: RunSpec, cols: number, rows: number) => pty.run(id, spec, cols, rows, ptySink, reach))
   ipcMain.on('run:stop', (_e, id: string) => pty.stop(id))
+  ipcMain.on('agent:taken', (_e, id: string, taken: boolean) => agentrequest.taken(id, taken))
+  ipcMain.handle('agent:answer', (_e, id: string, output: unknown) => agentrequest.answer(id, output))
 
   ipcMain.handle('git:status', (_e, cwd: string) => git.status(cwd))
   ipcMain.handle('git:files', (_e, root: string) => git.listFiles(root))
@@ -548,6 +554,9 @@ app.whenReady().then(async () => {
   })
   const synced = configsync.connect(settings.configRepo)
   protocol.handle('media', mediaResponse)
+  agentrequest.setUp({ send, live: pty.isAgent })
+  // Before any agent starts, so each gets the socket's path.
+  await agentrequest.listen(join(app.getPath('userData'), 'agent.sock'))
   registerIpc()
   buildMenu()
   // After the launch's sync, so plugins installed on another machine load here too, but never
@@ -597,6 +606,7 @@ app.on('before-quit', (e) => {
     app.on('activate', () => (relaunch = true))
   }
   closeAll()
+  void agentrequest.close()
   const cap = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
   // The config commit waits for the window's last saves (a scratchpad edit still on its timer),
   // or it would commit without them and the next launch's pull would put the old ones back.

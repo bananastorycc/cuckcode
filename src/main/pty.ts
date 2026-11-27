@@ -4,6 +4,7 @@ import { readFile, stat } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 import type { RunExit, RunSpec, Settings } from '../shared/types'
 import { SHELL_ID } from '../shared/types'
+import * as agentrequest from './agentrequest'
 import * as awake from './awake'
 import { shellEnv } from './env'
 import * as playground from './playground'
@@ -35,6 +36,8 @@ const RUN = 'eval "$CUCKCODE_COMMAND"; exec "$SHELL" -l'
 
 // Any agent's hooks can run it to notify (see notify.sh). The repo sits beside the build, as for the kit.
 const NOTIFY = join(__dirname, '../../src/agent/notify.sh')
+// Any agent's hooks can run it to have a plugin answer them (see hook.sh and agentrequest.ts).
+const HOOK = join(__dirname, '../../src/agent/hook.sh')
 
 const shell = (): string => process.env.SHELL || '/bin/zsh'
 
@@ -98,6 +101,10 @@ function spawn(id: string, cols: number, rows: number, send: Sink, config: Confi
       playground.exclude(cwd)
     }
     env.CUCKCODE_NOTIFY = NOTIFY
+    env.CUCKCODE_HOOK = HOOK
+    env.CUCKCODE_SESSION = id
+    const sock = agentrequest.socket()
+    if (sock) env.CUCKCODE_SOCKET = sock
     env.CUCKCODE_COMMAND = agent.command
     args = [...args, '-c', RUN]
   }
@@ -128,6 +135,11 @@ export function start(id: string, cols: number, rows: number, send: Sink, config
 export function restart(id: string, cols: number, rows: number, send: Sink, config: Config): void {
   kill(id)
   spawn(id, cols, rows, send, config)
+}
+
+// Whether id is a running agent's PTY (not a shell's or a run's).
+export function isAgent(id: string): boolean {
+  return sessions.has(id) && !RUN_ID.test(id) && !id.startsWith(`${SHELL_ID}:`)
 }
 
 export function write(id: string, data: string): void {

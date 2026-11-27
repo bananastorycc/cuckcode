@@ -4,7 +4,7 @@ import * as ReactDOM from 'react-dom'
 import { useSyncExternalStore } from 'react'
 import type { AgentPreset } from '../../shared/agents'
 import type { AgentBarItem, EditorContext, HOST_MODULES, PluginGit, PluginPanel, PluginView, ProjectSource, RendererHost, RendererPlugin, RunProps, When } from '../../shared/plugin'
-import type { GitResult, PluginGitOp } from '../../shared/types'
+import type { AgentRequest, GitResult, PluginGitOp } from '../../shared/types'
 import { EmbeddedPlayground } from './components/Playground'
 import Run from './components/Run'
 import Scratch from './components/Scratch'
@@ -142,11 +142,33 @@ export function runCommand(plugin: string, command: string): void {
   plugins.find((p) => p.id === plugin)?.commands.get(command)?.()
 }
 
+// Agent requests (agentrequest.ts in main): main hears at once whether anyone's listening, so
+// with no plugin subscribed the agent asks in its terminal without waiting.
+const requestSubs = new Set<(r: AgentRequest) => void>()
+const endSubs = new Set<(id: string) => void>()
+
+function subscribe<A>(subs: Set<(a: A) => void>, plugin: string, fn: (a: A) => void): () => void {
+  const safe = (a: A): void => {
+    try {
+      fn(a)
+    } catch (err) {
+      console.error(`plugin ${plugin}:`, err)
+    }
+  }
+  subs.add(safe)
+  return () => void subs.delete(safe)
+}
+
 let started = false
 
 export async function loadPlugins(): Promise<void> {
   if (started) return
   started = true
+  window.api.onAgentRequest((r) => {
+    window.api.agentTaken(r.id, requestSubs.size > 0)
+    for (const fn of [...requestSubs]) fn(r)
+  })
+  window.api.onAgentRequestEnd((id) => [...endSubs].forEach((fn) => fn(id)))
   const loaded = await window.api.pluginRenderers().catch(() => [])
   for (const p of loaded) {
     const reg: Registered = {
@@ -211,6 +233,9 @@ export async function loadPlugins(): Promise<void> {
       // Bound to the plugin, whose id scopes its runs' names.
       Run: (props: RunProps) => React.createElement(Run, { ...props, plugin: p.id }),
       git,
+      onAgentRequest: (fn) => subscribe(requestSubs, p.id, fn),
+      answerAgent: (id, output) => window.api.agentAnswer(String(id), output ?? null),
+      onAgentRequestEnd: (fn) => subscribe(endSubs, p.id, fn),
       onPlayground: (fn) =>
         onPlayChange((slot, project) => {
           try {

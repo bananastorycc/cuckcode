@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.56.0 — 2026-11-26
+
+- ✨ A plugin can show what an agent is waiting on and answer it, instead of typing into its terminal: with the Claude Code preset, a permission prompt, a plan to approve, or a question with its options. An answer to a prompt that already ended goes nowhere, so a late click can't answer the next one. With no such plugin, or no answer within 5 minutes, Claude asks in its terminal as before.
+- An agent added from the Claude Code preset before this version keeps its old command: add it again from the preset (or copy the preset's command) to get the new hooks.
+
 ## 1.55.1 — 2026-11-26
 
 - 🐛 Done on a playground page saves what a block showed as already chosen when you left it as it was: a form's defaults, a plan, checklist or board as written, tune's starting values. An answer you already gave is kept.

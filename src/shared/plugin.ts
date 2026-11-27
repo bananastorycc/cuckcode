@@ -12,7 +12,7 @@
 import type * as Monaco from 'monaco-editor/editor/editor.api'
 import type { ComponentType, ReactNode } from 'react'
 import type { AgentPreset } from './agents'
-import type { Agent, GitResult, RepoStatus, RunExit, Section } from './types'
+import type { Agent, AgentRequest, GitResult, RepoStatus, RunExit, Section } from './types'
 
 export const MANIFEST = 'cuckcode-plugin.json'
 
@@ -234,10 +234,25 @@ export interface RendererHost<T = unknown> {
   // if typed there: closes the view, shows the agent (starting it if needed), pastes, and presses
   // Enter unless submit is false. Resolves false when there's no such agent or it didn't start.
   // With stay, the screen and keyboard focus stay as they are: the view stays open and the agent
-  // isn't shown or brought to the front, though it's still started if needed. The plugin then
-  // can't see what the text lands on (a question the agent is asking, half-typed input), so it
-  // should check the agent's state itself and toast what it sent.
+  // isn't shown or brought to the front, though it's still started if needed. Nothing tells the
+  // plugin what the text lands on (half-typed input, or a dialog the agent is showing, which
+  // the Enter would answer), so toast what it sent. A prompt an agent's hook sends through
+  // $CUCKCODE_HOOK is answered with answerAgent instead, never typed.
   sendToAgent: (text: string, opts?: { submit?: boolean; stay?: boolean }) => Promise<boolean>
+  // An agent's hook, run through $CUCKCODE_HOOK (the Claude Code preset's PermissionRequest and
+  // PreToolUse on AskUserQuestion), waiting for an answer. payload is the hook's input as the
+  // agent sent it; cuckcode doesn't read it. Every subscribed plugin hears each request; the
+  // agent waits (its terminal shows no dialog) until one answers, or 5 minutes pass. With no
+  // plugin subscribed, the agent asks in its terminal at once. A plugin that won't show a
+  // request should answer it null straight away. Returns the unsubscribe.
+  onAgentRequest: (fn: (request: AgentRequest) => void) => () => void
+  // Answers request id: output becomes the hook's stdout (a string as is, anything else as JSON),
+  // and null lets the agent ask in its terminal as usual. Resolves false, and sends nothing,
+  // when id is no longer pending (another plugin answered, it timed out, the agent stopped):
+  // a late click can't answer the next prompt.
+  answerAgent: (id: string, output: unknown | null) => Promise<boolean>
+  // Called with the id of each request that ended, however it ended. Returns the unsubscribe.
+  onAgentRequestEnd: (fn: (id: string) => void) => () => void
   // A URL the page can load for a file on disk (images, video).
   mediaUrl: (abs: string) => string
   // An agent to start from in Settings › Agents › Add, beside the built-in ones.
