@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import type { PlaygroundProps } from '../../../shared/plugin'
 import type { Theme } from '../../../shared/types'
-import { playDone, playKey, useEmbedded, usePlay } from '../play'
+import { PageProject, playDone, playKey, useEmbedded, usePlay } from '../play'
 
 interface Props {
   project: string
@@ -87,10 +87,14 @@ export default function Playground({ project, slot, name, version, theme, onDone
   )
 }
 
-// A slot of the open project's, inside a plugin's view (RendererHost.Playground): the same page,
-// answers and live reload. Done tells the agent without leaving the view, then the plugin.
+// A slot inside a plugin's view or panel (RendererHost.Playground), of the project the page is for
+// (the tab's own, or the page's home): the same page, answers and live reload. Done tells that
+// project's agent without leaving the view, then the plugin.
 export function EmbeddedPlayground({ slot, onDone, actions }: PlaygroundProps): React.JSX.Element {
-  const { project, names, versions, theme } = usePlay()
+  const play = usePlay()
+  const page = useContext(PageProject)
+  const project = page === undefined ? play.project : page
+  const { names, versions, theme } = play
   const valid = Number.isInteger(slot) && slot >= 1 && slot <= names.length
   useEmbedded(project && valid ? playKey(slot, project) : null)
   const note = (text: string): React.JSX.Element => <div className="flex h-full items-center justify-center bg-bg text-xs text-muted">{text}</div>
@@ -101,10 +105,10 @@ export function EmbeddedPlayground({ slot, onDone, actions }: PlaygroundProps): 
       project={project}
       slot={slot}
       name={names[slot - 1]}
-      version={versions[slot] ?? null}
+      version={versions[playKey(slot, project)] ?? null}
       theme={theme}
       actions={actions}
-      onDone={() => void playDone(slot).then((sent) => onDone?.(sent))}
+      onDone={() => void playDone(slot, project).then((sent) => onDone?.(sent))}
     />
   )
 }

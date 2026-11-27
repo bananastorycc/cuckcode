@@ -25,13 +25,14 @@ interface Props {
   readme: boolean
   reading: boolean
   onReadme: () => void
-  // Plugins' views the project has, and the one shown, if any.
-  pluginViews: { id: string; title: string; icon: React.ReactNode; shortcut: string }[]
+  // Plugins' views the project has or can open for another (their homes), and the one shown, if
+  // any. tag: the project a page shows for, when it isn't this tab's.
+  pluginViews: { id: string; title: string; icon: React.ReactNode; shortcut: string; tag?: string }[]
   pluginView: string | null
   onPluginView: (id: string) => void
-  // Plugins' dockable panels the project has; open: in the dock.
-  pluginPanels: { id: string; title: string; icon: React.ReactNode; shortcut: string; open: boolean }[]
-  onPluginPanel: (id: string, title: string) => void
+  // Plugins' dockable panels, offered as the views are; open: in the dock.
+  pluginPanels: { id: string; title: string; icon: React.ReactNode; shortcut: string; open: boolean; tag?: string }[]
+  onPluginPanel: (id: string) => void
   webPages: WebPage[]
   // Which web page is shown, if any.
   showingWeb: number | null
@@ -164,21 +165,25 @@ export default function Header(p: Props): React.JSX.Element {
         {p.pluginViews.map((v) => (
           <button
             key={v.id}
+            data-page={v.id}
             onClick={() => p.onPluginView(v.id)}
-            title={`Toggle ${v.title.toLowerCase()}${v.shortcut ? `  ${v.shortcut}` : ''}`}
-            className={`shrink-0 rounded p-1 [&_svg]:h-3.5 [&_svg]:w-3.5 ${p.pluginView === v.id ? on : off}`}
+            title={`Toggle ${v.title.toLowerCase()}${v.tag ? ` (for ${v.tag})` : ''}${v.shortcut ? `  ${v.shortcut}` : ''}`}
+            className={`flex shrink-0 items-center gap-1 rounded p-1 [&_svg]:h-3.5 [&_svg]:w-3.5 ${p.pluginView === v.id ? on : off}`}
           >
             {v.icon}
+            {v.tag && <PageTag name={v.tag} />}
           </button>
         ))}
         {p.pluginPanels.map((v) => (
           <button
             key={v.id}
-            onClick={() => p.onPluginPanel(v.id, v.title)}
-            title={`${v.open ? 'Show or close' : 'Open'} ${v.title.toLowerCase()} (a tab you can dock anywhere)${v.shortcut ? `  ${v.shortcut}` : ''}`}
-            className={`shrink-0 rounded p-1 [&_svg]:h-3.5 [&_svg]:w-3.5 ${v.open ? on : off}`}
+            data-page={v.id}
+            onClick={() => p.onPluginPanel(v.id)}
+            title={`${v.open ? 'Show or close' : 'Open'} ${v.title.toLowerCase()} (a tab you can dock anywhere)${v.tag ? `, for ${v.tag}` : ''}${v.shortcut ? `  ${v.shortcut}` : ''}`}
+            className={`flex shrink-0 items-center gap-1 rounded p-1 [&_svg]:h-3.5 [&_svg]:w-3.5 ${v.open ? on : off}`}
           >
             {v.icon}
+            {v.tag && <PageTag name={v.tag} />}
           </button>
         ))}
         {p.active && p.readme && (
@@ -239,4 +244,9 @@ export default function Header(p: Props): React.JSX.Element {
       </div>
     </header>
   )
+}
+
+// The project a plugin's page shows for, beside its button, when it isn't the tab's own.
+function PageTag({ name }: { name: string }): React.JSX.Element {
+  return <span className="max-w-24 truncate text-[10px] leading-none text-muted">{name}</span>
 }

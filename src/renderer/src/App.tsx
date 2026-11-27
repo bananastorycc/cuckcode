@@ -8,6 +8,7 @@ import { SHELL_ID } from '../../shared/types'
 import type { When } from '../../shared/plugin'
 import AgentMenu from './components/AgentMenu'
 import Confirm, { ask } from './components/Confirm'
+import { contextMenu } from './components/ContextMenu'
 import CodePane, { saveAll, selection, type Reveal } from './components/CodePane'
 import FileTree from './components/FileTree'
 import GitPanel, { type GitTab } from './components/GitPanel'
@@ -25,9 +26,26 @@ import Terminal, { pasteInto, whenReady } from './components/Terminal'
 import { shellQuote } from './xterm'
 import Toasts, { toast } from './components/Toasts'
 import WebPage from './components/WebPage'
-import { apply, closePanel, hosts, mount, openPanel, openPanels, panelHost, panelId, PRESETS, reveal as revealSection, SECTIONS, show as showSection, togglePanel, type Section } from './layout'
-import { isEmbedded, playChanged, playKey, setPlay, setPlayHandlers } from './play'
-import { loadPlugins, runCommand, setCurrent, setOpenFile, setSaveAll, setSendToAgent, setShow, usePlugins, type Registered } from './plugins'
+import {
+  apply,
+  closePanel,
+  hosts,
+  mount,
+  openPanel,
+  openPanels,
+  panelHost,
+  panelId,
+  panelShowing,
+  PRESETS,
+  reveal as revealSection,
+  SECTIONS,
+  setPanelTitle,
+  show as showSection,
+  type Section
+} from './layout'
+import { agentProject, offer, offeredAt, pageState, pluginOfPanel, remember, used, type Page } from './pages'
+import { isEmbedded, PageProject, playChanged, playKey, setPlay, setPlayHandlers } from './play'
+import { loadPlugins, runCommand, setCurrent, setOpenFile, setSaveAll, setSendToAgent, setShow, usePlugins, type Registered, type Send } from './plugins'
 
 // What's shown: the README over the code pane, or a playground slot (from 1) or a plugin's
 // view (`plugin:<id>:<command>`) over the whole workspace.
@@ -89,6 +107,12 @@ export default function App(): React.JSX.Element {
   const [webOpened, setWebOpened] = useState<Set<string>>(new Set())
   const [foldersOpened, setFoldersOpened] = useState(false)
   const [recent, setRecent] = useState<string[]>([])
+  // Per plugin: its homes, the projects its data last came from, most recently opened first.
+  const [pluginHomes, setPluginHomes] = useState<Record<string, string[]>>({})
+  const pluginHomesRef = useRef(pluginHomes)
+  pluginHomesRef.current = pluginHomes
+  // Per tab: the project its plugin view is for, when that's a home other than the tab's own.
+  const [viewFor, setViewFor] = useState<Record<string, string | undefined>>({})
   const activeRef = useRef(active)
   activeRef.current = active
   const projectsRef = useRef(projects)
@@ -111,6 +135,7 @@ export default function App(): React.JSX.Element {
       setConfig(pickConfig(s))
       setTerms(s.agent)
       setRecent(s.recent)
+      setPluginHomes(s.pluginHomes)
       layoutRef.current = s.layout
       setLayouts(s.layouts)
       // Restored as clean; if it's still changed, the fresh status entry takes over.
@@ -123,9 +148,9 @@ export default function App(): React.JSX.Element {
     if (loaded) {
       // A commit's file isn't restored: it'd come back as the working copy.
       const files = Object.fromEntries(Object.entries(selected).flatMap(([p, f]) => (f.commit ? [] : [[p, f.path]])))
-      window.api.save({ ...config, projects, shelved, active, theme: themeChoice, files, agent: terms, recent, layout: layoutRef.current, layouts })
+      window.api.save({ ...config, projects, shelved, active, theme: themeChoice, files, agent: terms, recent, layout: layoutRef.current, layouts, pluginHomes })
     }
-  }, [loaded, projects, shelved, active, themeChoice, selected, terms, config, recent, layoutSaves, layouts])
+  }, [loaded, projects, shelved, active, themeChoice, selected, terms, config, recent, layoutSaves, layouts, pluginHomes])
 
   // The dock, once the saved layout is known. Dragging a divider changes the layout every frame;
   // it's saved once that settles.
@@ -135,7 +160,7 @@ export default function App(): React.JSX.Element {
     const unmount = mount(dockEl.current, layoutRef.current, (layout, minimized) => {
       layoutRef.current = layout
       setMinimized(minimized.join())
-      setPanels(openPanels(layout).join('\n'))
+      setPanels(openPanels(layout).map((p) => `${p.id}\t${p.project ?? ''}`).join('\n'))
       clearTimeout(timer)
       timer = setTimeout(bumpLayout, 300)
     })
@@ -190,7 +215,8 @@ export default function App(): React.JSX.Element {
   }, [])
 
   // Plugins' per-project data, by `${plugin}:${path}`: null where a plugin has nothing for the
-  // project, which hides its view. Overlapping loads collapse into one rerun.
+  // project, which hides its view. Overlapping loads collapse into one rerun. Each load updates
+  // where the plugin is remembered to have data (its homes).
   const plugins = usePlugins()
   const pluginsRef = useRef(plugins)
   pluginsRef.current = plugins
@@ -209,13 +235,40 @@ export default function App(): React.JSX.Element {
         .catch(() => null)
       // Unchanged data keeps its identity, so views (a laid-out graph) don't redo their work.
       setData((x) => (key in x && JSON.stringify(x[key]) === JSON.stringify(r) ? x : { ...x, [key]: r }))
+      setPluginHomes((h) => remember(h, p.id, path, r !== null && r !== undefined))
     } while (loading.current.get(key))
     loading.current.delete(key)
   }, [])
-  const dataOf = (id: string): unknown => (active ? (data[`${id}:${active}`] ?? null) : null)
+  const dataFor = (id: string, project: string | null): unknown => (project ? (data[`${id}:${project}`] ?? null) : null)
+  const dataOf = (id: string): unknown => dataFor(id, active)
   useEffect(() => {
     for (const p of plugins) setCurrent(p.id, dataOf(p.id))
   })
+
+  // A plugin with no homes remembered gets the projects folder looked through once, in the
+  // background and a project at a time. What it finds is remembered (nothing found too), so a
+  // launch doesn't do it again; a project opened later is found by its own load.
+  const scanned = useRef(new Set<string>())
+  useEffect(() => {
+    const dir = config.projectsDir
+    if (!loaded || !dir) return
+    const todo = plugins.filter((p) => p.source && !(p.id in pluginHomesRef.current) && !scanned.current.has(p.id))
+    if (!todo.length) return
+    todo.forEach((p) => scanned.current.add(p.id))
+    void (async () => {
+      const paths = await window.api.repos(dir).catch((): string[] => [])
+      for (const p of todo) {
+        const found: string[] = []
+        for (const path of paths) {
+          const r = await Promise.resolve()
+            .then(() => p.source!.load(path))
+            .catch(() => null)
+          if (r !== null && r !== undefined) found.push(path)
+        }
+        setPluginHomes((h) => ({ ...h, [p.id]: [...(h[p.id] ?? []), ...found.filter((f) => !h[p.id]?.includes(f))] }))
+      }
+    })()
+  }, [loaded, plugins, config.projectsDir])
 
   // The first look at a slot only sets the baseline, so a page left from last time isn't news.
   const checkPlay = useCallback(async (path: string) => {
@@ -249,15 +302,18 @@ export default function App(): React.JSX.Element {
   useEffect(
     () =>
       window.api.onFsChange((dir, paths) => {
-        if (dir !== activeRef.current) return
-        refresh()
+        // The tab in front, and the homes plugin pages away from home are showing.
+        const front = dir === activeRef.current
+        if (!front && !awayRef.current.has(dir)) return
+        if (front) refresh()
         checkPlay(dir)
         // A project a plugin has nothing for is rechecked when its tab is next opened, not on
         // every change; otherwise only for changes the plugin says could matter.
         for (const p of pluginsRef.current) {
-          if (p.source && dataRef.current[`${p.id}:${dir}`] !== null && (p.source.relevant?.(paths) ?? true)) loadData(p, dir)
+          const d = dataRef.current[`${p.id}:${dir}`]
+          if (p.source && (front ? d !== null : d !== null && d !== undefined) && (p.source.relevant?.(paths) ?? true)) loadData(p, dir)
         }
-        setTick((t) => t + 1)
+        if (front) setTick((t) => t + 1)
       }),
     [refresh, checkPlay, loadData]
   )
@@ -266,14 +322,13 @@ export default function App(): React.JSX.Element {
   // or the folders cover it, so while one's up, showing it brings it out from under them instead.
   const toggleView = (where: string, next: View): void => {
     const covered = showingWeb !== null || browsing
-    if (covered) setOverlay(null)
+    if (isCovered()) setOverlay(null)
     setView((v) => ({ ...v, [where]: v[where] === next && !covered ? undefined : next }))
   }
-  // What a plugin's embedded playground shows: the open project's slots.
+  // What a plugin's embedded playground shows: the slots of the project its page is for.
   useEffect(() => {
     const names = config.playgrounds.map((p, i) => p.name || `playground ${i + 1}`)
-    const versions = active ? Object.fromEntries(names.map((_, i) => [i + 1, playVersions[playKey(i + 1, active)] ?? null])) : {}
-    setPlay({ project: active, names, versions, theme })
+    setPlay({ project: active, names, versions: playVersions, theme })
   }, [active, config.playgrounds, playVersions, theme])
   const unseen = (key: string): void =>
     setPlayUnseen((s) => {
@@ -296,74 +351,208 @@ export default function App(): React.JSX.Element {
   }
   const reading = config.readme && shown === 'readme'
 
-  // Whether a plugin's view or panel is offered: by its when, else while a project is open and has
-  // the plugin's data (or the plugin keeps none). A when that throws offers nothing.
-  const offered = (p: Registered, when: When<unknown> | undefined): boolean => {
-    if (!when) return !!active && (!p.source || dataOf(p.id) !== null)
-    try {
-      return !!when(dataOf(p.id), active)
-    } catch (err) {
+  // A plugin's pages (views and panels) and the project each opens for (pages.ts): the tab's own when
+  // the plugin offers it there, else one of the plugin's homes.
+  const report =
+    (p: Registered) =>
+    (err: unknown): void =>
       console.error(`plugin ${p.id}:`, err)
-      return false
-    }
-  }
+  const pageOf = (p: Registered, when: When<unknown> | undefined, panel: boolean): Page => ({ source: !!p.source, when, panel })
+  const offerOf = (p: Registered, when: When<unknown> | undefined, panel: boolean): ReturnType<typeof offer> =>
+    offer(pageOf(p, when, panel), p.id, active, pluginHomes[p.id] ?? [], data, report(p))
+  // How a page for project stands: the tab's own as ever (hidden until its data is in), a home's
+  // loading in the background first.
+  const stateAt = (p: Registered, when: When<unknown> | undefined, panel: boolean, project: string | null): ReturnType<typeof pageState> =>
+    project === active
+      ? offeredAt(pageOf(p, when, panel), dataOf(p.id), active, report(p))
+        ? 'ready'
+        : 'gone'
+      : pageState(pageOf(p, when, panel), p.id, project!, data, report(p))
+  const note = (text: string): ReactNode => <div className="h-full bg-bg p-3 text-xs text-muted">{text}</div>
+  // A web page or the folders cover the workspace: showing a view brings it out from under them.
+  const isCovered = (): boolean => showingWeb !== null || browsing
+
   // A plugin can have several views, one per command. They can show over the home screen too, so
   // which one is showing is kept per project, and under '' with none open.
   const here = active ?? ''
   const viewKey = (plugin: string, command: string) => `plugin:${plugin}:${command}` as const
-  const views = plugins.flatMap((p) => p.views.filter((v) => offered(p, v.when)).map((v) => ({ key: viewKey(p.id, v.command), plugin: p, view: v })))
-  const togglePluginView = (key: string): void => {
-    const found = views.find((v) => v.key === key)
-    if (found) toggleView(here, found.key)
+  const allViews = plugins.flatMap((p) => p.views.map((v) => ({ key: viewKey(p.id, v.command), plugin: p, view: v })))
+  const views = allViews.filter((v) => offerOf(v.plugin, v.view.when, false))
+  const shownView = allViews.find((v) => v.key === view[here]) ?? null
+  const viewProject = shownView ? (viewFor[here] ?? active) : null
+  const viewState = shownView ? stateAt(shownView.plugin, shownView.view.when, false, viewProject) : 'gone'
+  const pluginView = viewState === 'gone' ? null : shownView
+  const clearView = (where: string): void => {
+    setView((v) => (v[where] === undefined ? v : { ...v, [where]: undefined }))
+    setViewFor((f) => (f[where] === undefined ? f : { ...f, [where]: undefined }))
   }
-  const hidePluginView = (key: string): void => setView((v) => (v[here] === key ? { ...v, [here]: undefined } : v))
-  const pluginView = views.find((v) => view[here] === v.key) ?? null
-  // Panels live in the workspace, so they're offered only with a project open.
-  const paneled = active
-    ? plugins.flatMap((p) => p.panels.filter((x) => offered(p, x.when)).map((panel) => ({ id: panelId(p.id, panel.id), plugin: p, panel })))
+  const hidePluginView = (key: string): void => {
+    if (view[here] === key) clearView(here)
+  }
+
+  // Panels live in the workspace, so from the home screen they open in their home's tab.
+  const allPanels = plugins.flatMap((p) => p.panels.map((panel) => ({ id: panelId(p.id, panel.id), plugin: p, panel })))
+  const paneled = allPanels.filter((x) => offerOf(x.plugin, x.panel.when, true))
+  // The dock's plugin panels, each with the project it's tied to (null: the tab in front's).
+  const openList = panels
+    ? panels.split('\n').map((line) => {
+        const [id, project] = line.split('\t')
+        return { id, project: project || null }
+      })
     : []
-  const openPanelIds = panels ? panels.split('\n') : []
+  const openPanelIds = openList.map((o) => o.id)
+
+  // A project a page away from home is for, opened in the background (shelved) when it isn't open.
+  const visit = (path: string): void => {
+    if (projectsRef.current.includes(path)) return
+    setProjects((ps) => (ps.includes(path) ? ps : [...ps, path]))
+    setShelved((s) => (s.includes(path) ? s : [...s, path]))
+  }
+  // A project brought to the front: put back on the bar, or opened.
+  const bring = (path: string): void => (projectsRef.current.includes(path) ? select(path) : open([path]))
+  // Shows a page for project through show(where), where being the tab it shows in. From the home
+  // screen, the home opens as a tab first.
+  const openFor = (p: Registered, project: string | null, show: (where: string) => void): void => {
+    if (project && project !== active) setPluginHomes((h) => used(h, p.id, project))
+    if (project && !active) {
+      open([project])
+      return show(project)
+    }
+    if (project && project !== active) visit(project)
+    show(here)
+  }
+  // The project a page opens for from here; ask: let the user pick among several homes (else the
+  // one opened last). null: it isn't offered, or the pick was dismissed.
+  const chooseHome = async (p: Registered, when: When<unknown> | undefined, panel: boolean, id: string, ask: boolean): Promise<{ project: string | null } | null> => {
+    const o = offerOf(p, when, panel)
+    if (!o) return null
+    if ('for' in o) return { project: o.for }
+    if (!ask) return { project: o.ask[0] }
+    const anchor = document.querySelector(`[data-page="${CSS.escape(id)}"]`) ?? document.querySelector('header') ?? undefined
+    const i = await contextMenu(
+      o.ask.map((path) => `${projectName(path)}\t${tildify(path)}`),
+      anchor
+    )
+    return i === null ? null : { project: o.ask[i] }
+  }
+
+  const showViewFor = (v: (typeof allViews)[number], project: string | null): void => {
+    if (isCovered()) setOverlay(null)
+    openFor(v.plugin, project, (where) => {
+      setView((x) => ({ ...x, [where]: v.key }))
+      setViewFor((f) => ({ ...f, [where]: project && project !== where ? project : undefined }))
+    })
+  }
+  // Its button and command: hides it when it's showing (or brings it out from under a web page or
+  // the folders), else opens it, asking which home when there are several.
+  const togglePluginView = async (key: string): Promise<void> => {
+    const v = allViews.find((x) => x.key === key)
+    if (!v) return
+    if (pluginView?.key === key) return isCovered() ? setOverlay(null) : hidePluginView(key)
+    const to = await chooseHome(v.plugin, v.view.when, false, key, true)
+    if (to) showViewFor(v, to.project)
+  }
+  const showPanelFor = (x: (typeof allPanels)[number], project: string | null): void =>
+    openFor(x.plugin, project, (where) => openPanel(x.id, x.panel.title, x.panel.dock, project && project !== where ? project : null))
+  const togglePluginPanel = async (id: string): Promise<void> => {
+    const x = allPanels.find((y) => y.id === id)
+    if (!x) return
+    if (panelShowing(id)) return closePanel(id)
+    const to = await chooseHome(x.plugin, x.panel.when, true, id, true)
+    if (to) showPanelFor(x, to.project)
+  }
   const onPluginCommand = (plugin: string, command: string): void => {
     const p = plugins.find((x) => x.id === plugin)
     const v = views.find((x) => x.plugin === p && x.view.command === command)
     const panel = paneled.find((x) => x.plugin === p && x.panel.command === command)
-    if (v) togglePluginView(v.key)
-    else if (panel) togglePanel(panel.id, panel.panel.title, panel.panel.dock)
+    if (v) void togglePluginView(v.key)
+    else if (panel) void togglePluginPanel(panel.id)
     // A view's or panel's command does nothing while it isn't offered.
     else if (!p?.views.some((x) => x.command === command) && !p?.panels.some((x) => x.command === command)) runCommand(plugin, command)
   }
-  // A plugin's show() and hide(): like its button, but only ever opening (on) or closing.
+  // A plugin's show() and hide(): like its button, but only ever opening (on) or closing, and
+  // never asking: away from home, the home opened last.
   const showPlugin = (plugin: string, command: string, on: boolean): boolean => {
-    const key = viewKey(plugin, command)
-    const panel = plugins.find((x) => x.id === plugin)?.panels.find((x) => x.command === command)
+    const v = allViews.find((x) => x.plugin.id === plugin && x.view.command === command)
+    const x = allPanels.find((y) => y.plugin.id === plugin && y.panel.command === command)
     if (!on) {
-      hidePluginView(key)
-      if (panel) closePanel(panelId(plugin, panel.id))
+      if (v) hidePluginView(v.key)
+      if (x) closePanel(x.id)
       return true
     }
-    if (views.some((v) => v.key === key)) {
-      if (showingWeb !== null || browsing) setOverlay(null)
-      setView((v) => ({ ...v, [here]: key }))
+    if (v) {
+      if (pluginView?.key === v.key) {
+        if (isCovered()) setOverlay(null)
+        return true
+      }
+      const o = offerOf(v.plugin, v.view.when, false)
+      if (o) showViewFor(v, 'for' in o ? o.for : o.ask[0])
+      return !!o
+    }
+    if (!x) return false
+    const already = openList.find((o) => o.id === x.id)
+    if (already) {
+      openPanel(x.id, x.panel.title, x.panel.dock, already.project)
       return true
     }
-    const offer = paneled.find((x) => x.plugin.id === plugin && x.panel.command === command)
-    if (offer) openPanel(offer.id, offer.panel.title, offer.panel.dock)
-    return !!offer
+    const o = offerOf(x.plugin, x.panel.when, true)
+    if (o) showPanelFor(x, 'for' in o ? o.for : o.ask[0])
+    return !!o
   }
   useEffect(() => setShow(showPlugin))
+
+  // What a page gets: everything is its project's, its home when it's shown away from it.
+  const pageProps = (project: string | null, close: () => void): { root: string | null; openFile: (abs: string, line: number) => void; close: () => void } => ({
+    root: project,
+    openFile: (abs, line) => openFileIn(project, abs, line),
+    close
+  })
   // What a plugin panel's tab shows: the plugin's content, or why there's none.
-  const panelContent = (id: string): ReactNode => {
-    const p = plugins.find((x) => id.startsWith(`plugin:${x.id}:`))
-    const panel = p?.panels.find((x) => panelId(p.id, x.id) === id)
-    const note = (text: string): ReactNode => <div className="p-3 text-xs text-muted">{text}</div>
-    if (!p || !panel) return note("This panel's plugin isn't loaded.")
-    if (!offered(p, panel.when)) return note(`${p.name} has nothing for this project.`)
+  const panelContent = (id: string, tie: string | null): ReactNode => {
+    const x = allPanels.find((y) => y.id === id)
+    const project = tie ?? active
+    if (!x) return note("This panel's plugin isn't loaded.")
+    if (!project) return null
+    const { plugin: p, panel } = x
+    const state = stateAt(p, panel.when, true, project)
+    if (state === 'gone') return note(`${p.name} has nothing for ${project === active ? 'this project' : projectName(project)}.`)
+    if (state === 'loading') return note(`Loading ${projectName(project)}…`)
     return (
-      <Quiet what={`${p.id} panel`} reset={active} fallback={note(`${panel.title} hit an error (see the console).`)}>
-        {panel.render({ data: dataOf(p.id), root: active, openFile, close: () => closePanel(id) })}
-      </Quiet>
+      <PageProject.Provider value={project}>
+        <Quiet what={`${p.id} panel`} reset={`${active}\n${project}`} fallback={note(`${panel.title} hit an error (see the console).`)}>
+          {panel.render({ data: dataFor(p.id, project), ...pageProps(project, () => closePanel(id)) })}
+        </Quiet>
+      </PageProject.Provider>
     )
   }
+  // A tied panel's tab says its project when another tab is in front.
+  useEffect(() => {
+    for (const o of openList) {
+      const x = allPanels.find((y) => y.id === o.id)
+      if (x) setPanelTitle(o.id, o.project && o.project !== active ? `${x.panel.title} · ${projectName(o.project)}` : x.panel.title)
+    }
+  }, [panels, active, plugins])
+
+  // Pages showing away from home: their homes open in the background, their data loads, and they
+  // stay live (changes there reload them, playground pages there update).
+  const awayPages = [
+    ...(pluginView && viewProject && viewProject !== active ? [{ plugin: pluginView.plugin, project: viewProject }] : []),
+    ...openList.flatMap((o) => {
+      const p = plugins.find((x) => x.id === pluginOfPanel(o.id))
+      return p && o.project && o.project !== active ? [{ plugin: p, project: o.project }] : []
+    })
+  ]
+  const awayKey = awayPages.map((a) => `${a.plugin.id}\t${a.project}`).join('\n')
+  const awayRef = useRef(new Set<string>())
+  awayRef.current = new Set(awayPages.map((a) => a.project))
+  useEffect(() => {
+    if (!active) return
+    for (const { plugin, project } of awayPages) {
+      visit(project)
+      if (plugin.source) loadData(plugin, project)
+    }
+    for (const project of awayRef.current) checkPlay(project)
+  }, [awayKey, active])
 
   const toggleWeb = (i: number): void => {
     const page = config.webPages[i]
@@ -469,7 +658,12 @@ export default function App(): React.JSX.Element {
     // Its views, playground versions, plugin data and notification state go too: reopened, it starts fresh.
     lastNotified.current.delete(path)
     clearDone(path)
-    setView(({ [path]: _, ...v }) => v)
+    // So do pages away from home showing it, or they'd open it again in the background.
+    const awayTabs = Object.keys(viewFor).filter((where) => viewFor[where] === path)
+    setView(({ [path]: _, ...v }) => ({ ...v, ...Object.fromEntries(awayTabs.map((where) => [where, undefined])) }))
+    setViewFor(({ [path]: _, ...f }) => Object.fromEntries(Object.entries(f).filter(([, p]) => p !== path)))
+    for (const o of openList) if (o.project === path) closePanel(o.id)
+    setPanels((x) => x.split('\n').filter((line) => line && line.split('\t')[1] !== path).join('\n'))
     setPlayVersions((r) => withoutPath(r, path))
     setPlayUnseen((s) => new Set([...s].filter((k) => pathOf(k) !== path)))
     setData((x) => withoutPath(x, path))
@@ -609,10 +803,27 @@ export default function App(): React.JSX.Element {
   const openFile = (abs: string, line: number): void => {
     const root = status?.root ?? ''
     if (!active || !root || !abs.startsWith(`${root}/`)) return
-    setView((v) => ({ ...v, [active]: undefined }))
+    clearView(active)
     openAt(abs.slice(root.length + 1), line, 1, 0)
   }
   useEffect(() => setOpenFile(openFile))
+
+  // A page's openFile, in its project's repo: a page away from home switches to its home's tab.
+  const openFileIn = (project: string | null, abs: string, line: number): void => {
+    if (!project || project === active) return openFile(abs, line)
+    const where = here
+    void (async () => {
+      const root = (statuses.current.get(project) ?? (await window.api.status(project).catch(() => null)))?.root
+      if (!root || !abs.startsWith(`${root}/`)) return
+      const path = abs.slice(root.length + 1)
+      clearView(where)
+      clearView(project)
+      bring(project)
+      setSelected((s) => ({ ...s, [project]: { path, code: 'M' } }))
+      revealSection('editor')
+      setReveal((r) => ({ path, line, col: 1, len: 0, n: (r?.n ?? 0) + 1 }))
+    })()
+  }
 
   // Shows an agent (starting it if it wasn't running) and resolves once its prompt is up.
   // With stay, only starts it: the screen and the agent in front stay as they are.
@@ -645,29 +856,57 @@ export default function App(): React.JSX.Element {
   // answers (the one in front, else the first) to read them, as if typed there. The Enter goes
   // separately, after the paste, or the agent takes it as part of the pasted text. With stay (a
   // page inside a plugin's view), the screen stays as it is.
-  const playDone = (slot: number, stay = false): Promise<boolean> => {
+  const playDone = (slot: number, stay = false, project = active): Promise<boolean> => {
     const name = config.playgrounds[slot - 1]?.name || `playground ${slot}`
-    return tellAgent(`I'm done in the ${name}: read .cuckcode/playground/${slot}/data/answers.json and act on it.`, true, 'Playground', stay)
+    return tellAgent(`I'm done in the ${name}: read .cuckcode/playground/${slot}/data/answers.json and act on it.`, true, 'Playground', stay, project)
   }
 
-  // Back to the workspace, and type text into the agent that takes playground answers, as if
-  // typed there; with submit, Enter follows. Playground Done and plugins (sendToAgent) use it.
-  // With stay (plugins only), the screen and focus stay put: the agent just gets the text.
-  const tellAgent = async (text: string, submit: boolean, from: string, stay = false): Promise<boolean> => {
-    if (!active) return false
-    const to = target(agents, agentOf(active), (a) => a.playground)
+  // Back to the workspace, and type text into a project's agent that takes playground answers, as
+  // if typed there; with submit, Enter follows. Playground Done and plugins (sendToAgent) use it.
+  // With stay (plugins only), the screen and focus stay put: the agent just gets the text. A
+  // project other than the tab in front's comes to the front (without stay), and one that isn't
+  // open opens, in the background: a remembered home, or a folder in the projects folder.
+  const tellAgent = async (text: string, submit: boolean, from: string, stay = false, project = active): Promise<boolean> => {
+    if (!project) return false
+    if (!projectsRef.current.includes(project)) {
+      const known =
+        Object.values(pluginHomesRef.current).some((h) => h.includes(project)) ||
+        (!!config.projectsDir && (await window.api.repos(config.projectsDir).catch((): string[] => [])).includes(project))
+      if (!known) {
+        toast(false, from, `${tildify(project)} isn't an open project or a folder in your projects folder.`)
+        return false
+      }
+      if (activeRef.current) visit(project)
+      else open([project])
+    }
+    const to = target(agents, agentOf(project), (a) => a.playground)
     if (!to) {
       toast(false, from, 'No agent takes playground answers. Turn Playground on for one in Settings › Agents.')
       return false
     }
-    const id = `${to.id}:${active}`
-    if (!stay) setView((v) => ({ ...v, [active]: undefined }))
-    if (!(await wake(active, to.id, stay)) || !pasteInto(id, text, !stay)) return false
+    const id = `${to.id}:${project}`
+    if (!stay) {
+      if (activeRef.current) clearView(activeRef.current)
+      clearView(project)
+      if (project !== activeRef.current) bring(project)
+    }
+    if (!(await wake(project, to.id, stay)) || !pasteInto(id, text, !stay)) return false
     if (submit) setTimeout(() => window.api.ptyWrite(id, '\r'), 150)
     return true
   }
-  useEffect(() => setSendToAgent(tellAgent))
-  useEffect(() => setPlayHandlers({ done: (slot) => playDone(slot, true), seen: unseen }))
+  // A plugin's sendToAgent: the project it names, else its page's in front (pages.ts).
+  const sendFromPlugin = (send: Send): Promise<boolean> => {
+    const project = agentProject(
+      send.plugin,
+      send.project,
+      pluginView ? { plugin: pluginView.plugin.id, project: viewProject } : null,
+      openList.map((o) => ({ plugin: pluginOfPanel(o.id), project: o.project })),
+      active
+    )
+    return tellAgent(send.text, send.submit, send.from, send.stay, project)
+  }
+  useEffect(() => setSendToAgent(sendFromPlugin))
+  useEffect(() => setPlayHandlers({ done: (slot, project) => playDone(slot, true, project), seen: unseen }))
   useEffect(() => setSaveAll(saveAll), [])
 
   return (
@@ -691,13 +930,29 @@ export default function App(): React.JSX.Element {
         onReadme={toggleReadme}
         pluginViews={views
           .filter((v) => v.view.button !== false)
-          .map((v) => ({ id: v.key, title: v.view.title, icon: v.view.icon, shortcut: v.plugin.shortcut(v.view.command) }))}
+          .map((v) => ({
+            id: v.key,
+            title: v.view.title,
+            icon: v.view.icon,
+            shortcut: v.plugin.shortcut(v.view.command),
+            tag: pluginView?.key === v.key && viewProject && viewProject !== active ? projectName(viewProject) : undefined
+          }))}
         pluginView={pluginView?.key ?? null}
-        onPluginView={togglePluginView}
+        onPluginView={(key) => void togglePluginView(key)}
         pluginPanels={paneled
           .filter((x) => x.panel.button !== false)
-          .map((x) => ({ id: x.id, title: x.panel.title, icon: x.panel.icon, shortcut: x.plugin.shortcut(x.panel.command), open: openPanelIds.includes(x.id) }))}
-        onPluginPanel={(id, title) => togglePanel(id, title, paneled.find((x) => x.id === id)?.panel.dock)}
+          .map((x) => {
+            const tie = openList.find((o) => o.id === x.id)?.project
+            return {
+              id: x.id,
+              title: x.panel.title,
+              icon: x.panel.icon,
+              shortcut: x.plugin.shortcut(x.panel.command),
+              open: openPanelIds.includes(x.id),
+              tag: tie && tie !== active ? projectName(tie) : undefined
+            }
+          })}
+        onPluginPanel={(id) => void togglePluginPanel(id)}
         webPages={config.webPages}
         showingWeb={showingWeb}
         onWeb={toggleWeb}
@@ -803,7 +1058,7 @@ export default function App(): React.JSX.Element {
               hosts.git
             )}
             {createPortal(<Scratch />, hosts.scratch)}
-            {openPanelIds.map((id) => createPortal(panelContent(id), panelHost(id), id))}
+            {openList.map((o) => createPortal(panelContent(o.id, o.project), panelHost(o.id), o.id))}
             <QuickOpen
               root={status?.root ?? ''}
               status={status}
@@ -878,18 +1133,26 @@ export default function App(): React.JSX.Element {
             )}
           </main>
         )}
-        {/* Over the project's workspace, or the home screen for a view offered there. One that throws
-            shows a note instead of taking the window down; another project gives it another try. */}
+        {/* Over the project's workspace, or the home screen for a view offered there, for the
+            project it's for. One that throws shows a note instead of taking the window down;
+            another project gives it another try. */}
         {pluginView && (
           <div className="absolute inset-0 z-30">
-            <Quiet
-              key={pluginView.key}
-              what={`${pluginView.plugin.id} view`}
-              reset={active}
-              fallback={<div className="h-full bg-bg p-3 text-xs text-muted">{pluginView.view.title} hit an error (see the console).</div>}
-            >
-              {pluginView.view.render({ data: dataOf(pluginView.plugin.id), root: active, openFile, close: () => hidePluginView(pluginView.key) })}
-            </Quiet>
+            <PageProject.Provider value={viewProject}>
+              <Quiet
+                key={`${pluginView.key}\n${viewProject ?? ''}`}
+                what={`${pluginView.plugin.id} view`}
+                reset={active}
+                fallback={note(`${pluginView.view.title} hit an error (see the console).`)}
+              >
+                {viewState === 'loading'
+                  ? note(`Loading ${projectName(viewProject ?? '')}…`)
+                  : pluginView.view.render({
+                      data: dataFor(pluginView.plugin.id, viewProject),
+                      ...pageProps(viewProject, () => hidePluginView(pluginView.key))
+                    })}
+              </Quiet>
+            </PageProject.Provider>
           </div>
         )}
         <Toasts />

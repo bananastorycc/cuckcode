@@ -25,7 +25,8 @@ const base: Settings = {
   ],
   configRepo: 'git@example.com:a/c.git',
   layout: null,
-  layouts: []
+  layouts: [],
+  pluginHomes: {}
 }
 
 describe('config file', () => {

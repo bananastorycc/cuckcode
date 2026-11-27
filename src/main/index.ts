@@ -58,7 +58,8 @@ const DEFAULTS: Settings = {
   plugins: [],
   configRepo: '',
   layout: null,
-  layouts: []
+  layouts: [],
+  pluginHomes: {}
 }
 let settings: Settings = DEFAULTS
 // The scratchpad's text, kept here so the config file can carry it.
@@ -87,6 +88,12 @@ function agent(a: any): Agent | null {
     playground: flag(a.playground)
   }
 }
+
+// Plugin ids to absolute project paths.
+const homesIn = (v: any): Settings['pluginHomes'] =>
+  v && typeof v === 'object' && !Array.isArray(v)
+    ? Object.fromEntries(Object.entries(v).flatMap(([id, paths]) => (/^[\w-]+$/.test(id) ? [[id, strings(paths).filter((p) => p.startsWith('/'))]] : [])))
+    : {}
 
 // Anything missing or malformed takes its default; nothing older is read.
 function parse(raw: any): Settings {
@@ -130,7 +137,8 @@ function parse(raw: any): Settings {
     plugins: list(raw.plugins, (p) => (isStr(p.path) ? { path: p.path, ...(isStr(p.url) ? { url: p.url } : {}), enabled: p.enabled !== false } : null)),
     configRepo: isStr(raw.configRepo) ? raw.configRepo.trim() : d.configRepo,
     layout: raw.layout && typeof raw.layout === 'object' ? raw.layout : null,
-    layouts: list(raw.layouts, (l) => (isStr(l.name) && l.layout && typeof l.layout === 'object' ? { name: l.name, layout: l.layout } : null))
+    layouts: list(raw.layouts, (l) => (isStr(l.name) && l.layout && typeof l.layout === 'object' ? { name: l.name, layout: l.layout } : null)),
+    pluginHomes: homesIn(raw.pluginHomes)
   }
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */

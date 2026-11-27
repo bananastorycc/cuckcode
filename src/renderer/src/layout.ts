@@ -2,6 +2,7 @@ import { createDockview, type DockviewApi, type DockviewTheme, type ITabRenderer
 import 'dockview/dist/styles/dockview.css'
 import type { PluginPanel } from '../../shared/plugin'
 import { SECTIONS, type Section } from '../../shared/types'
+import { isPanel, panelId, panelsIn } from './pages'
 
 // The workspace is a dockview: every section is a tab that can be dragged into any group, split
 // off, or resized. Each section's content lives in one host element made here, once, and App
@@ -9,7 +10,7 @@ import { SECTIONS, type Section } from '../../shared/types'
 // loading a whole layout re-parents DOM and never remounts the editor or a terminal.
 
 // Shared with plugins, which name a section to dock a panel by.
-export { SECTIONS, type Section }
+export { SECTIONS, type Section, panelId }
 
 export const TITLES: Record<Section, string> = {
   files: 'Files',
@@ -35,11 +36,9 @@ const THEME: DockviewTheme = { name: 'cuckcode', className: 'dockview-theme-ligh
 let api: DockviewApi | null = null
 
 // Plugin panels are dock tabs too (id `plugin:<plugin id>:<panel id>`), there only while open: added
-// when opened, removed when closed, kept in saved layouts. Each gets a host element on first use,
-// which App renders the plugin's content into, like the sections'.
-const PANEL = 'plugin:'
-const isPanel = (id: string): boolean => id.startsWith(PANEL)
-export const panelId = (plugin: string, panel: string): string => `${PANEL}${plugin}:${panel}`
+// when opened, removed when closed, kept in saved layouts with the project each is tied to (see
+// pages.ts). Each gets a host element on first use, which App renders the plugin's content into,
+// like the sections'.
 const panelHosts = new Map<string, HTMLElement>()
 export function panelHost(id: string): HTMLElement {
   let el = panelHosts.get(id)
@@ -181,26 +180,29 @@ export function reveal(s: Section): void {
 
 // --- Plugin panels ---
 
-// The plugin panels in the layout.
-export const openPanels = (layout = api?.toJSON()): string[] => (layout ? Object.keys(layout.panels).filter(isPanel) : [])
+// The plugin panels in the layout, and the project each is tied to.
+export const openPanels = (layout = api?.toJSON()): ReturnType<typeof panelsIn> => (layout ? panelsIn(layout) : [])
 
 type Dock = PluginPanel<unknown>['dock']
 
-// A panel's button: opens it, brings it to the front when it's behind another tab, or closes it
-// when it's showing.
-export function togglePanel(id: string, title: string, dock?: Dock): void {
+// Whether a panel is open and in front in a group that's showing: its button then closes it.
+export function panelShowing(id: string): boolean {
   const panel = api?.getPanel(id)
-  if (panel && panel.api.isVisible && !hiddenGroups().has(panel.group.id)) closePanel(id)
-  else openPanel(id, title, dock)
+  return !!panel && panel.api.isVisible && !hiddenGroups().has(panel.group.id)
 }
 
 // Opens a panel where dock says (a tab with a section, or split off to one side of it), else as a
 // tab beside Scratch, or the first section showing of the ones that usually share a group with it.
-// One already open comes to the front.
-export function openPanel(id: string, title: string, dock?: Dock): void {
+// One already open comes to the front. project ties it to a project (null: it follows the tab in
+// front); an open one is retied.
+export function openPanel(id: string, title: string, dock?: Dock, project: string | null = null): void {
   if (!api) return
+  const params = { project: project ?? undefined }
   const panel = api.getPanel(id)
-  if (panel) return panel.api.setActive()
+  if (panel) {
+    if ((panel.params?.project ?? null) !== project) panel.api.updateParameters(params)
+    return panel.api.setActive()
+  }
   const groups = hiddenGroups()
   const showing = (s: Section): boolean => !!panelOf(s) && !isHidden(s, groups)
   const asked = dock && SECTIONS.includes(dock.section) && showing(dock.section) ? dock : null
@@ -208,7 +210,13 @@ export function openPanel(id: string, title: string, dock?: Dock): void {
   // position dockview would add the panel to the active group, which can be a minimized one.
   const near = asked?.section ?? (['scratch', 'git', 'search', 'files', 'terminal', 'agents', 'editor'] as Section[]).find(showing)
   const side = (['left', 'right', 'above', 'below'] as const).find((s) => s === asked?.side) ?? 'within'
-  api.addPanel({ id, component: id, title, position: near ? { referencePanel: near, direction: side } : undefined })
+  api.addPanel({ id, component: id, title, params: project ? params : undefined, position: near ? { referencePanel: near, direction: side } : undefined })
+}
+
+// A panel's tab title, which says the project when it's tied to one other than the tab in front's.
+export function setPanelTitle(id: string, title: string): void {
+  const panel = api?.getPanel(id)
+  if (panel && panel.title !== title) panel.api.setTitle(title)
 }
 
 export function closePanel(id: string): void {
@@ -236,11 +244,16 @@ function panelTab(id: string): ITabRenderer {
     closePanel(id)
   })
   element.append(title, button)
+  const set = (text?: string): void => {
+    title.textContent = text ?? id
+    button.title = `Close ${text ?? ''}`
+  }
   return {
     element,
-    init: ({ title: text }) => {
-      title.textContent = text ?? id
-      button.title = `Close ${text ?? ''}`
+    init: ({ title: text, api: panel }) => {
+      set(text)
+      // Removed with the panel, which disposes its api's emitters.
+      panel.onDidTitleChange(({ title: next }) => set(next))
     }
   }
 }

@@ -84,6 +84,9 @@ export interface MainPlugin {
 }
 
 // Per-project data a plugin keeps, such as an index of the project. null: nothing for this project.
+// The projects load returns data for are the plugin's homes: its views and panels open for them
+// from any tab (see When). cuckcode remembers them, and looks through the projects folder once for
+// a plugin it has none remembered for, so load may run for a project that isn't open.
 export interface ProjectSource<T> {
   load: (root: string) => Promise<T | null>
   // Whether these changed paths (project-relative; null: unknown) could change the data.
@@ -92,17 +95,29 @@ export interface ProjectSource<T> {
 }
 
 export interface ViewProps<T> {
-  data: T
-  root: string | null // the open project's folder; null on the home screen
-  openFile: (abs: string, line: number) => void
+  data: T // the plugin's data for root
+  // The folder of the project the page is for: the tab's own, or its home when it's shown away
+  // from it (see When); null on the home screen. Pass it as sendToAgent's project.
+  root: string | null
+  openFile: (abs: string, line: number) => void // in root's project, switching to its tab when it isn't in front
   close: () => void // hides this view, or closes this panel
 }
 
-// When a view or panel is offered (its header button, its command, show()). By default: while a
-// project is open and has data for the plugin, or always with a project open if the plugin keeps
-// none. `when` decides instead, from the plugin's data for the open project and the project's
+// When a view or panel is offered for a project (its header button, its command, show()). By
+// default: while the project has data for the plugin, or always with a project open if the plugin
+// keeps none. `when` decides instead, from the plugin's data for the project and the project's
 // folder, both null on the home screen. Panels live in the workspace, so they're never offered
-// there. A view or panel with `when` can be offered without data, so its render gets T | null.
+// for the home screen. A view or panel with `when` can be offered without data, so its render
+// gets T | null.
+//
+// A page not offered for the tab in front still opens from it, for a home of the plugin's (a
+// project its ProjectSource.load returned data for, and that `when` offers it for): the only one
+// directly, else the button and command ask which, and show() takes the one opened last. From the
+// home screen, the home opens as a tab. A home that isn't open opens in the background (shelved,
+// off the tab bar). Everything the page gets is its home's: root, data, reloads on its changes,
+// openFile, Playground, and sendToAgent's default. Its header button and a panel's tab say which
+// project it's for. A panel opened away from home stays tied to that project, in every tab and
+// across relaunches; one opened in its home follows the tab in front, as before.
 export type When<T> = (data: T | null, root: string | null) => boolean
 
 // Shows a view or a panel. A plugin can have several of each, one per command.
@@ -220,8 +235,9 @@ export interface RendererHost<T = unknown> {
     (panel: PluginPanel<T | null> & { when: When<T> }): void
     (panel: PluginPanel<T>): void
   }
-  // Opens the view or panel for this command, as its button would, but never toggles it closed.
-  // false when it isn't offered right now (see When).
+  // Opens the view or panel for this command, as its button would, but never toggles it closed and
+  // never asks: away from home it opens for the home opened last. false when it isn't offered
+  // right now (see When).
   show: (command: string) => boolean
   // Hides the view or closes the panel for this command, if it's showing.
   hide: (command: string) => void
@@ -230,15 +246,21 @@ export interface RendererHost<T = unknown> {
   onCommand: (id: string, fn: () => void) => void
   // Called for each code editor, now and later; the disposable runs when it goes.
   onEditor: (fn: (editor: Monaco.editor.ICodeEditor, ctx: EditorContext<T>) => Monaco.IDisposable | void) => void
-  // Types text into the agent that takes playground answers (the one in front, else the first), as
-  // if typed there: closes the view, shows the agent (starting it if needed), pastes, and presses
-  // Enter unless submit is false. Resolves false when there's no such agent or it didn't start.
+  // Types text into a project's agent that takes playground answers (the one in front there, else
+  // the first), as if typed there: closes the view, shows the agent (starting it if needed, and
+  // switching to its project's tab), pastes, and presses Enter unless submit is false. Resolves
+  // false when there's no such agent or it didn't start.
+  // The project: project, an open project or a folder in the projects folder (one that isn't open
+  // opens in the background; any other is refused). Without it: the project of this plugin's page
+  // in front when that page is away from home (its view over the tab, else a panel tied to another
+  // project), so a page never types into the tab's own agent; otherwise the tab in front. A page
+  // should pass its root; code running outside a page (looping over projects) names each.
   // With stay, the screen and keyboard focus stay as they are: the view stays open and the agent
   // isn't shown or brought to the front, though it's still started if needed. Nothing tells the
   // plugin what the text lands on (half-typed input, or a dialog the agent is showing, which
   // the Enter would answer), so toast what it sent. A prompt an agent's hook sends through
   // $CUCKCODE_HOOK is answered with answerAgent instead, never typed.
-  sendToAgent: (text: string, opts?: { submit?: boolean; stay?: boolean }) => Promise<boolean>
+  sendToAgent: (text: string, opts?: { submit?: boolean; stay?: boolean; project?: string }) => Promise<boolean>
   // An agent's hook, run through $CUCKCODE_HOOK (the Claude Code preset's PermissionRequest and
   // PreToolUse on AskUserQuestion), waiting for an answer. payload is the hook's input as the
   // agent sent it; cuckcode doesn't read it. Every subscribed plugin hears each request; the
@@ -261,18 +283,19 @@ export interface RendererHost<T = unknown> {
   // cuckcode's scratchpad, for a view to show (it covers the Scratch section): the same notes,
   // kept in step as they're typed, saved the same way. actions go at the right of its title bar.
   Scratch: ComponentType<{ actions?: ReactNode }>
-  // A playground slot of the open project, for a view (or panel) to show: the same page, kit,
-  // answers and live reload as ⌥⌘<slot>, with no ✕ (put your own in actions). Its Done sends the
-  // agent the same "I'm done in …" as the full-window one does, but with stay (see sendToAgent),
+  // A playground slot of the project the view (or panel) is for (its root), for it to show: the same
+  // page, kit, answers and live reload as ⌥⌘<slot>, with no ✕ (put your own in actions). Its Done
+  // sends that project's agent the same "I'm done in …" as the full-window one does, but with stay (see sendToAgent),
   // then calls onDone, so the view can switch back to what it was showing. Nothing else on screen
   // changes. While it's showing, its slot's header dot stays out. On the home screen it says to
   // open a project.
   Playground: ComponentType<PlaygroundProps>
   Run: ComponentType<RunProps>
   git: PluginGit
-  // Called when a playground slot's page in the open project changes (an agent wrote or touched
-  // it): what lights the slot's dot in the header, though this fires even while the page is
-  // showing. A page already there when the project opens doesn't count. Returns the unsubscribe.
+  // Called when a playground slot's page changes (an agent wrote or touched it), in the tab in
+  // front's project or in one a page away from home is showing: what lights the slot's dot in the
+  // header, though this fires even while the page is showing. A page already there when the
+  // project opens doesn't count. Returns the unsubscribe.
   onPlayground: (fn: (slot: number, project: string) => void) => () => void
 }
 

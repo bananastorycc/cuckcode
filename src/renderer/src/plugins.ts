@@ -63,7 +63,15 @@ const apis = new Map<string, unknown>()
 // Per plugin: its data for the active project. App keeps it current.
 const current = new Map<string, unknown>()
 let openFile: (abs: string, line: number) => void = () => {}
-let sendToAgent: (text: string, submit: boolean, from: string, stay?: boolean) => Promise<boolean> = async () => false
+export interface Send {
+  text: string
+  submit: boolean
+  stay: boolean
+  project?: string // the project whose agent gets it; unset: see agentProject (pages.ts)
+  plugin: string // the sender's id and name
+  from: string
+}
+let sendToAgent: (send: Send) => Promise<boolean> = async () => false
 let show: (plugin: string, command: string, on: boolean) => boolean = () => false
 // CodePane's saveAll (CodePane imports this module, so it's handed over rather than imported).
 let saveAll: () => Promise<unknown> = async () => {}
@@ -224,7 +232,15 @@ export async function loadPlugins(): Promise<void> {
         editorHooks.push(h)
         for (const editor of editors.keys()) hook(editor, h)
       },
-      sendToAgent: (text, opts) => sendToAgent(text, opts?.submit ?? true, p.name, opts?.stay),
+      sendToAgent: (text, opts) =>
+        sendToAgent({
+          text: String(text),
+          submit: opts?.submit ?? true,
+          stay: !!opts?.stay,
+          project: typeof opts?.project === 'string' && opts.project ? opts.project : undefined,
+          plugin: p.id,
+          from: p.name
+        }),
       mediaUrl,
       agentPreset: (preset) => reg.presets.push(preset),
       agentBar: (item) => reg.bar.push(item),

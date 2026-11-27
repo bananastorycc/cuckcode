@@ -190,6 +190,9 @@ export interface Settings extends Config {
   // and the layouts saved by name.
   layout: unknown
   layouts: SavedLayout[]
+  // Per plugin id: the projects its ProjectSource.load last returned data for (its homes), most
+  // recently opened first. No entry: the projects folder hasn't been looked through for it yet.
+  pluginHomes: Record<string, string[]>
 }
 
 export interface SavedLayout {
