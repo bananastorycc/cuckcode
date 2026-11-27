@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.56.3 — 2026-11-27
+
+- 🐛 Installing a plugin's dependencies no longer changes its files, which stopped it from updating ("it has local changes") when its lockfile didn't match its package.json. Such a plugin still installs and loads, and the Plugins page says its lockfile is out of date.
+
 ## 1.56.2 — 2026-11-26
 
 - 🐛 A plugin can answer an agent in a project whose folder name has accented or other non-ASCII letters: such a request no longer, now and then, went straight back to the terminal.

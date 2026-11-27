@@ -35,11 +35,14 @@ export const managed = (path: string): boolean => !!dir && path.startsWith(`${di
 
 const load = createRequire(__filename)
 
+// Rejects with the output's tail as the message, and all of it as `output`.
 function run(cmd: string, args: string[], cwd: string): Promise<void> {
   return new Promise((resolve, reject) =>
-    execFile(cmd, args, { cwd, env: shellEnv(), timeout: 600_000, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) =>
-      err ? reject(new Error(`${cmd} ${args.join(' ')}: ${(stderr || stdout || err.message).trim().slice(-2000)}`)) : resolve()
-    )
+    execFile(cmd, args, { cwd, env: shellEnv(), timeout: 600_000, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
+      if (!err) return resolve()
+      const output = (stderr || stdout || err.message).trim()
+      reject(Object.assign(new Error(`${cmd} ${args.join(' ')}: ${output.slice(-2000)}`), { output }))
+    })
   )
 }
 
@@ -55,21 +58,49 @@ async function newestIn(p: string): Promise<number> {
   return Math.max(s.mtimeMs, ...times)
 }
 
-// Same rule as boot/index.js uses for cuckcode itself.
-async function build(dir: string, m: PluginManifest): Promise<void> {
+// Same rule as boot/index.js uses for cuckcode itself. Resolves to a note when the install had to
+// work around the plugin's lockfile.
+async function build(dir: string, m: PluginManifest): Promise<string> {
   const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8').catch(() => '{}'))
-  if (!pkg.scripts?.build) return
-  // Installed when the lockfile is newer than the last install, or never installed at all (a
-  // plugin without a lockfile has nothing else to compare).
-  const installed = await mtime(join(dir, 'node_modules/.package-lock.json'))
-  const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).length > 0
-  if (deps && (!installed || (await mtime(join(dir, 'package-lock.json'))) > installed)) {
-    await run('npm', ['install', '--no-audit', '--no-fund'], dir)
-  }
+  if (!pkg.scripts?.build) return ''
+  const note = await installDeps(dir, pkg, managed(dir))
   const outputs = [m.main, m.renderer, m.style].filter((f): f is string => !!f).map((f) => join(dir, f))
   const built = Math.min(...(await Promise.all(outputs.map(mtime))))
   const inputs = await Promise.all(['src', 'package.json', MANIFEST].map((f) => newestIn(join(dir, f))))
   if (Math.max(...inputs) > built) await run('npm', ['run', 'build'], dir)
+  return note
+}
+
+const NPM = ['--no-audit', '--no-fund']
+
+// Installed when the lockfile is newer than the last install, or never installed at all (a plugin
+// without a lockfile has nothing else to compare); every way leaves node_modules/.package-lock.json
+// for the next launch to compare. A clone of ours must stay clean, or launches stop pulling it: npm
+// install would rewrite a lockfile that disagrees with package.json, so it gets npm ci, and when
+// that refuses, an install that writes no lockfile. A folder of your own gets a plain npm install.
+export async function installDeps(dir: string, pkg: { dependencies?: object; devDependencies?: object }, clean: boolean): Promise<string> {
+  if (Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).length === 0) return ''
+  const installed = await mtime(join(dir, 'node_modules/.package-lock.json'))
+  const locked = await mtime(join(dir, 'package-lock.json'))
+  if (installed && locked <= installed) return ''
+  if (!clean) {
+    await run('npm', ['install', ...NPM], dir)
+    return ''
+  }
+  const loose = (): Promise<void> => run('npm', ['install', '--no-save', '--package-lock=false', ...NPM], dir)
+  if (!locked) {
+    await loose()
+    return ''
+  }
+  try {
+    await run('npm', ['ci', ...NPM], dir)
+    return ''
+  } catch (err) {
+    // npm's words for a lockfile that disagrees with package.json; anything else is a real failure.
+    if (!/\bin sync\b/.test((err as { output?: string }).output ?? '')) throw err
+  }
+  await loose()
+  return "Installed without its lockfile: package-lock.json is out of date with package.json in the plugin's repo"
 }
 
 async function manifest(dir: string): Promise<PluginManifest> {
@@ -120,9 +151,10 @@ async function loadAll(refs: PluginRef[]): Promise<void> {
       p.status.note = (await pullQuietly(p.dir)) || p.status.note
       // A pull can change the manifest (new bundles, commands, requirements).
       if (p.status.note) p.manifest = await manifest(p.dir).catch(() => p.manifest)
-      await build(p.dir, p.manifest).catch((err: Error) => {
-        p.status.error = `Build failed: ${err.message}`
-      })
+      await build(p.dir, p.manifest).then(
+        (note) => note && (p.status.note = p.status.note ? `${p.status.note}. ${note}` : note),
+        (err: Error) => (p.status.error = `Build failed: ${err.message}`)
+      )
     })
   )
   // In dependency order: each round activates what has all it needs.
