@@ -1,10 +1,13 @@
 import { execFile } from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { createServer } from 'node:net'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentRequest } from '../shared/types'
-import { answer, handle, releaseAll, setUp, taken, TAKE_MS, WAIT_MS, type Conn } from './agentrequest'
+import { answer, close, drop, handle, listen, releaseAll, setUp, socket, taken, TAKE_MS, WAIT_MS, type Conn } from './agentrequest'
 
 // A stand-in for the hook's socket: what it was sent back, and whether it was closed.
 class Fake extends EventEmitter implements Conn {
@@ -130,6 +133,17 @@ describe('agent requests', () => {
     expect(answer(id, {})).toBe(false)
   })
 
+  it('ends the requests of an agent that was killed', () => {
+    const conn = hook('{}')
+    const { id } = last()
+    taken(id, true)
+    drop('claude-2:/work/demo')
+    expect(conn.reply).toBeNull()
+    drop(SESSION)
+    expect(conn.reply).toBe('')
+    expect(ended).toEqual([id])
+  })
+
   it("asks nothing for a session that isn't a running agent", () => {
     const conn = hook('{}', 'claude-2:/work/demo')
     expect(requests).toEqual([])
@@ -148,8 +162,46 @@ describe('agent requests', () => {
 
 describe('hook.sh', () => {
   const script = join(__dirname, '../agent/hook.sh')
-  const run = (env: Record<string, string>): Promise<{ stdout: string }> =>
-    promisify(execFile)(script, [], { env: { PATH: process.env.PATH ?? '', ...env }, timeout: 5000 })
+  const run = (env: Record<string, string>, input = ''): Promise<{ stdout: string }> => {
+    const p = promisify(execFile)(script, [], { env: { PATH: process.env.PATH ?? '', ...env }, timeout: 5000 })
+    p.child.stdin?.end(input)
+    return p
+  }
+
+  // Over a real socket: nc shuts its sending side once its input ends, and the request has to
+  // outlive that until a plugin answers.
+  // A sandbox that refuses Unix sockets (EPERM) skips it; anything else fails.
+  it('waits through the half-close for the answer, over the real socket', async (ctx) => {
+    vi.useRealTimers()
+    const dir = await mkdtemp(join(tmpdir(), 'cuckcode-'))
+    const sock = join(dir, 'agent.sock')
+    const refused = await new Promise<boolean>((resolve) => {
+      const probe = createServer()
+      probe.once('error', (err: NodeJS.ErrnoException) => resolve(err.code === 'EPERM'))
+      probe.listen(sock, () => probe.close(() => resolve(false)))
+    })
+    if (refused) {
+      await rm(dir, { recursive: true, force: true })
+      ctx.skip()
+    }
+    await listen(sock)
+    try {
+      expect(socket()).toBe(sock)
+      const out = run({ CUCKCODE_SESSION: SESSION, CUCKCODE_SOCKET: sock }, '{"tool_name":"Bash"}')
+      await vi.waitFor(() => expect(requests).toHaveLength(1), { timeout: 3000 })
+      const { id, payload } = last()
+      expect(payload).toEqual({ tool_name: 'Bash' })
+      taken(id, true)
+      // Long enough for the half-close to have reached the app.
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(ended).toEqual([])
+      expect(answer(id, { decision: 'allow' })).toBe(true)
+      expect((await out).stdout).toBe('{"decision":"allow"}')
+    } finally {
+      await close()
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
 
   it('exits at once with no output when there is no socket', async () => {
     vi.useRealTimers()

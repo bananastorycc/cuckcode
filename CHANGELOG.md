@@ -2,6 +2,10 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.56.1 — 2026-11-26
+
+- 🐛 A plugin can now answer what an agent is waiting on: the request no longer ends the moment it arrives, sending the prompt back to the terminal. It ends when a plugin answers, after 5 minutes, or when the agent stops.
+
 ## 1.56.0 — 2026-11-26
 
 - ✨ A plugin can show what an agent is waiting on and answer it, instead of typing into its terminal: with the Claude Code preset, a permission prompt, a plan to approve, or a question with its options. An answer to a prompt that already ended goes nowhere, so a late click can't answer the next one. With no such plugin, or no answer within 5 minutes, Claude asks in its terminal as before.

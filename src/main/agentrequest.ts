@@ -6,10 +6,13 @@ import type { AgentRequest } from '../shared/types'
 // An agent's hook asking a plugin to answer for it (a permission, a question), through
 // $CUCKCODE_HOOK (src/agent/hook.sh). The script sends two lines over a Unix socket: its session
 // (the PTY key) and the hook's stdin in base64; then it waits and prints whatever comes back.
+// nc shuts its sending side as soon as that input ends, so the server is half-open: the hook's
+// 'end' only means its input is done, and the reply still goes out on the open half.
 // Each request is held here under a fresh random id until a plugin answers it, or the renderer
-// says no plugin is listening, or WAIT_MS passes, or the hook goes away. An empty reply is the
-// script's "no decision": the agent asks in its own terminal, as with no hook at all. Core never
-// reads the payload; what it means and what to answer is between the plugin and the agent.
+// says no plugin is listening, or WAIT_MS passes, or its agent exits, or the socket fails. An
+// empty reply is the script's "no decision": the agent asks in its own terminal, as with no hook
+// at all. Core never reads the payload; what it means and what to answer is between the plugin
+// and the agent.
 
 export const WAIT_MS = 5 * 60_000
 // How long the renderer has to say whether any plugin is listening (it answers at once unless
@@ -20,13 +23,14 @@ const MAX_BYTES = 4 * 1024 * 1024
 // The part of a socket this needs, so tests can hand in their own.
 export interface Conn {
   on(event: 'data', fn: (chunk: Buffer) => void): unknown
-  on(event: 'close' | 'error', fn: () => void): unknown
+  on(event: 'end' | 'close' | 'error', fn: () => void): unknown
   end(data: string): unknown
   destroy(): unknown
 }
 
 interface Pending {
   conn: Conn
+  session: string
   timer: NodeJS.Timeout
 }
 
@@ -74,7 +78,7 @@ function ask(conn: Conn, session: string, raw: string): void {
     // Not JSON: handed on as the text it is.
   }
   const id = randomUUID()
-  pending.set(id, { conn, timer: setTimeout(() => finish(id), TAKE_MS) })
+  pending.set(id, { conn, session, timer: setTimeout(() => finish(id), TAKE_MS) })
   conn.on('close', () => finish(id))
   conn.on('error', () => finish(id))
   hooks.send('agent:request', { id, session, agent: session.slice(0, sep), project: session.slice(sep + 1), payload })
@@ -85,6 +89,11 @@ export function handle(conn: Conn): void {
   let buf = ''
   let asked = false
   conn.on('error', () => conn.destroy())
+  // The hook's input is done: before both lines it's a broken request, after them it's nc's
+  // half-close, and the request waits on.
+  conn.on('end', () => {
+    if (!asked) conn.end('')
+  })
   conn.on('data', (chunk) => {
     if (asked) return
     buf += chunk.toString('utf8')
@@ -118,6 +127,12 @@ export function answer(id: string, output: unknown): boolean {
   return true
 }
 
+// An agent's PTY ended: a hook killed with it can't be seen on the socket (its half was already
+// shut), so its requests end here.
+export function drop(session: string): void {
+  for (const [id, p] of pending) if (p.session === session) finish(id)
+}
+
 // Every pending request goes back to its terminal: the page that was told about them is gone.
 export function releaseAll(): void {
   for (const id of [...pending.keys()]) finish(id)
@@ -129,7 +144,7 @@ export const socket = (): string | null => path
 // Only the user can connect: the socket is 0600 (and userData is theirs alone anyway).
 export async function listen(at: string): Promise<void> {
   await rm(at, { force: true })
-  const s = createServer(handle)
+  const s = createServer({ allowHalfOpen: true }, handle)
   try {
     await new Promise<void>((resolve, reject) => {
       s.once('error', reject)

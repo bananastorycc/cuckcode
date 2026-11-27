@@ -80,6 +80,7 @@ function open(
       flush()
     }
     sessions.delete(id)
+    agentrequest.drop(id)
     onExit(s, e)
   })
   sessions.set(id, s)
@@ -155,6 +156,7 @@ export function kill(id: string): void {
   const s = sessions.get(id)
   if (!s) return
   sessions.delete(id)
+  agentrequest.drop(id)
   clearTimeout(s.timer)
   try {
     s.proc.kill()
