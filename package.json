@@ -1,6 +1,6 @@
 {
   "name": "cuckcode",
-  "version": "1.60.0",
+  "version": "1.61.0",
   "private": true,
   "description": "A macOS-first shell for vibe coding with Claude Code or any terminal agent",
   "license": "GPL-3.0-or-later",
@@ -18,7 +18,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "app": "rm -rf dist && electron-builder --dir -c.extraMetadata.main=boot/index.js -c.extraMetadata.repo=\"$PWD\" && codesign --force --deep --sign - dist/mac*/cuckcode.app && rm -rf /Applications/cuckcode.app && ditto dist/mac*/cuckcode.app /Applications/cuckcode.app && echo 'Installed /Applications/cuckcode.app'",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p examples/plugin",
     "test": "vitest run",
     "postinstall": "sh scripts/ensure-electron.sh && electron-builder install-app-deps"
   },

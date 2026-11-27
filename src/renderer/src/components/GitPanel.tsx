@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ArrowDown, ArrowUp, RefreshCw, Sparkles } from 'lucide-react'
 import type { ChangedFile, GitOp, GitStatus } from '../../../shared/types'
+import { menuFor } from '../plugins'
 import BranchMenu from './BranchMenu'
 import { saveAll, saveFile } from './CodePane'
 import { ask, askFull } from './Confirm'
@@ -84,7 +85,10 @@ export default function GitPanel({ cwd, projects, ai, confirmAllRepos, onDontCon
   const onRowMenu = async (e: React.MouseEvent, f: ChangedFile): Promise<void> => {
     e.preventDefault()
     onSelect(f)
-    if ((await contextMenu(['Discard Changes…'])) === 0) await discard(f)
+    const extra = status?.root ? menuFor('git', `${status.root}/${f.path}`) : []
+    const i = await contextMenu(['Discard Changes…', ...(extra.length ? ['-', ...extra.map((x) => x.title)] : [])])
+    if (i === 0) await discard(f)
+    else if (i !== null && i > 1) extra[i - 2].run()
   }
 
   const repo = !status || !!status.root

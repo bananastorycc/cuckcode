@@ -1,0 +1,35 @@
+/* The host's colors are CSS variables (--bg, --panel, --line, --fg, --muted, --accent, ...), so
+   a plugin's page follows light and dark without a rule of its own. */
+.example-empty {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.example-pins {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  font: 12px ui-monospace, monospace;
+}
+.example-pins li {
+  display: flex;
+  gap: 8px;
+  padding: 2px 12px;
+}
+.example-pins li:hover {
+  background: var(--panel);
+}
+.example-pins button {
+  flex: 1;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+}
+.example-lines {
+  color: var(--muted);
+}
+.example-icon {
+  font-size: 12px;
+}

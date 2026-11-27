@@ -536,6 +536,7 @@ function registerIpc(): void {
     return plugins.renderers(ids)
   })
   ipcMain.handle('plugin:invoke', (_e, id: string, name: string, args: unknown[]) => plugins.invoke(id, name, args))
+  ipcMain.handle('plugin:store', (_e, id: string, op: 'get' | 'set' | 'delete', key: string, value: unknown) => plugins.store(String(id), op, key, value))
   ipcMain.handle('plugin:install', (_e, url: string) => plugins.install(url))
   ipcMain.handle('plugin:info', (_e, path: string, fetch: boolean) => plugins.info(path, fetch))
   ipcMain.handle('plugin:update', (_e, path: string) => plugins.update(path))
@@ -585,6 +586,7 @@ app.whenReady().then(async () => {
   // After the launch's sync, so plugins installed on another machine load here too, but never
   // held up long by a slow network. Their menu items arrive once they've loaded.
   plugins.setDir(pluginsDir)
+  plugins.setDataDir(join(app.getPath('userData'), 'plugin-data'))
   plugins.start(Promise.race([synced, new Promise((resolve) => setTimeout(resolve, 10_000))]), () => settings.plugins).then(buildMenu)
   createWindow()
 })

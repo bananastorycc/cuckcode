@@ -2,7 +2,8 @@ import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ChangedFile, FileSnapshot, Theme } from '../../../shared/types'
 import { monaco, setMonacoTheme } from '../monaco'
-import { addEditor } from '../plugins'
+import { addEditor, fileSaved, menuFor } from '../plugins'
+import { contextMenu } from './ContextMenu'
 import { MONO } from '../theme'
 import MediaPane from './MediaPane'
 
@@ -66,6 +67,7 @@ async function writeModel(m: Model): Promise<boolean> {
     bump(key)
   }
   savedAt.set(key, version)
+  fileSaved(m.uri.fsPath)
   // A file left with unsaved edits kept its models until now; once saved, nothing needs them.
   if (!m.isAttachedToEditor() && !isDirty(m)) {
     savedAt.delete(key)
@@ -106,6 +108,16 @@ export function selection(): { abs: string; lines: [number, number] | null } | n
   if (sel.isEmpty()) return { abs: m.uri.fsPath, lines: null }
   const end = sel.endColumn === 1 && sel.endLineNumber > sel.startLineNumber ? sel.endLineNumber - 1 : sel.endLineNumber
   return { abs: m.uri.fsPath, lines: [sel.startLineNumber, end] }
+}
+
+// The front editor's selection and its text, while it shows the working file abs; else null.
+export function selectionIn(abs: string): { range: monaco.IRange; text: string } | null {
+  const ed = front()
+  const m = ed?.getModel()
+  const sel = ed?.getSelection()
+  if (!m || !sel || m.uri.toString() !== monaco.Uri.file(abs).toString()) return null
+  const { startLineNumber, startColumn, endLineNumber, endColumn } = sel
+  return { range: { startLineNumber, startColumn, endLineNumber, endColumn }, text: m.getValueInRange(sel) }
 }
 
 function model(uri: monaco.Uri, text: string): Model {
@@ -278,6 +290,15 @@ export default function CodePane({ root, file, theme, tick, reveal, onSaved, onC
     onSaved()
   }
 
+  // Only plugins add items here; with none, nothing opens.
+  const onTitleMenu = async (e: React.MouseEvent, path: string): Promise<void> => {
+    const items = menuFor('editor', path)
+    if (!items.length) return
+    e.preventDefault()
+    const i = await contextMenu(items.map((x) => x.title))
+    if (i !== null) items[i].run()
+  }
+
   const text = ready && snap.kind === 'text'
   // A file opened from the tree with no changes has nothing to diff.
   // While the next file loads, keep showing the last one if it was the same kind, so switching never flashes.
@@ -291,7 +312,7 @@ export default function CodePane({ root, file, theme, tick, reveal, onSaved, onC
   return (
     <div className="flex h-full flex-col">
       {file && (
-        <div className="flex h-8 shrink-0 items-center gap-2 border-b border-line bg-panel px-3 text-xs">
+        <div className="flex h-8 shrink-0 items-center gap-2 border-b border-line bg-panel px-3 text-xs" onContextMenu={(e) => abs && void onTitleMenu(e, abs)}>
           <span className="truncate font-mono" title={file.path}>
             {file.path}
           </span>

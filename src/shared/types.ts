@@ -350,6 +350,8 @@ export interface Api {
   // loaded, in activation order. The renderer unloads its sides of them first.
   pluginReload: (path: string | null) => Promise<LoadedPlugin[]>
   pluginInvoke: (id: string, name: string, args: unknown[]) => Promise<unknown>
+  // A loaded plugin's store (RendererHost.store): get resolves to the value, the others to nothing.
+  pluginStore: (id: string, op: 'get' | 'set' | 'delete', key: string, value?: unknown) => Promise<unknown>
   // Clones a plugin's git repo into cuckcode's plugins folder; resolves to the folder, rejects
   // with git's error or when it isn't a plugin.
   pluginInstall: (url: string) => Promise<string>

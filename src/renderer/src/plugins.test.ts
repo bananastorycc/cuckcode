@@ -61,6 +61,9 @@ exports.activate = (host) => {
   host.onPlayground((slot) => log.push('${id}${v} play ' + slot))
   host.agentBar(() => null)
   host.agentPreset({ name: '${id} preset v${v}', command: 'x' })
+  host.contextMenu({ where: 'files', title: '${id} item v${v}', run: (path) => log.push('${id}${v} menu ' + path) })
+  host.onProjectSwitched((p) => log.push('${id}${v} project ' + p))
+  host.onFileSaved((p) => log.push('${id}${v} saved ' + p))
 }
 exports.deactivate = () => log.push('${id}${v} down')
 `
@@ -69,6 +72,7 @@ exports.deactivate = () => log.push('${id}${v} down')
 let version = 1
 let fresh: (path: string | null) => LoadedPlugin[]
 const calls: string[] = []
+const stored = new Map<string, unknown>()
 const answers: [string, unknown][] = []
 let request: (req: AgentRequest) => void = () => {}
 let requestEnd: (id: string) => void = () => {}
@@ -83,7 +87,11 @@ const api = {
   agentTaken: () => {},
   agentAnswer: async (id: string, output: unknown) => (answers.push([id, output]), true),
   onAgentRunEvent: (_id: string, cb: (e: AgentRunEvent) => void) => (runSubs.add(cb), () => runSubs.delete(cb)),
-  agentRunEvents: async () => []
+  agentRunEvents: async () => [],
+  pluginStore: async (id: string, op: string, key: string, value?: unknown) => {
+    if (op === 'set') stored.set(`${id}/${key}`, value)
+    return op === 'get' ? stored.get(`${id}/${key}`) : undefined
+  }
 }
 
 beforeEach(async () => {
@@ -91,6 +99,7 @@ beforeEach(async () => {
   version = 1
   log.length = 0
   calls.length = 0
+  stored.clear()
   answers.length = 0
   runSubs.clear()
   head.length = 0
@@ -176,6 +185,7 @@ describe('reloading a plugin', () => {
     expect(m.rules.light).toHaveLength(3)
     expect(m.play.size).toBe(3)
     expect(runSubs.size).toBe(3)
+    expect(r.menuFor('files', '/p/x').map((x) => x.title)).toEqual(['c item v1', 'a item v3', 'b item v3'])
     log.length = 0
     request({ id: 'q', session: 'claude:/p', agent: 'claude', project: '/p', payload: {} })
     expect(log.sort()).toEqual(['a3 request q', 'b3 request q', 'c1 request q'])
@@ -188,6 +198,83 @@ describe('reloading a plugin', () => {
     await r.reloadPlugins(null)
     expect(answers).toEqual([['q1', null]])
     expect(registry().map((p) => p.key)).toEqual([4, 5, 6])
+  })
+})
+
+describe('accessors, events, menus and the store', () => {
+  it('tells plugins when the project in front changes and when the editor saved a file', () => {
+    log.length = 0
+    r.projectSwitched('/p')
+    r.projectSwitched('/p')
+    r.projectSwitched(null)
+    expect(log).toEqual(['a1 project /p', 'b1 project /p', 'c1 project /p', 'a1 project null', 'b1 project null', 'c1 project null'])
+    log.length = 0
+    r.fileSaved('/p/a.ts')
+    expect(log).toEqual(['a1 saved /p/a.ts', 'b1 saved /p/a.ts', 'c1 saved /p/a.ts'])
+  })
+
+  it('reads the active project and file through the host', async () => {
+    const keeper: LoadedPlugin = { ...bundle('a', 1), renderer: 'exports.activate = (host) => { globalThis.__kept = host }' }
+    fresh = () => [keeper]
+    await r.reloadPlugins('/plugins/a')
+    const host = (globalThis as { __kept?: RendererHost }).__kept!
+    r.projectSwitched('/q')
+    expect(host.activeProject()).toBe('/q')
+    expect(host.activeFile()).toBeNull()
+    const file = { path: '/q/a.ts', project: '/q', selection: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 4 }, text: 'abc' }
+    r.setActiveFile(() => file)
+    expect(host.activeFile()).toEqual(file)
+  })
+
+  it('gives menu items the path, keeps a throw the plugin’s, and refuses a bad item', async () => {
+    const keeper: LoadedPlugin = {
+      ...bundle('a', 1),
+      renderer: `exports.activate = (host) => {
+        globalThis.__kept = host
+        host.contextMenu({ where: 'git', title: 'Lint', run: (path) => globalThis.__log.push('lint ' + path), when: (path) => path.endsWith('.ts') })
+        host.contextMenu({ where: 'git', title: 'Boom', run: () => { throw new Error('boom') } })
+        host.contextMenu({ where: 'editor', title: 'Picky', run: () => {}, when: () => { throw new Error('when') } })
+        host.contextMenu({ where: 'nowhere', title: 'x', run: () => {} })
+        host.contextMenu({ where: 'files', title: '', run: () => {} })
+      }`
+    }
+    fresh = () => [keeper]
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await r.reloadPlugins('/plugins/a')
+    log.length = 0
+    const items = r.menuFor('git', '/p/a.ts')
+    expect(items.map((x) => x.title)).toEqual(['Lint', 'Boom'])
+    items.forEach((x) => x.run())
+    expect(log).toEqual(['lint /p/a.ts'])
+    expect(r.menuFor('git', '/p/a.md').map((x) => x.title)).toEqual(['Boom'])
+    expect(r.menuFor('editor', '/p/a.ts')).toEqual([])
+    expect(errors.mock.calls.map(([where, err]) => `${where} ${String((err as Error)?.message ?? err)}`)).toEqual([
+      'plugin a (registration): a menu item\'s where must be one of files, editor, git (got "nowhere")',
+      'plugin a (registration): a menu item needs a title and a run',
+      'plugin a (contextMenu Boom): boom',
+      'plugin a (contextMenu when): when'
+    ])
+    errors.mockRestore()
+    // Disposing an item takes it out at once.
+    const host = (globalThis as { __kept?: RendererHost }).__kept!
+    const off = host.contextMenu({ where: 'files', title: 'Once', run: () => {} })
+    expect(r.menuFor('files', '/p').map((x) => x.title)).toContain('Once')
+    off()
+    expect(r.menuFor('files', '/p').map((x) => x.title)).not.toContain('Once')
+  })
+
+  it("stores JSON through main under the plugin's id, and refuses the old version's calls", async () => {
+    const keeper: LoadedPlugin = { ...bundle('a', 1), renderer: 'exports.activate = (host) => { globalThis.__kept = host }' }
+    fresh = () => [keeper]
+    await r.reloadPlugins('/plugins/a')
+    const old = (globalThis as { __kept?: RendererHost }).__kept!
+    await old.store.set('k', { when: new Date(0), skip: undefined })
+    expect(stored.get('a/k')).toEqual({ when: '1970-01-01T00:00:00.000Z' })
+    expect(await old.store.get('k')).toEqual({ when: '1970-01-01T00:00:00.000Z' })
+    await expect(old.store.set('f', () => 1)).rejects.toThrow("isn't JSON")
+    fresh = () => [bundle('a', 2)]
+    await r.reloadPlugins('/plugins/a')
+    await expect(old.store.get('k')).rejects.toThrow('a was unloaded')
   })
 })
 

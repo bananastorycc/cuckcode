@@ -5,10 +5,14 @@
 // - main: runs in the main process with Node's require. Never block it: async fs and execFile only.
 // - renderer: evaluated with a require that resolves only the host's own modules (HOST_MODULES),
 //   so there is one React and one Monaco. Bundle everything else in.
-// - style: a stylesheet added to the page. The host's colors are CSS variables (--bg, --panel,
-//   --line, --fg, --muted, --accent, --add, --del, --mod, --new); light and dark switch them.
+// - style: a stylesheet added to the page, after cuckcode's own. The host's colors are CSS
+//   variables, the stable ones --bg, --panel, --hover, --line, --fg, --muted, --accent, --add,
+//   --del, --mod and --new: light mode's on :root, dark mode's on .dark (a class on <html>). A
+//   theme sets them on :root:not(.dark), .dark, or :root for both.
 // When the folder's package.json has a build script, cuckcode runs `npm install` (when the
-// lockfile changed, or it never ran) and `npm run build` there before loading, whenever src/ is newer than the bundles.
+// lockfile changed, or it never ran) and `npm run build` there before loading, whenever anything
+// the build reads (src/, the manifest, package.json, the lockfile, build.*, tsconfig*.json, the
+// installed dependencies) is newer than the bundles. examples/plugin is a plugin to start from.
 //
 // Reloading a plugin (the Plugins page, View › Reload Plugins) runs both sides' deactivate (5 s at
 // most; a throw is reported, and the reload goes on), then disposes everything the plugin
@@ -40,6 +44,25 @@ export const folderName = (url: string): string =>
 export type Disposable = () => void
 
 export const HOST_MODULES = ['react', 'react/jsx-runtime', 'react-dom', 'monaco-editor/editor/editor.api'] as const
+
+// The build: esbuild's options for each side's one CommonJS file, to spread into build() with
+// entryPoints and outfile. The renderer's leaves HOST_MODULES to the host. Node (22.18 and later)
+// imports this file as it is, so a build.mjs can take them from here.
+export const BUILD = {
+  main: { bundle: true, platform: 'node' as const, format: 'cjs' as const, target: 'node22' },
+  renderer: { bundle: true, platform: 'browser' as const, format: 'cjs' as const, target: 'chrome130', jsx: 'automatic' as const, external: [...HOST_MODULES] as string[] }
+}
+
+// A plugin's own values, as JSON: one file per key in <userData>/plugin-data/<plugin id>/, written
+// atomically (a crash leaves the old value whole), so both sides of a plugin share them, and they
+// outlast reloads, relaunches and removing the plugin. A key is a plain name ([\w.-]+, not starting
+// with a dot). Operations on one key run in the order they were called. After the plugin is
+// unloaded, its old code's calls reject.
+export interface PluginStore {
+  get: <T>(key: string) => Promise<T | undefined> // undefined: never set, or deleted
+  set: (key: string, value: unknown) => Promise<void> // rejects for a value JSON.stringify can't write (undefined, a function)
+  delete: (key: string) => Promise<void>
+}
 
 export interface PluginManifest {
   id: string // [\w-]+, unique
@@ -97,8 +120,11 @@ export interface MainHost {
   // what use returned is reloaded whenever the one it requires is.
   provide: (api: unknown) => Disposable
   use: <T>(id: string) => T | undefined
-  // The environment cuckcode's terminals get, for running tools.
+  // The environment cuckcode's terminals get, for running tools. A plugin that runs git itself
+  // should add GIT_OPTIONAL_LOCKS=0, as cuckcode does: without it git status rewrites .git/index,
+  // which wakes the project's watcher, which refreshes git status, and so on.
   shellEnv: () => Record<string, string>
+  store: PluginStore
 }
 
 export interface MainPlugin {
@@ -174,6 +200,27 @@ export interface EditorContext<T> {
   openFile: (abs: string, line: number) => void
   // A URL the page can load for a file on disk (images, video).
   mediaUrl: (abs: string) => string
+}
+
+// The file the editor shows in the tab in front (RendererHost.activeFile).
+export interface ActiveFile {
+  path: string // absolute
+  project: string // the tab's project
+  // The editor's selection (Monaco's 1-based lines and columns; start = end is just the cursor)
+  // and its text. null while the file isn't shown as text (an image, a binary file, still loading).
+  selection: Monaco.IRange | null
+  text: string
+}
+
+// An item a plugin adds to a right-click menu, below the host's own: 'files' for a file or folder
+// in the file tree, 'editor' for the open file's title bar above the editor, 'git' for a changed
+// file in the git panel. run gets that file's (or folder's) absolute path. when, if given, decides
+// for each path whether the item shows. Items show in the order they were registered.
+export interface MenuItem {
+  where: 'files' | 'editor' | 'git'
+  title: string
+  run: (path: string) => void
+  when?: (path: string) => boolean
 }
 
 // Drawn in the Agents section's title bar for the agent in front (a usage meter, a status).
@@ -254,6 +301,10 @@ export interface AgentRunHandlers {
 // host, a load or when, activate) or a registration the host refuses is the plugin's error: a
 // toast, and the plugin's last errors on the Plugins page.
 export interface RendererHost<T = unknown> {
+  // The host's Monaco, which every editor uses. A plugin may add languages (monaco.languages.register
+  // plus a Monarch tokenizer, colored with addThemeRules) and providers: on-demand ones (hover,
+  // definition) and completion or snippet ones, which run as you type, at the plugin's cost. No
+  // workers and no language services.
   monaco: typeof Monaco
   // Calls a function the main side handles; rejects with what it threw, as its own message.
   invoke: <R>(name: string, ...args: unknown[]) => Promise<R>
@@ -351,6 +402,18 @@ export interface RendererHost<T = unknown> {
   stopAgentRun: (id: string) => void
   // A URL the page can load for a file on disk (images, video).
   mediaUrl: (abs: string) => string
+  // The project of the tab in front (its folder), or null on the home screen.
+  activeProject: () => string | null
+  // Called with the tab in front's project each time it changes (null: the home screen).
+  onProjectSwitched: (fn: (project: string | null) => void) => Disposable
+  // The working file the editor shows in the tab in front, with its selection; null when it shows
+  // none, or a past commit's version of one.
+  activeFile: () => ActiveFile | null
+  // Called with a file's absolute path each time the editor writes it to disk (⌘S, leaving a file
+  // with edits, a commit or a prompt saving first). Not for changes made outside the editor.
+  onFileSaved: (fn: (path: string) => void) => Disposable
+  contextMenu: (item: MenuItem) => Disposable
+  store: PluginStore
   // An agent to start from in Settings › Agents › Add, beside the built-in ones.
   agentPreset: (preset: AgentPreset) => Disposable
   agentBar: (item: AgentBarItem) => Disposable

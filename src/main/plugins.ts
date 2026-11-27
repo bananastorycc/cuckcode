@@ -2,11 +2,12 @@ import { execFile } from 'node:child_process'
 import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import type { Disposable, LoadedPlugin, MainHost, MainPlugin, PluginInfo, PluginManifest, PluginStatus } from '../shared/plugin'
+import type { Disposable, LoadedPlugin, MainHost, MainPlugin, PluginInfo, PluginManifest, PluginStatus, PluginStore } from '../shared/plugin'
 import { folderName, MANIFEST } from '../shared/plugin'
 import type { PluginRef } from '../shared/types'
 import { shellEnv } from './env'
 import { run as git } from './git'
+import { pluginStore } from './pluginstore'
 import { syncToUpstream } from './pluginsync'
 
 // Plugins are git repos. Installing clones one into cuckcode's own plugins folder (`dir`, set by
@@ -36,10 +37,13 @@ let ready: Promise<void> = new Promise(() => {}) // until start
 let queue: Promise<unknown> = ready
 let refsOf: () => PluginRef[] = () => []
 let dir = ''
+// Where plugins keep their stores, a folder per id.
+let dataDir = ''
 // How long a deactivate gets before the reload goes on without it.
 export const DEACTIVATE_MS = 5000
 
 export const setDir = (d: string): void => void (dir = d)
+export const setDataDir = (d: string): void => void (dataDir = d)
 // Installed by cuckcode, so removing it deletes the clone (to the Trash).
 export const managed = (path: string): boolean => !!dir && path.startsWith(`${dir}/`)
 
@@ -235,7 +239,8 @@ async function activate(p: Plugin): Promise<void> {
         return () => void (apis.get(id) === api && apis.delete(id))
       }),
     use: <T>(id: string) => apis.get(id) as T | undefined,
-    shellEnv
+    shellEnv,
+    store: pluginStore(join(dataDir, id), () => !!p.dead)
   }
   await mod.activate(host)
 }
@@ -346,6 +351,14 @@ export async function invoke(id: string, name: string, args: unknown[]): Promise
   }
   if (!fn) throw new Error(`${id} has no ${name}`)
   return (fn as (...a: unknown[]) => unknown)(...args)
+}
+
+// The renderer side's store (RendererHost.store): a loaded plugin's, so the id names a real folder.
+export async function store(id: string, op: keyof PluginStore, key: string, value?: unknown): Promise<unknown> {
+  await ready
+  if (!loaded.some((p) => p.manifest.id === id)) throw new Error(`store: ${id} isn't loaded`)
+  const s = pluginStore(join(dataDir, id))
+  return op === 'get' ? s.get(key) : op === 'set' ? s.set(key, value) : op === 'delete' ? s.delete(key) : Promise.reject(new Error(`store: no ${op}`))
 }
 
 // --- git ---

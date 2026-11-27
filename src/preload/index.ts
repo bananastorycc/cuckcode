@@ -73,6 +73,7 @@ const api: Api = {
   pluginRenderers: () => ipcRenderer.invoke('plugins:renderers'),
   pluginReload: (path) => ipcRenderer.invoke('plugins:reload', path),
   pluginInvoke: (id, name, args) => ipcRenderer.invoke('plugin:invoke', id, name, args),
+  pluginStore: (id, op, key, value) => ipcRenderer.invoke('plugin:store', id, op, key, value),
   pluginInstall: (url) => ipcRenderer.invoke('plugin:install', url),
   pluginInfo: (path, fetch) => ipcRenderer.invoke('plugin:info', path, fetch),
   pluginUpdate: (path) => ipcRenderer.invoke('plugin:update', path),

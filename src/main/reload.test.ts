@@ -55,7 +55,7 @@ exports.deactivate = () => log.push('${id}${version} down')
   return dir
 }
 
-const a = (v: number): string => plugin('a', v, `host.provide({ v: 'a${v}' }); host.handle('v', () => 'a${v}')${v === 1 ? `; host.handle('old', () => 'still here')` : ''}`)
+const a = (v: number): string => plugin('a', v, `host.provide({ v: 'a${v}' }); host.handle('v', () => 'a${v}'); host.handle('keep', (x) => host.store.set('kept', x)); globalThis.__aStore = host.store${v === 1 ? `; host.handle('old', () => 'still here')` : ''}`)
 const b = plugin('b', 1, `const a = host.use('a'); host.handle('v', () => 'b sees ' + a.v)`, ['a'])
 const c = plugin('c', 1, `host.handle('v', () => 'c')`)
 a(1)
@@ -71,6 +71,7 @@ const sent: string[] = []
 
 describe('reloading plugins', () => {
   it('loads at launch in dependency order, with an agent running', async () => {
+    plugins.setDataDir(join(root, 'data'))
     pty.start(AGENT, 80, 24, (channel, _id, data) => void (channel === 'pty:data' && sent.push(String(data))), config)
     spawned[0].data('before the reload\n')
     await plugins.start(Promise.resolve(), () => refs)
@@ -128,6 +129,19 @@ describe('reloading plugins', () => {
     await plugins.reload(c)
     expect(await plugins.invoke('c', 'v', [])).toBe('c2')
     expect((await plugins.list()).find((s) => s.path === c)?.note).toBe("Its old version's deactivate failed: boom")
+  })
+
+  it("keeps a plugin's store across reloads, shared with its renderer side, and refuses the old version's calls", async () => {
+    const old = (globalThis as { __aStore?: { get: (k: string) => Promise<unknown> } }).__aStore!
+    await plugins.invoke('a', 'keep', [{ n: 1 }])
+    expect(await plugins.store('a', 'get', 'kept')).toEqual({ n: 1 })
+    await plugins.reload(join(root, 'a'))
+    await expect(old.get('kept')).rejects.toThrow('was unloaded')
+    expect(await plugins.store('a', 'get', 'kept')).toEqual({ n: 1 })
+    await plugins.store('a', 'set', 'kept', 2)
+    expect(await (globalThis as { __aStore?: { get: (k: string) => Promise<unknown> } }).__aStore!.get('kept')).toBe(2)
+    await expect(plugins.store('nope', 'get', 'kept')).rejects.toThrow("nope isn't loaded")
+    await expect(plugins.store('a', 'get', '../b/kept')).rejects.toThrow('a key must match')
   })
 
   it('refuses a folder that is not one of the plugins', async () => {

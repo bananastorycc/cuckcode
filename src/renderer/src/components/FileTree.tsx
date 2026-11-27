@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { ChangedFile, GitStatus } from '../../../shared/types'
+import { menuFor } from '../plugins'
 import { saveAll } from './CodePane'
 import { contextMenu } from './ContextMenu'
 import { PATH_DRAG } from './Terminal'
@@ -192,7 +193,9 @@ export default function FileTree({ status, selected, tick, newFile, onSelect }: 
     e.preventDefault()
     e.stopPropagation()
     setCursor(r.path)
-    const i = await contextMenu(['New File…', '-', 'Rename…', 'Move to Trash', '-', 'Reveal in Finder', 'Copy Path', 'Copy Relative Path'])
+    const extra = menuFor('files', `${root}/${r.path}`)
+    const i = await contextMenu(['New File…', '-', 'Rename…', 'Move to Trash', '-', 'Reveal in Finder', 'Copy Path', 'Copy Relative Path', ...(extra.length ? ['-', ...extra.map((x) => x.title)] : [])])
+    if (i !== null && i > 8) extra[i - 9].run()
     if (i === 0) r.dir ? newIn(r.path, r.depth + 1) : newIn(parentOf(r.path), r.depth)
     else if (i === 2) setEditing({ kind: 'rename', path: r.path })
     else if (i === 3) trash(r.path)

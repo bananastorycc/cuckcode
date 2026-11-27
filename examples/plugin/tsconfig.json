@@ -1,0 +1,24 @@
+{
+  // Types for cuckcode's plugin API, React and Monaco come from the cuckcode checkout this sits in.
+  // A plugin of your own, beside a checkout, points these at ../cuckcode instead of ../..
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "types": ["node"],
+    "typeRoots": ["../../node_modules/@types"],
+    "paths": {
+      "cuckcode/plugin": ["../../src/shared/plugin.ts"],
+      "react": ["../../node_modules/@types/react"],
+      "react/jsx-runtime": ["../../node_modules/@types/react/jsx-runtime"],
+      "monaco-editor/*": ["../../node_modules/monaco-editor/esm/vs/*"]
+    }
+  },
+  "include": ["src", "test"]
+}

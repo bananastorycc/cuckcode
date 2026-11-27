@@ -1,0 +1,20 @@
+{
+  "name": "cuckcode-example",
+  "version": "1.0.0",
+  "private": true,
+  "description": "An example cuckcode plugin: pin files from the file tree to a panel",
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "build": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "allowScripts": {
+    "esbuild": true
+  }
+}

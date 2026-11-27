@@ -2,6 +2,13 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.61.0 — 2026-11-27
+
+- ✨ Plugins can add items to the right-click menus of the file tree, the git panel's changed files and the open file's title bar above the editor; each item gets the file's path.
+- ✨ For plugin authors: `activeProject()` and `activeFile()` (with the editor's selection), `onProjectSwitched` and `onFileSaved`, and `store`, a plugin's own JSON values kept in the app's data, on both sides. Every one of these registrations returns a disposable.
+- ✨ For plugin authors: `examples/plugin/` is a small plugin to start from (a panel, a command, a menu item, the store, a test on a fake host), and the README's "Write a plugin" walks through it, with the dev loop, where errors show and the build rule. `BUILD` in `plugin.ts` is cuckcode's esbuild recipe, next to `HOST_MODULES`.
+- 📝 The README documents language modes, themes through the CSS variables (which are stable, and how light and dark work), and `GIT_OPTIONAL_LOCKS=0` for plugins that run git. Plugins may register completion and snippet providers, at their own cost while you type.
+
 ## 1.60.0 — 2026-11-27
 
 - ✨ Plugins reload without a relaunch: Reload on the Plugins page for one (and the plugins that need it), or View › Reload Plugins for all of them. The plugin's views, panels, commands, editor hooks, colors and styles are taken out and come back from its new code, rebuilt when it changed. Your agents keep running, with their output. Changes on the Plugins page (turning one on or off, installing, updating, removing) apply with Reload all instead of a relaunch.

@@ -9,7 +9,7 @@ import type { When } from '../../shared/plugin'
 import AgentMenu from './components/AgentMenu'
 import Confirm, { ask } from './components/Confirm'
 import { contextMenu } from './components/ContextMenu'
-import CodePane, { saveAll, selection, type Reveal } from './components/CodePane'
+import CodePane, { saveAll, selection, selectionIn, type Reveal } from './components/CodePane'
 import FileTree from './components/FileTree'
 import GitPanel, { type GitTab } from './components/GitPanel'
 import Folders from './components/Folders'
@@ -46,7 +46,7 @@ import {
 import { agentProject, offer, offeredAt, pageState, pluginOfPanel, remember, used, type Page } from './pages'
 import { message, pluginError } from './errors'
 import { isEmbedded, PageProject, playChanged, playKey, setPlay, setPlayHandlers } from './play'
-import { loadPlugins, pluginNow, reloadPlugins, runCommand, setCurrent, setOpenFile, setSaveAll, setSendToAgent, setShow, usePlugins, type Registered, type Send } from './plugins'
+import { loadPlugins, pluginNow, projectSwitched, reloadPlugins, runCommand, setActiveFile, setCurrent, setOpenFile, setSaveAll, setSendToAgent, setShow, usePlugins, type Registered, type Send } from './plugins'
 
 // What's shown: the README over the code pane, or a playground slot (from 1) or a plugin's
 // view (`plugin:<id>:<command>`) over the whole workspace.
@@ -848,6 +848,16 @@ export default function App(): React.JSX.Element {
     openAt(abs.slice(root.length + 1), line, 1, 0)
   }
   useEffect(() => setOpenFile(openFile))
+  useEffect(() =>
+    setActiveFile(() => {
+      const root = status?.root
+      if (!active || !root || !workPath) return null
+      const path = `${root}/${workPath}`
+      const sel = selectionIn(path)
+      return { path, project: active, selection: sel?.range ?? null, text: sel?.text ?? '' }
+    })
+  )
+  useEffect(() => projectSwitched(active), [active])
 
   // A page's openFile, in its project's repo: a page away from home switches to its home's tab.
   const openFileIn = (project: string | null, abs: string, line: number): void => {

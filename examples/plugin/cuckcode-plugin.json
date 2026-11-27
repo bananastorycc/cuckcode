@@ -1,0 +1,8 @@
+{
+  "id": "example",
+  "name": "Pinned files",
+  "main": "dist/main.js",
+  "renderer": "dist/renderer.js",
+  "style": "dist/style.css",
+  "commands": [{ "id": "pins", "title": "Pinned Files" }]
+}

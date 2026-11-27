@@ -3,7 +3,7 @@ import * as jsxRuntime from 'react/jsx-runtime'
 import * as ReactDOM from 'react-dom'
 import { useSyncExternalStore } from 'react'
 import type { AgentPreset } from '../../shared/agents'
-import type { AgentBarItem, AgentRunHandlers, Disposable, EditorContext, HOST_MODULES, LoadedPlugin, PluginGit, PluginPanel, PluginView, ProjectSource, RendererHost, RendererPlugin, RunProps, When } from '../../shared/plugin'
+import type { ActiveFile, AgentBarItem, AgentRunHandlers, Disposable, EditorContext, HOST_MODULES, LoadedPlugin, MenuItem, PluginGit, PluginPanel, PluginStore, PluginView, ProjectSource, RendererHost, RendererPlugin, RunProps, When } from '../../shared/plugin'
 import type { AgentRequest, AgentRun, AgentRunEvent, GitResult, PluginGitOp } from '../../shared/types'
 import { EmbeddedPlayground } from './components/Playground'
 import Run from './components/Run'
@@ -108,6 +108,9 @@ let sendToAgent: (send: Send) => Promise<boolean> = async () => false
 let show: (plugin: string, command: string, on: boolean) => boolean = () => false
 // CodePane's saveAll (CodePane imports this module, so it's handed over rather than imported).
 let saveAll: () => Promise<unknown> = async () => {}
+// The tab in front's project and file, which App keeps current.
+let project: string | null = null
+let activeFile: () => ActiveFile | null = () => null
 
 export const usePlugins = (): Registered[] =>
   useSyncExternalStore(
@@ -140,6 +143,44 @@ export function setShow(fn: typeof show): void {
 
 export function setSaveAll(fn: typeof saveAll): void {
   saveAll = fn
+}
+
+export function setActiveFile(fn: typeof activeFile): void {
+  activeFile = fn
+}
+
+// App, when the tab in front changes.
+export function projectSwitched(to: string | null): void {
+  if (to === project) return
+  project = to
+  for (const s of [...projectSubs]) s.fn(to)
+}
+
+// CodePane, after it wrote a file.
+export function fileSaved(path: string): void {
+  for (const s of [...savedSubs]) s.fn(path)
+}
+
+// The plugins' items for a right-click menu on path, in the order they were registered, each run
+// guarded so a throw is the plugin's error.
+export function menuFor(where: MenuItem['where'], path: string): { title: string; run: () => void }[] {
+  return [...menuItems].flatMap(({ plugin, item }) => {
+    if (item.where !== where) return []
+    try {
+      if (item.when && !item.when(path)) return []
+    } catch (err) {
+      pluginError(plugin, 'contextMenu when', err)
+      return []
+    }
+    const run = (): void => {
+      try {
+        item.run(path)
+      } catch (err) {
+        pluginError(plugin, `contextMenu ${item.title}`, err)
+      }
+    }
+    return [{ title: String(item.title), run }]
+  })
 }
 
 // Only data crosses to main: a plugin's object may hold anything.
@@ -251,6 +292,10 @@ export function runCommand(plugin: string, command: string): void {
 type Sub<A> = { plugin: Who; fn: (a: A) => void }
 const requestSubs = new Set<Sub<AgentRequest>>()
 const endSubs = new Set<Sub<string>>()
+const projectSubs = new Set<Sub<string | null>>()
+const savedSubs = new Set<Sub<string>>()
+const menuItems = new Set<{ plugin: Who; item: MenuItem }>()
+const PLACES: MenuItem['where'][] = ['files', 'editor', 'git']
 const heard = new Map<string, Set<string>>()
 
 function subscribe<A>(subs: Set<Sub<A>>, plugin: Who, where: string, fn: (a: A) => void): () => void {
@@ -308,6 +353,12 @@ function hostFor(live: Live, p: LoadedPlugin): RendererHost {
     })
   // An unloaded version's timers and callbacks can still call in; what reaches main or an agent is refused.
   const unloaded = (what: string): Error => new Error(`${what}: ${p.name} was unloaded (reloaded, or turned off)`)
+  const stored = async (op: keyof PluginStore, key: string, value?: unknown): Promise<unknown> => {
+    if (live.dead) throw unloaded('store')
+    return window.api.pluginStore(p.id, op, String(key), value).catch((err: unknown) => {
+      throw new Error(message(err))
+    })
+  }
   return {
     monaco,
     // Rejects with main's own message, without Electron's wrapping.
@@ -382,6 +433,30 @@ function hostFor(live: Live, p: LoadedPlugin): RendererHost {
         from: p.name
       }),
     mediaUrl,
+    activeProject: () => project,
+    onProjectSwitched: (fn) => disposable(live, () => subscribe(projectSubs, plugin, 'onProjectSwitched', fn)),
+    activeFile: () => activeFile(),
+    onFileSaved: (fn) => disposable(live, () => subscribe(savedSubs, plugin, 'onFileSaved', fn)),
+    // Refused unless it names a place and has something to run, as nothing could show or pick it.
+    contextMenu: (item) => {
+      if (!PLACES.includes(item?.where)) return refuse(`a menu item's where must be one of ${PLACES.join(', ')} (got ${JSON.stringify(item?.where)})`)
+      if (typeof item.title !== 'string' || !item.title.trim() || typeof item.run !== 'function') return refuse('a menu item needs a title and a run')
+      return disposable(live, () => {
+        const entry = { plugin, item }
+        menuItems.add(entry)
+        return () => void menuItems.delete(entry)
+      })
+    },
+    store: {
+      get: async <V,>(key: string) => (await stored('get', key)) as V | undefined,
+      // Only JSON crosses, as it's kept: what JSON.stringify drops or changes never reaches main.
+      set: async (key, value) => {
+        const text = JSON.stringify(value)
+        if (text === undefined) throw new Error(`store: ${key}'s value isn't JSON (use delete to remove it)`)
+        await stored('set', key, JSON.parse(text))
+      },
+      delete: async (key) => void (await stored('delete', key))
+    },
     agentPreset: (preset) =>
       shown(() => {
         reg.presets = [...reg.presets, preset]
