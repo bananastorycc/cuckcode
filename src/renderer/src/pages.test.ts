@@ -87,25 +87,41 @@ describe('remembering homes', () => {
 })
 
 describe("routing a plugin's sendToAgent", () => {
-  it('goes to the tab in front when no project is given and nothing shows away from home', () => {
-    expect(agentProject('x', undefined, null, [], A)).toBe(A)
-    expect(agentProject('x', undefined, { plugin: 'x', project: A }, [], A)).toBe(A)
+  it('goes to the tab in front when no project is given and nothing of the plugin shows away from home', () => {
+    expect(agentProject('x', undefined, null, [], A)).toEqual({ to: A })
+    expect(agentProject('x', undefined, { plugin: 'x', project: A }, [], A)).toEqual({ to: A })
     // Another plugin's page away from home doesn't matter.
-    expect(agentProject('x', undefined, { plugin: 'y', project: B }, [{ plugin: 'y', project: B }], A)).toBe(A)
+    expect(agentProject('x', undefined, null, [{ plugin: 'y', project: B }], A)).toEqual({ to: A })
+    // Another plugin's view covers the dock, so the plugin's tied panel isn't on screen.
+    expect(agentProject('x', undefined, { plugin: 'y', project: B }, [{ plugin: 'x', project: C }], A)).toEqual({ to: A })
   })
 
   it('goes to the project given, wherever the page is', () => {
-    expect(agentProject('x', C, { plugin: 'x', project: B }, [], A)).toBe(C)
-    expect(agentProject('x', C, null, [], null)).toBe(C)
+    expect(agentProject('x', C, { plugin: 'x', project: B }, [], A)).toEqual({ to: C })
+    expect(agentProject('x', C, null, [{ plugin: 'x', project: B }, { plugin: 'x', project: null }], A)).toEqual({ to: C })
+    expect(agentProject('x', C, null, [], null)).toEqual({ to: C })
   })
 
   it("goes to a page's home when it shows away from home, never the tab's agent", () => {
-    expect(agentProject('x', undefined, { plugin: 'x', project: B }, [], H)).toBe(B)
-    expect(agentProject('x', undefined, null, [{ plugin: 'x', project: B }], H)).toBe(B)
+    expect(agentProject('x', undefined, { plugin: 'x', project: B }, [], H)).toEqual({ to: B })
+    expect(agentProject('x', undefined, null, [{ plugin: 'x', project: B }], H)).toEqual({ to: B })
     // An untied panel follows the tab, so it's the tab's own project.
-    expect(agentProject('x', undefined, null, [{ plugin: 'x', project: null }], H)).toBe(H)
-    // The view over the tab wins over a panel elsewhere.
-    expect(agentProject('x', undefined, { plugin: 'x', project: C }, [{ plugin: 'x', project: B }], H)).toBe(C)
+    expect(agentProject('x', undefined, null, [{ plugin: 'x', project: null }], H)).toEqual({ to: H })
+    // The view covers the dock, so it wins over a panel.
+    expect(agentProject('x', undefined, { plugin: 'x', project: C }, [{ plugin: 'x', project: B }], H)).toEqual({ to: C })
+  })
+
+  it("refuses to guess when the plugin's panels show for different projects", () => {
+    // One follows the tab (H), one is tied to B: either could have sent it.
+    expect(agentProject('x', undefined, null, [{ plugin: 'x', project: B }, { plugin: 'x', project: null }], H)).toEqual({ among: [B, H] })
+    expect(agentProject('x', undefined, null, [{ plugin: 'x', project: B }, { plugin: 'x', project: C }], H)).toEqual({ among: [B, C] })
+    // Two panels for the same project agree.
+    expect(agentProject('x', undefined, null, [{ plugin: 'x', project: H }, { plugin: 'x', project: null }], H)).toEqual({ to: H })
+  })
+
+  it('sends nothing from the home screen without a project', () => {
+    expect(agentProject('x', undefined, { plugin: 'x', project: null }, [], null)).toEqual({ to: null })
+    expect(agentProject('x', undefined, null, [], null)).toEqual({ to: null })
   })
 })
 

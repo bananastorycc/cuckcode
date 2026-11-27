@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, Plus, Puzzle, RefreshCw, Save, Trash2, X } from 'lu
 import type { Agent, Config, SavedLayout, Settings as AllSettings, SyncStatus, ThemeChoice } from '../../../shared/types'
 import { MAX_SLOTS } from '../../../shared/types'
 import { COMMIT_COMMAND, fromPreset, PRESETS as AGENT_PRESETS, RUN_COMMAND } from '../../../shared/agents'
+import { message } from '../errors'
 import { usePlugins } from '../plugins'
 import { apply, current, load, PRESETS, valid } from '../layout'
 import { ask } from './Confirm'
@@ -25,8 +26,6 @@ const field = 'min-w-0 select-text rounded-sm border border-line bg-bg px-2 py-1
 // Shortcut digits: 1–9, then 0 for the tenth.
 const digit = (i: number): string => String((i + 1) % 10)
 
-// ipcRenderer.invoke wraps it: "Error invoking remote method 'x': Error: <message>"
-const message = (err: unknown): string => String((err as Error).message ?? err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 
 // Full-window, over everything. Every change saves at once.
 export default function Settings({ config, theme, onTheme, layouts, onLayouts, onChange, onClose, onPlugins, onReset, onImport }: Props): React.JSX.Element {

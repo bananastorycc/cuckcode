@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { lstat, readFile, realpath, stat } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { lstat, open, realpath, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { AgentRun, AgentRunEnd, AgentRunEvent } from '../shared/types'
 import { shellEnv } from './env'
@@ -61,9 +62,9 @@ export async function profile(project: string, name: unknown): Promise<{ path: s
   // The project folder itself may be a link (to a checkout elsewhere), but the file must be in it.
   const [root, real] = await Promise.all([realpath(project), realpath(path)]).catch(() => ['', ''])
   if (!root || !real.startsWith(`${root}/`)) return refuse(`${path} isn't inside the project`)
-  const bytes = await readFile(path).catch(() => null)
+  const bytes = await readSmall(path)
+  if (bytes === 'big') return refuse(`${path} is too big for a profile`)
   if (!bytes) return refuse(`can't read ${path}`)
-  if (bytes.length > PROFILE_MAX) return refuse(`${path} is too big for a profile`)
   let parsed: unknown
   try {
     parsed = JSON.parse(bytes.toString('utf8'))
@@ -72,6 +73,27 @@ export async function profile(project: string, name: unknown): Promise<{ path: s
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return refuse(`${path} isn't a JSON object`)
   return { path, json: JSON.stringify(parsed) }
+}
+
+// The file's bytes, through no symlink (one swapped in since the checks isn't followed) and never
+// more than PROFILE_MAX of them: a huge file is refused by its size, not read whole first.
+// Non-blocking, so a FIFO put there can't hang the open.
+async function readSmall(path: string): Promise<Buffer | 'big' | null> {
+  const fh = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK).catch(() => null)
+  if (!fh) return null
+  try {
+    const s = await fh.stat()
+    if (!s.isFile()) return null
+    if (s.size > PROFILE_MAX) return 'big'
+    const buf = Buffer.alloc(PROFILE_MAX + 1)
+    let n = 0
+    for (let r = 1; r && n < buf.length; n += r) r = (await fh.read(buf, n, buf.length - n, n)).bytesRead
+    return n > PROFILE_MAX ? 'big' : buf.subarray(0, n)
+  } catch {
+    return null
+  } finally {
+    await fh.close().catch(() => {})
+  }
 }
 
 // What the command gets for this kind of run. Only one of PLAIN, THREAD and RESUME is ever set,

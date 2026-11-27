@@ -44,6 +44,7 @@ import {
   type Section
 } from './layout'
 import { agentProject, offer, offeredAt, pageState, pluginOfPanel, remember, used, type Page } from './pages'
+import { pluginError } from './errors'
 import { isEmbedded, PageProject, playChanged, playKey, setPlay, setPlayHandlers } from './play'
 import { loadPlugins, runCommand, setCurrent, setOpenFile, setSaveAll, setSendToAgent, setShow, usePlugins, type Registered, type Send } from './plugins'
 
@@ -232,7 +233,7 @@ export default function App(): React.JSX.Element {
       loading.current.set(key, false)
       const r = await Promise.resolve()
         .then(() => p.source!.load(path))
-        .catch(() => null)
+        .catch((err: unknown) => (pluginError(p, 'load', err), null))
       // Unchanged data keeps its identity, so views (a laid-out graph) don't redo their work.
       setData((x) => (key in x && JSON.stringify(x[key]) === JSON.stringify(r) ? x : { ...x, [key]: r }))
       setPluginHomes((h) => remember(h, p.id, path, r !== null && r !== undefined))
@@ -246,8 +247,9 @@ export default function App(): React.JSX.Element {
   })
 
   // A plugin with no homes remembered gets the projects folder looked through once, in the
-  // background and a project at a time. What it finds is remembered (nothing found too), so a
-  // launch doesn't do it again; a project opened later is found by its own load.
+  // background and a project at a time (each plugin on its own, so one whose load never settles
+  // holds up only itself). What it finds is remembered (nothing found too), so a launch doesn't
+  // do it again; a project opened later is found by its own load.
   const scanned = useRef(new Set<string>())
   useEffect(() => {
     const dir = config.projectsDir
@@ -258,14 +260,16 @@ export default function App(): React.JSX.Element {
     void (async () => {
       const paths = await window.api.repos(dir).catch((): string[] => [])
       for (const p of todo) {
-        const found: string[] = []
-        for (const path of paths) {
-          const r = await Promise.resolve()
-            .then(() => p.source!.load(path))
-            .catch(() => null)
-          if (r !== null && r !== undefined) found.push(path)
-        }
-        setPluginHomes((h) => ({ ...h, [p.id]: [...(h[p.id] ?? []), ...found.filter((f) => !h[p.id]?.includes(f))] }))
+        void (async () => {
+          const found: string[] = []
+          for (const path of paths) {
+            const r = await Promise.resolve()
+              .then(() => p.source!.load(path))
+              .catch((err: unknown) => (pluginError(p, 'load', err), null))
+            if (r !== null && r !== undefined) found.push(path)
+          }
+          setPluginHomes((h) => ({ ...h, [p.id]: [...(h[p.id] ?? []), ...found.filter((f) => !h[p.id]?.includes(f))] }))
+        })()
       }
     })()
   }, [loaded, plugins, config.projectsDir])
@@ -356,7 +360,7 @@ export default function App(): React.JSX.Element {
   const report =
     (p: Registered) =>
     (err: unknown): void =>
-      console.error(`plugin ${p.id}:`, err)
+      pluginError(p, 'when', err)
   const pageOf = (p: Registered, when: When<unknown> | undefined, panel: boolean): Page => ({ source: !!p.source, when, panel })
   const offerOf = (p: Registered, when: When<unknown> | undefined, panel: boolean): ReturnType<typeof offer> =>
     offer(pageOf(p, when, panel), p.id, active, pluginHomes[p.id] ?? [], data, report(p))
@@ -403,10 +407,13 @@ export default function App(): React.JSX.Element {
   const openPanelIds = openList.map((o) => o.id)
 
   // A project a page away from home is for, opened in the background (shelved) when it isn't open.
-  const visit = (path: string): void => {
-    if (projectsRef.current.includes(path)) return
+  // Only once it's known to be a folder: a remembered home or a tied panel's project may be gone.
+  const shelveOpen = (path: string): void => {
     setProjects((ps) => (ps.includes(path) ? ps : [...ps, path]))
     setShelved((s) => (s.includes(path) ? s : [...s, path]))
+  }
+  const visit = (path: string): void => {
+    if (!projectsRef.current.includes(path)) void isFolder(path).then((ok) => ok && shelveOpen(path))
   }
   // A project brought to the front: put back on the bar, or opened.
   const bring = (path: string): void => (projectsRef.current.includes(path) ? select(path) : open([path]))
@@ -415,8 +422,15 @@ export default function App(): React.JSX.Element {
   const openFor = (p: Registered, project: string | null, show: (where: string) => void): void => {
     if (project && project !== active) setPluginHomes((h) => used(h, p.id, project))
     if (project && !active) {
-      open([project])
-      return show(project)
+      void (async () => {
+        if (projectsRef.current.includes(project) || (await isFolder(project))) {
+          open([project])
+          return show(project)
+        }
+        setPluginHomes((h) => remember(h, p.id, project, false))
+        toast(false, p.name, `${tildify(project)} is gone.`)
+      })()
+      return
     }
     if (project && project !== active) visit(project)
     show(here)
@@ -519,7 +533,7 @@ export default function App(): React.JSX.Element {
     if (state === 'loading') return note(`Loading ${projectName(project)}…`)
     return (
       <PageProject.Provider value={project}>
-        <Quiet what={`${p.id} panel`} reset={`${active}\n${project}`} fallback={note(`${panel.title} hit an error (see the console).`)}>
+        <Quiet plugin={p} what={`panel ${panel.id}`} reset={`${active}\n${project}`} fallback={note(`${panel.title} hit an error (see Plugins).`)}>
           {panel.render({ data: dataFor(p.id, project), ...pageProps(project, () => closePanel(id)) })}
         </Quiet>
       </PageProject.Provider>
@@ -770,7 +784,7 @@ export default function App(): React.JSX.Element {
         {top &&
           plugins.flatMap((p) =>
             p.bar.map((Item, i) => (
-              <Quiet key={`${p.id}:${i}`}>
+              <Quiet key={`${p.id}:${i}`} plugin={p} what="agent bar">
                 <Item agent={top} />
               </Quiet>
             ))
@@ -869,14 +883,15 @@ export default function App(): React.JSX.Element {
   const tellAgent = async (text: string, submit: boolean, from: string, stay = false, project = active): Promise<boolean> => {
     if (!project) return false
     if (!projectsRef.current.includes(project)) {
-      const known =
-        Object.values(pluginHomesRef.current).some((h) => h.includes(project)) ||
-        (!!config.projectsDir && (await window.api.repos(config.projectsDir).catch((): string[] => [])).includes(project))
+      // A remembered home may have gone since.
+      const known = Object.values(pluginHomesRef.current).some((h) => h.includes(project))
+        ? await isFolder(project)
+        : !!config.projectsDir && (await window.api.repos(config.projectsDir).catch((): string[] => [])).includes(project)
       if (!known) {
         toast(false, from, `${tildify(project)} isn't an open project or a folder in your projects folder.`)
         return false
       }
-      if (activeRef.current) visit(project)
+      if (activeRef.current) shelveOpen(project)
       else open([project])
     }
     const to = target(agents, agentOf(project), (a) => a.playground)
@@ -894,16 +909,20 @@ export default function App(): React.JSX.Element {
     if (submit) setTimeout(() => window.api.ptyWrite(id, '\r'), 150)
     return true
   }
-  // A plugin's sendToAgent: the project it names, else its page's in front (pages.ts).
-  const sendFromPlugin = (send: Send): Promise<boolean> => {
-    const project = agentProject(
+  // A plugin's sendToAgent: the project it names, else its pages' on screen (pages.ts).
+  const sendFromPlugin = async (send: Send): Promise<boolean> => {
+    const r = agentProject(
       send.plugin,
       send.project,
       pluginView ? { plugin: pluginView.plugin.id, project: viewProject } : null,
-      openList.map((o) => ({ plugin: pluginOfPanel(o.id), project: o.project })),
+      active ? openList.filter((o) => panelShowing(o.id)).map((o) => ({ plugin: pluginOfPanel(o.id), project: o.project })) : [],
       active
     )
-    return tellAgent(send.text, send.submit, send.from, send.stay, project)
+    if ('among' in r) {
+      toast(false, send.from, `Its panels are showing for ${r.among.map(projectName).join(' and ')} and it didn't say which agent this was for, so nothing was sent.`)
+      return false
+    }
+    return tellAgent(send.text, send.submit, send.from, send.stay, r.to)
   }
   useEffect(() => setSendToAgent(sendFromPlugin))
   useEffect(() => setPlayHandlers({ done: (slot, project) => playDone(slot, true, project), seen: unseen }))
@@ -1141,9 +1160,10 @@ export default function App(): React.JSX.Element {
             <PageProject.Provider value={viewProject}>
               <Quiet
                 key={`${pluginView.key}\n${viewProject ?? ''}`}
-                what={`${pluginView.plugin.id} view`}
+                plugin={pluginView.plugin}
+                what={`view ${pluginView.view.command}`}
                 reset={active}
-                fallback={note(`${pluginView.view.title} hit an error (see the console).`)}
+                fallback={note(`${pluginView.view.title} hit an error (see Plugins).`)}
               >
                 {viewState === 'loading'
                   ? note(`Loading ${projectName(viewProject ?? '')}…`)
@@ -1211,6 +1231,9 @@ export default function App(): React.JSX.Element {
 
 const RECENT_MAX = 12
 
+// Whether path is a folder there now.
+const isFolder = (path: string): Promise<boolean> => window.api.browse(path).then(() => true, () => false)
+
 // Until init answers; never saved (saving waits for init).
 const EMPTY: Config = {
   projectsDir: '',
@@ -1244,13 +1267,17 @@ const pickConfig = (s: Config): Config => ({
 
 // A plugin's title-bar item, view or panel that throws drops out (or shows fallback) instead of taking
 // the window down with it. A change of reset (the project, for a view or panel) gives it another try.
-class Quiet extends Component<{ children: ReactNode; what?: string; reset?: unknown; fallback?: ReactNode }, { failed: boolean }> {
+// What it caught goes to the plugin's errors (a toast, and the Plugins page).
+class Quiet extends Component<
+  { children: ReactNode; plugin: { id: string; name: string }; what: string; reset?: unknown; fallback?: ReactNode },
+  { failed: boolean }
+> {
   state = { failed: false }
   static getDerivedStateFromError(): { failed: boolean } {
     return { failed: true }
   }
   componentDidCatch(err: unknown): void {
-    console.error(`plugin ${this.props.what ?? 'agent bar'}:`, err)
+    pluginError(this.props.plugin, this.props.what, err)
   }
   componentDidUpdate(prev: { reset?: unknown }): void {
     if (this.state.failed && prev.reset !== this.props.reset) this.setState({ failed: false })

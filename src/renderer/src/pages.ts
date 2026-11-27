@@ -79,13 +79,22 @@ export interface Shown {
 }
 
 // The project whose agent a plugin's sendToAgent types into: the one it names; else the project of
-// its page in front, when that page is away from home (its view over the tab, else a panel tied to
-// another project); else the tab in front, as always.
-export function agentProject(plugin: string, given: string | undefined, view: Shown | null, panels: Shown[], active: string | null): string | null {
-  if (given) return given
-  if (view?.plugin === plugin && view.project) return view.project
-  const tied = panels.find((p) => p.plugin === plugin && p.project && p.project !== active)
-  return tied?.project ?? active
+// its pages on screen: the view over the workspace (any plugin's: it covers the dock), else its
+// panels showing in the dock (an untied one is the tab in front's); else the tab in front. Panels
+// showing for different projects leave it unclear, so it's refused (among) rather than guessed:
+// typing into the wrong agent is the one thing this must never do. view is null when none is
+// showing; panels holds only those in front in their groups, and none on the home screen.
+export function agentProject(
+  plugin: string,
+  given: string | undefined,
+  view: Shown | null,
+  panels: Shown[],
+  active: string | null
+): { to: string | null } | { among: string[] } {
+  if (given) return { to: given }
+  if (view) return { to: view.plugin === plugin ? view.project : active }
+  const here = [...new Set(panels.filter((p) => p.plugin === plugin).map((p) => p.project ?? active))]
+  return here.length > 1 ? { among: here.filter((p): p is string => !!p) } : { to: here[0] ?? active }
 }
 
 // --- Panels in the dock ---

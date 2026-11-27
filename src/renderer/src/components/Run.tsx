@@ -3,6 +3,7 @@ import type { Terminal as XTerm } from '@xterm/xterm'
 import { X } from 'lucide-react'
 import type { RunProps } from '../../../shared/plugin'
 import type { RunExit } from '../../../shared/types'
+import { pluginError } from '../errors'
 import { usePlay } from '../play'
 import { TERMINAL } from '../theme'
 import { openXterm, shellQuote } from '../xterm'
@@ -19,8 +20,8 @@ const ended = (exit: RunExit): string =>
 // A plugin's run (RendererHost.Run): one command in a PTY of its own, named by the plugin and its
 // id. Main starts it the first time its id mounts and only ever reattaches after, so a remount,
 // a keypress or a re-render never runs it again.
-export default function Run({ plugin, id: name, cwd, argv, pin, title, onExit, actions }: RunProps & { plugin: string }): React.JSX.Element {
-  const id = `run.${plugin}.${name}`
+export default function Run({ plugin, id: name, cwd, argv, pin, title, onExit, actions }: RunProps & { plugin: { id: string; name: string } }): React.JSX.Element {
+  const id = `run.${plugin.id}.${name}`
   const valid = typeof name === 'string' && /^[\w-]+$/.test(name)
   const { theme } = usePlay()
   const host = useRef<HTMLDivElement>(null)
@@ -46,7 +47,7 @@ export default function Run({ plugin, id: name, cwd, argv, pin, title, onExit, a
       try {
         exitFn.current?.(exit)
       } catch (err) {
-        console.error(`plugin ${plugin}:`, err)
+        pluginError(plugin, `Run ${name} onExit`, err)
       }
     }
     // Reattaching: output and an exit sent before runStart's reply are already in it.

@@ -2,6 +2,15 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.59.0 — 2026-11-27
+
+- ✨ When a plugin goes wrong in the window (a view, panel or title-bar item that crashes, a handler that throws, a view or panel it can't register), a note says so in the corner, and the Plugins page lists its last errors since launch. What a plugin's main side throws reaches it as its own message, without Electron's "Error invoking remote method" in front.
+- 🐛 A plugin rebuilds when its lockfile, build script, `tsconfig` or installed dependencies change, not only its sources, and reinstalls its dependencies when its `package.json` changes.
+- 🐛 A plugin's text never goes to a guessed agent: when its panels are showing for different projects and it doesn't say which, nothing is sent and a note says why. A panel hidden behind another tab, or under a view, no longer decides where it goes.
+- 🐛 A plugin's page no longer opens a deleted or moved project in the background; the plugin forgets that project instead.
+- 🐛 One plugin that's slow to look through the projects folder no longer holds up the others.
+- 🐛 A huge file named as a helper run's profile is refused without being read whole first.
+
 ## 1.58.0 — 2026-11-27
 
 - ✨ Plugins can have a project's agent do a job in the background (`runAgent`), with nothing on screen, and show the answer, its tokens and cost themselves. What such a run may do is set by the project, in a profile under `.claude/profiles/`, never by the plugin. A run is one-shot with no session kept, or a thread that a later run continues. The command it runs is in Settings › Agents (Run command), and defaults to a headless Claude Code.

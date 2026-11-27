@@ -149,6 +149,20 @@ describe('runAgent', () => {
     expect(await refusal({ profile: 'list' })).toMatch(/isn't a JSON object/)
   })
 
+  it('refuses a huge profile by its size, and still takes one just under the limit', async () => {
+    const big = join(project, '.claude', 'profiles', 'big.json')
+    try {
+      writeFileSync(big, `{"pad":"${'x'.repeat(64 * 1024)}"}`)
+      expect(await refusal({ profile: 'big' })).toMatch(/too big/)
+      writeFileSync(big, `{"pad":"${'x'.repeat(64 * 1024 - 20)}"}`)
+      const run = await go({ profile: 'big' }, 'printf %s "$CUCKCODE_RUN_PROFILE" | wc -c')
+      await run.end
+      expect(Number(String(run.lines[0]).trim())).toBe(64 * 1024 - 20 + 10)
+    } finally {
+      rmSync(big, { force: true })
+    }
+  })
+
   it('refuses a folder that is not a project', async () => {
     expect(await refusal({ project: outside })).toMatch(/isn't an open project/)
     expect(await refusal({ project: join(project, '.claude') })).toMatch(/isn't an open project/)

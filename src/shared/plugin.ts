@@ -226,8 +226,12 @@ export interface AgentRunHandlers {
   end?: (end: AgentRunEnd) => void
 }
 
+// What throws in a plugin's renderer side (a page or agent bar item, a hook or handler given to the
+// host, a load or when, activate) or a registration the host refuses is the plugin's error: a
+// toast, and the plugin's last errors on the Plugins page.
 export interface RendererHost<T = unknown> {
   monaco: typeof Monaco
+  // Calls a function the main side handles; rejects with what it threw, as its own message.
   invoke: <R>(name: string, ...args: unknown[]) => Promise<R>
   provide: (api: unknown) => void
   use: <A>(id: string) => A | undefined
@@ -259,10 +263,12 @@ export interface RendererHost<T = unknown> {
   // switching to its project's tab), pastes, and presses Enter unless submit is false. Resolves
   // false when there's no such agent or it didn't start.
   // The project: project, an open project or a folder in the projects folder (one that isn't open
-  // opens in the background; any other is refused). Without it: the project of this plugin's page
-  // in front when that page is away from home (its view over the tab, else a panel tied to another
-  // project), so a page never types into the tab's own agent; otherwise the tab in front. A page
-  // should pass its root; code running outside a page (looping over projects) names each.
+  // opens in the background; any other is refused). Without it: the project of this plugin's pages
+  // on screen (its view over the workspace, else its panels in front in the dock, an untied one
+  // being the tab in front's), so a page away from home never types into the tab's own agent;
+  // otherwise the tab in front. When its panels show for different projects nothing is sent (it
+  // resolves false, and the user is told). A page should pass its root; code running outside a
+  // page (looping over projects) names each.
   // With stay, the screen and keyboard focus stay as they are: the view stays open and the agent
   // isn't shown or brought to the front, though it's still started if needed. Nothing tells the
   // plugin what the text lands on (half-typed input, or a dialog the agent is showing, which

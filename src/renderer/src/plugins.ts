@@ -9,6 +9,7 @@ import { EmbeddedPlayground } from './components/Playground'
 import Run from './components/Run'
 import Scratch from './components/Scratch'
 import { toast } from './components/Toasts'
+import { message, pluginError } from './errors'
 import { addThemeRules, monaco } from './monaco'
 import { onPlayChange } from './play'
 
@@ -17,6 +18,8 @@ import { onPlayChange } from './play'
 
 type Editor = monaco.editor.ICodeEditor
 type EditorHook = (editor: Editor, ctx: EditorContext<unknown>) => monaco.IDisposable | void
+// Who a plugin is, for its errors.
+type Who = { id: string; name: string }
 
 export interface Registered {
   id: string
@@ -56,7 +59,7 @@ const changed = (): void => {
   listeners.forEach((l) => l())
 }
 
-const editorHooks: { id: string; fn: EditorHook }[] = []
+const editorHooks: { plugin: Who; fn: EditorHook }[] = []
 // Each live editor and the hooks' disposables on it.
 const editors = new Map<Editor, monaco.IDisposable[]>()
 const apis = new Map<string, unknown>()
@@ -118,7 +121,7 @@ const runOf = (run: AgentRun): AgentRun => ({
 
 // A run's events for a page: what main kept so far, then live ones. Live events that arrive
 // while the catch-up is on its way wait for it; seq drops any already delivered.
-function watchRun(plugin: string, id: string, on: AgentRunHandlers): () => void {
+function watchRun(plugin: Who, id: string, on: AgentRunHandlers): () => void {
   let next = 0
   let caught = false
   let off = false
@@ -127,7 +130,7 @@ function watchRun(plugin: string, id: string, on: AgentRunHandlers): () => void 
     try {
       fn?.(a)
     } catch (err) {
-      console.error(`plugin ${plugin}:`, err)
+      pluginError(plugin, 'onAgentRun', err)
     }
   }
   const deliver = (e: AgentRunEvent): void => {
@@ -138,7 +141,7 @@ function watchRun(plugin: string, id: string, on: AgentRunHandlers): () => void 
   }
   const unsubscribe = window.api.onAgentRunEvent(id, (e) => (caught ? deliver(e) : waiting.push(e)))
   void window.api
-    .agentRunEvents(plugin, id)
+    .agentRunEvents(plugin.id, id)
     .catch((): AgentRunEvent[] => [])
     .then((kept) => {
       kept.forEach(deliver)
@@ -174,10 +177,10 @@ function context(id: string): EditorContext<unknown> {
 
 function hook(editor: Editor, h: (typeof editorHooks)[number]): void {
   try {
-    const d = h.fn(editor, context(h.id))
+    const d = h.fn(editor, context(h.plugin.id))
     if (d) editors.get(editor)?.push(d)
   } catch (err) {
-    console.error(`plugin ${h.id}:`, err)
+    pluginError(h.plugin, 'onEditor', err)
   }
 }
 
@@ -192,7 +195,12 @@ export function addEditor(editor: Editor): () => void {
 }
 
 export function runCommand(plugin: string, command: string): void {
-  plugins.find((p) => p.id === plugin)?.commands.get(command)?.()
+  const p = plugins.find((x) => x.id === plugin)
+  try {
+    p?.commands.get(command)?.()
+  } catch (err) {
+    pluginError(p!, `command ${command}`, err)
+  }
 }
 
 // Agent requests (agentrequest.ts in main): main hears at once whether anyone's listening, so
@@ -200,12 +208,12 @@ export function runCommand(plugin: string, command: string): void {
 const requestSubs = new Set<(r: AgentRequest) => void>()
 const endSubs = new Set<(id: string) => void>()
 
-function subscribe<A>(subs: Set<(a: A) => void>, plugin: string, fn: (a: A) => void): () => void {
+function subscribe<A>(subs: Set<(a: A) => void>, plugin: Who, where: string, fn: (a: A) => void): () => void {
   const safe = (a: A): void => {
     try {
       fn(a)
     } catch (err) {
-      console.error(`plugin ${plugin}:`, err)
+      pluginError(plugin, where, err)
     }
   }
   subs.add(safe)
@@ -246,10 +254,15 @@ export async function loadPlugins(): Promise<void> {
       document.head.append(style)
     }
     if (!p.renderer) continue
-    const plugin = p.id
+    const plugin = { id: p.id, name: p.name }
+    const refuse = (what: string): void => pluginError(plugin, 'registration', what)
     const host: RendererHost = {
       monaco,
-      invoke: <R,>(name: string, ...args: unknown[]) => window.api.pluginInvoke(p.id, name, args) as Promise<R>,
+      // Rejects with main's own message, without Electron's wrapping.
+      invoke: <R,>(name: string, ...args: unknown[]) =>
+        (window.api.pluginInvoke(p.id, name, args) as Promise<R>).catch((err: unknown) => {
+          throw new Error(message(err))
+        }),
       provide: (api) => apis.set(p.id, api),
       use: <A,>(id: string) => apis.get(id) as A | undefined,
       addThemeRules,
@@ -257,16 +270,16 @@ export async function loadPlugins(): Promise<void> {
       // One per command, which names its header button, so one without a command is refused. Registering
       // a command's view again replaces it in place, keeping its button where it was.
       view: (v: PluginView<unknown> & { when?: When<unknown> }) => {
-        if (typeof v?.command !== 'string') console.error(`plugin ${p.id}: view needs a command:`, v?.command)
+        if (typeof v?.command !== 'string') refuse(`a view needs a command (got ${JSON.stringify(v?.command)})`)
         else if (reg.views.some((x) => x.command === v.command)) reg.views = reg.views.map((x) => (x.command === v.command ? v : x))
         else reg.views = [...reg.views, v]
       },
       // A panel's id names its dock tab and is saved in layouts, so a bad or repeated one is refused,
       // as is one without a command (nothing could open it).
       panel: (panel: PluginPanel<unknown> & { when?: When<unknown> }) => {
-        if (typeof panel?.id !== 'string' || !/^[\w-]+$/.test(panel.id)) console.error(`plugin ${p.id}: panel id must match [\\w-]+:`, panel?.id)
-        else if (typeof panel.command !== 'string') console.error(`plugin ${p.id}: panel ${panel.id} needs a command:`, panel.command)
-        else if (reg.panels.some((x) => x.id === panel.id)) console.error(`plugin ${p.id}: panel ${panel.id} is already registered`)
+        if (typeof panel?.id !== 'string' || !/^[\w-]+$/.test(panel.id)) refuse(`a panel's id must match [\\w-]+ (got ${JSON.stringify(panel?.id)})`)
+        else if (typeof panel.command !== 'string') refuse(`panel ${panel.id} needs a command`)
+        else if (reg.panels.some((x) => x.id === panel.id)) refuse(`panel ${panel.id} is already registered`)
         else reg.panels.push(panel)
       },
       show: (command) => show(p.id, command, true),
@@ -274,7 +287,7 @@ export async function loadPlugins(): Promise<void> {
       toast: (text, opts) => toast(opts?.ok ?? true, p.name, String(text)),
       onCommand: (id, fn) => reg.commands.set(id, fn),
       onEditor: (fn) => {
-        const h = { id: p.id, fn: fn as EditorHook }
+        const h = { plugin, fn: fn as EditorHook }
         editorHooks.push(h)
         for (const editor of editors.keys()) hook(editor, h)
       },
@@ -293,24 +306,24 @@ export async function loadPlugins(): Promise<void> {
       Scratch,
       Playground: EmbeddedPlayground,
       // Bound to the plugin, whose id scopes its runs' names.
-      Run: (props: RunProps) => React.createElement(Run, { ...props, plugin: p.id }),
+      Run: (props: RunProps) => React.createElement(Run, { ...props, plugin }),
       git,
-      onAgentRequest: (fn) => subscribe(requestSubs, p.id, fn),
+      onAgentRequest: (fn) => subscribe(requestSubs, plugin, 'onAgentRequest', fn),
       answerAgent: (id, output) => window.api.agentAnswer(String(id), output ?? null),
-      onAgentRequestEnd: (fn) => subscribe(endSubs, p.id, fn),
+      onAgentRequestEnd: (fn) => subscribe(endSubs, plugin, 'onAgentRequestEnd', fn),
       runAgent: async (run) => {
-        const started = await window.api.agentRunStart(plugin, runOf(run))
+        const started = await window.api.agentRunStart(p.id, runOf(run))
         if ('refused' in started) throw new Error(`runAgent: ${started.refused}`)
         return started.id
       },
       onAgentRun: (id, on) => watchRun(plugin, String(id), on),
-      stopAgentRun: (id) => window.api.agentRunStop(plugin, String(id)),
+      stopAgentRun: (id) => window.api.agentRunStop(p.id, String(id)),
       onPlayground: (fn) =>
         onPlayChange((slot, project) => {
           try {
             fn(slot, project)
           } catch (err) {
-            console.error(`plugin ${p.id}:`, err)
+            pluginError(plugin, 'onPlayground', err)
           }
         })
     }
@@ -324,7 +337,7 @@ export async function loadPlugins(): Promise<void> {
       await module.exports.activate?.(host)
     } catch (err) {
       reg.error = String(err)
-      console.error(`plugin ${p.id}:`, err)
+      pluginError(plugin, 'activate', err)
     }
   }
   changed()

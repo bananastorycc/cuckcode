@@ -58,31 +58,41 @@ async function newestIn(p: string): Promise<number> {
   return Math.max(s.mtimeMs, ...times)
 }
 
-// Same rule as boot/index.js uses for cuckcode itself. Resolves to a note when the install had to
-// work around the plugin's lockfile.
+// What a build reads besides src/: the package and its lockfile, a build script and the TypeScript
+// config at the root, and (through its .package-lock.json, which every install rewrites) what's installed.
+const BUILD_INPUTS = /^(package(-lock)?\.json|build\.[cm]?[jt]s|tsconfig(\..+)?\.json)$/
+const INSTALLED = join('node_modules', '.package-lock.json')
+
+// Whether a bundle is missing or older than anything its build reads.
+export async function stale(dir: string, m: PluginManifest): Promise<boolean> {
+  const outputs = [m.main, m.renderer, m.style].filter((f): f is string => !!f).map((f) => join(dir, f))
+  const built = Math.min(...(await Promise.all(outputs.map(mtime))))
+  const root = (await readdir(dir).catch(() => [])).filter((f) => BUILD_INPUTS.test(f))
+  const inputs = await Promise.all(['src', MANIFEST, INSTALLED, ...root].map((f) => newestIn(join(dir, f))))
+  return Math.max(...inputs) > built
+}
+
+// Like boot/index.js does for cuckcode itself. Resolves to a note when the install had to work
+// around the plugin's lockfile.
 async function build(dir: string, m: PluginManifest): Promise<string> {
   const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8').catch(() => '{}'))
   if (!pkg.scripts?.build) return ''
   const note = await installDeps(dir, pkg, managed(dir))
-  const outputs = [m.main, m.renderer, m.style].filter((f): f is string => !!f).map((f) => join(dir, f))
-  const built = Math.min(...(await Promise.all(outputs.map(mtime))))
-  const inputs = await Promise.all(['src', 'package.json', MANIFEST].map((f) => newestIn(join(dir, f))))
-  if (Math.max(...inputs) > built) await run('npm', ['run', 'build'], dir)
+  if (await stale(dir, m)) await run('npm', ['run', 'build'], dir)
   return note
 }
 
 const NPM = ['--no-audit', '--no-fund']
 
-// Installed when the lockfile is newer than the last install, or never installed at all (a plugin
-// without a lockfile has nothing else to compare); every way leaves node_modules/.package-lock.json
-// for the next launch to compare. A clone of ours must stay clean, or launches stop pulling it: npm
+// Installed when package.json or the lockfile is newer than the last install, or never installed
+// at all; every way leaves node_modules/.package-lock.json for the next launch to compare. A clone of ours must stay clean, or launches stop pulling it: npm
 // install would rewrite a lockfile that disagrees with package.json, so it gets npm ci, and when
 // that refuses, an install that writes no lockfile. A folder of your own gets a plain npm install.
 export async function installDeps(dir: string, pkg: { dependencies?: object; devDependencies?: object }, clean: boolean): Promise<string> {
   if (Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).length === 0) return ''
-  const installed = await mtime(join(dir, 'node_modules/.package-lock.json'))
+  const installed = await mtime(join(dir, INSTALLED))
   const locked = await mtime(join(dir, 'package-lock.json'))
-  if (installed && locked <= installed) return ''
+  if (installed && Math.max(locked, await mtime(join(dir, 'package.json'))) <= installed) return ''
   if (!clean) {
     await run('npm', ['install', ...NPM], dir)
     return ''

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Download, FolderOpen, GitBranch, RefreshCw, RotateCcw, Trash2, X } from 'lucide-react'
 import type { PluginInfo, PluginStatus } from '../../../shared/plugin'
 import type { PluginRef } from '../../../shared/types'
+import { message, usePluginErrors } from '../errors'
 import { usePlugins } from '../plugins'
 import { ask } from './Confirm'
 import { tildify } from './Header'
@@ -20,6 +21,7 @@ const name = (path: string): string => path.slice(path.lastIndexOf('/') + 1)
 // each one at launch), read its README here. Changes take effect on relaunch.
 export default function Plugins({ plugins, onChange, onClose }: Props): React.JSX.Element {
   const loaded = usePlugins()
+  const errors = usePluginErrors()
   const [launched, setLaunched] = useState<PluginStatus[] | null>(null)
   const [infos, setInfos] = useState<Record<string, PluginInfo | null>>({})
   const [readmes, setReadmes] = useState<Record<string, { name: string; text: string } | null>>({})
@@ -74,7 +76,7 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
       add(await window.api.pluginInstall(u), u)
       setUrl('')
     } catch (err) {
-      setError(String((err as Error).message).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+      setError(message(err))
     } finally {
       setBusy(null)
     }
@@ -93,7 +95,7 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
       setChanged(true)
       loadReadme(path)
     } catch (err) {
-      setError(String((err as Error).message).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+      setError(message(err))
     } finally {
       setBusy(null)
       check(path, false)
@@ -164,7 +166,7 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
           {plugins.map((p) => {
             const s = status(p.path)
             const i = infos[p.path]
-            const err = s?.error ?? loaded.find((l) => l.id === s?.id)?.error
+            const err = s?.error ?? loaded.find((l) => l.id === s?.id)?.error ?? (s?.id ? errors[s.id]?.[0]?.text : undefined)
             return (
               <li
                 key={p.path}
@@ -229,6 +231,22 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
               )}
               {status(current.path)?.note && <span className="text-muted">At launch: {status(current.path)!.note}</span>}
               {status(current.path)?.error && <pre className="select-text whitespace-pre-wrap font-mono text-del">{status(current.path)!.error}</pre>}
+              {(() => {
+                const id = status(current.path)?.id
+                const list = id ? errors[id] : undefined
+                if (!list?.length) return null
+                return (
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-muted">Last errors since launch (newest first; details in Toggle Developer Tools):</span>
+                    {list.map((e) => (
+                      <pre key={e.text} className="select-text whitespace-pre-wrap font-mono text-del">
+                        {new Date(e.last).toLocaleTimeString()} {e.text}
+                        {e.count > 1 && <span className="text-muted"> ×{e.count}</span>}
+                      </pre>
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
             {readme ? (
               <Markdown dir={current.path} text={readme.text} className="min-h-0 flex-1 overflow-auto px-8 py-6" />

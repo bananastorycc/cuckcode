@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fuzzy } from '../../../shared/fuzzy'
+import { message } from '../errors'
 import { tildify } from './Header'
 
 interface Props {
@@ -88,8 +89,7 @@ export default function ProjectPicker({ open, dir, onDir, exclude, onPick }: Pro
       setShown(false)
       onPick(made)
     } catch (err) {
-      // ipcRenderer.invoke wraps it: "Error invoking remote method 'x': Error: <message>"
-      setError((err as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+      setError(message(err))
     } finally {
       setBusy(false)
     }

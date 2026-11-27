@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { installDeps } from './plugins'
+import { installDeps, stale } from './plugins'
 
 // Offline: the dependency is a local tarball, in two versions.
 
@@ -63,10 +63,76 @@ describe('installDeps', () => {
     expect(stamp(dir)).toBe(at)
   }, 60_000)
 
-  it('leaves a folder of your own to npm install, as before', async () => {
+  it('leaves a folder of your own to npm install, as before, once', async () => {
     const dir = setup(true)
     expect(await installDeps(dir, read(dir), false)).toBe('')
     expect(installed(dir)).toBe('2.0.0')
     expect(git(dir, 'status', '--porcelain')).toBe('M package-lock.json')
+    const at = stamp(dir)
+    expect(await installDeps(dir, read(dir), false)).toBe('')
+    expect(stamp(dir)).toBe(at)
   }, 60_000)
+
+  it('reinstalls a plugin without a lockfile when its package.json changes', async () => {
+    const dir = setup(false)
+    rmSync(join(dir, 'package-lock.json'))
+    git(dir, 'commit', '-q', '-am', 'No lockfile')
+    expect(await installDeps(dir, read(dir), true)).toBe('')
+    expect(installed(dir)).toBe('1.0.0')
+    json(join(dir, 'package.json'), pkg('2.0.0'))
+    later(join(dir, 'package.json'), 10)
+    expect(await installDeps(dir, read(dir), true)).toBe('')
+    expect(installed(dir)).toBe('2.0.0')
+  }, 60_000)
+})
+
+// Sets path's mtime s seconds from now.
+function later(path: string, s: number): void {
+  const t = Date.now() / 1000 + s
+  utimesSync(path, t, t)
+}
+
+describe('build staleness', () => {
+  const m = { id: 'x', name: 'x', main: 'dist/main.js', renderer: 'dist/renderer.js' }
+  // A plugin whose bundles are newer than everything else.
+  function built(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'pluginbuild-'))
+    roots.push(dir)
+    for (const d of ['src', 'dist', 'node_modules']) mkdirSync(join(dir, d))
+    for (const f of ['cuckcode-plugin.json', 'package.json', 'package-lock.json', 'build.mjs', 'tsconfig.json', 'README.md', 'src/a.ts', 'node_modules/.package-lock.json'])
+      writeFileSync(join(dir, f), '{}')
+    for (const f of ['dist/main.js', 'dist/renderer.js']) {
+      writeFileSync(join(dir, f), '')
+      later(join(dir, f), 60)
+    }
+    return dir
+  }
+
+  it('keeps bundles newer than their inputs', async () => {
+    const dir = built()
+    expect(await stale(dir, m)).toBe(false)
+    // Not something the build reads.
+    later(join(dir, 'README.md'), 120)
+    expect(await stale(dir, m)).toBe(false)
+  })
+
+  it('rebuilds when only the lockfile changed', async () => {
+    const dir = built()
+    later(join(dir, 'package-lock.json'), 120)
+    expect(await stale(dir, m)).toBe(true)
+  })
+
+  it('rebuilds when the build script, tsconfig, installed dependencies or sources changed', async () => {
+    for (const f of ['build.mjs', 'tsconfig.json', 'node_modules/.package-lock.json', 'src/a.ts', 'package.json', 'cuckcode-plugin.json']) {
+      const dir = built()
+      later(join(dir, f), 120)
+      expect(await stale(dir, m), f).toBe(true)
+    }
+  })
+
+  it('builds a bundle that is missing', async () => {
+    const dir = built()
+    rmSync(join(dir, 'dist/renderer.js'))
+    expect(await stale(dir, m)).toBe(true)
+  })
 })
