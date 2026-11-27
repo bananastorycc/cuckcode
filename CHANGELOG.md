@@ -2,6 +2,12 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.62.0 — 2026-11-27
+
+- ✨ For plugin authors: `cuckcode/plugin` is the one stable entry to import, the checkout's root `plugin.ts`, with the contract's types, the shared ones plugins use (`AgentRequest`, `RepoStatus`, `GitResult`, `RunExit`, `Agent`, …) and the build recipe. Map it in `tsconfig.json` (with `allowImportingTsExtensions`) instead of a path into `src/shared/`, which plugins no longer import.
+- ✨ For plugin authors: cuckcode builds a plugin with `$CUCKCODE_PLUGIN_API` set to its `plugin.ts`, so a plugin installed from a URL can take `BUILD` from cuckcode instead of keeping its own copy. The example's `build.mjs` does.
+- For plugin authors: `onEditor`'s context no longer has `mediaUrl`; use the host's.
+
 ## 1.61.0 — 2026-11-27
 
 - ✨ Plugins can add items to the right-click menus of the file tree, the git panel's changed files and the open file's title bar above the editor; each item gets the file's path.

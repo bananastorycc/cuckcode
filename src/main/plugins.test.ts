@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, wri
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { installDeps, stale } from './plugins'
+import { BUILD, HOST_MODULES } from '../shared/plugin'
+import { installDeps, PLUGIN_API, stale } from './plugins'
 
 // Offline: the dependency is a local tarball, in two versions.
 
@@ -134,5 +135,15 @@ describe('build staleness', () => {
     const dir = built()
     rmSync(join(dir, 'dist/renderer.js'))
     expect(await stale(dir, m)).toBe(true)
+  })
+})
+
+describe('the plugin entry', () => {
+  // What a build gets as $CUCKCODE_PLUGIN_API, and the path authors' tsconfigs map cuckcode/plugin to.
+  it('is the repo root plugin.ts, with the build recipe', async () => {
+    expect(PLUGIN_API).toBe(join(__dirname, '../../plugin.ts'))
+    const api = await import(PLUGIN_API)
+    expect(api.BUILD).toEqual(BUILD)
+    expect(api.HOST_MODULES).toEqual(HOST_MODULES)
   })
 })

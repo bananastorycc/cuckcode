@@ -1,5 +1,6 @@
 // The plugin contract. A plugin is a folder holding cuckcode-plugin.json (a PluginManifest) and
-// the bundles it names. Settings › Plugins lists the folders; changes apply on a reload.
+// the bundles it names. Settings › Plugins lists the folders; changes apply on a reload. Plugins
+// import it as cuckcode/plugin, the repo root's plugin.ts, which also has the types.ts parts it uses.
 //
 // Bundles are CommonJS, one file each, exporting `activate(host)` and, optionally, `deactivate()`:
 // - main: runs in the main process with Node's require. Never block it: async fs and execFile only.
@@ -46,8 +47,8 @@ export type Disposable = () => void
 export const HOST_MODULES = ['react', 'react/jsx-runtime', 'react-dom', 'monaco-editor/editor/editor.api'] as const
 
 // The build: esbuild's options for each side's one CommonJS file, to spread into build() with
-// entryPoints and outfile. The renderer's leaves HOST_MODULES to the host. Node (22.18 and later)
-// imports this file as it is, so a build.mjs can take them from here.
+// entryPoints and outfile. The renderer's leaves HOST_MODULES to the host. A build.mjs imports them
+// from cuckcode/plugin, at $CUCKCODE_PLUGIN_API when cuckcode runs the build.
 export const BUILD = {
   main: { bundle: true, platform: 'node' as const, format: 'cjs' as const, target: 'node22' },
   renderer: { bundle: true, platform: 'browser' as const, format: 'cjs' as const, target: 'chrome130', jsx: 'automatic' as const, external: [...HOST_MODULES] as string[] }
@@ -198,8 +199,6 @@ export interface EditorContext<T> {
   // This plugin's data for the open project.
   data: () => T | null
   openFile: (abs: string, line: number) => void
-  // A URL the page can load for a file on disk (images, video).
-  mediaUrl: (abs: string) => string
 }
 
 // The file the editor shows in the tab in front (RendererHost.activeFile).

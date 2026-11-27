@@ -246,7 +246,7 @@ const git: PluginGit = {
 export const mediaUrl = (abs: string): string => `media://local/?path=${encodeURIComponent(abs)}`
 
 function context(id: string): EditorContext<unknown> {
-  return { data: () => current.get(id) ?? null, openFile: (abs, line) => openFile(abs, line), mediaUrl }
+  return { data: () => current.get(id) ?? null, openFile: (abs, line) => openFile(abs, line) }
 }
 
 function hook(editor: Editor, h: Hook): void {

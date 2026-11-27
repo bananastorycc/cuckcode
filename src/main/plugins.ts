@@ -49,10 +49,14 @@ export const managed = (path: string): boolean => !!dir && path.startsWith(`${di
 
 const requireFrom = createRequire(__filename)
 
+// The plugin entry (cuckcode/plugin) in the checkout that's running, for a build to take
+// BUILD and HOST_MODULES from wherever its clone sits; the repo sits beside the build, as for the kit.
+export const PLUGIN_API = join(__dirname, '../../plugin.ts')
+
 // Rejects with the output's tail as the message, and all of it as `output`.
-function run(cmd: string, args: string[], cwd: string): Promise<void> {
+function run(cmd: string, args: string[], cwd: string, env: Record<string, string> = {}): Promise<void> {
   return new Promise((resolve, reject) =>
-    execFile(cmd, args, { cwd, env: shellEnv(), timeout: 600_000, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile(cmd, args, { cwd, env: { ...shellEnv(), ...env }, timeout: 600_000, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (!err) return resolve()
       const output = (stderr || stdout || err.message).trim()
       reject(Object.assign(new Error(`${cmd} ${args.join(' ')}: ${output.slice(-2000)}`), { output }))
@@ -92,7 +96,7 @@ async function build(dir: string, m: PluginManifest): Promise<string> {
   const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8').catch(() => '{}'))
   if (!pkg.scripts?.build) return ''
   const note = await installDeps(dir, pkg, managed(dir))
-  if (await stale(dir, m)) await run('npm', ['run', 'build'], dir)
+  if (await stale(dir, m)) await run('npm', ['run', 'build'], dir, { CUCKCODE_PLUGIN_API: PLUGIN_API })
   return note
 }
 
