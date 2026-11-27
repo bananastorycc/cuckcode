@@ -1,7 +1,7 @@
 // The plugin contract. A plugin is a folder holding cuckcode-plugin.json (a PluginManifest) and
-// the bundles it names. Settings › Plugins lists the folders; changes apply on relaunch.
+// the bundles it names. Settings › Plugins lists the folders; changes apply on a reload.
 //
-// Bundles are CommonJS, one file each, exporting `activate(host)`:
+// Bundles are CommonJS, one file each, exporting `activate(host)` and, optionally, `deactivate()`:
 // - main: runs in the main process with Node's require. Never block it: async fs and execFile only.
 // - renderer: evaluated with a require that resolves only the host's own modules (HOST_MODULES),
 //   so there is one React and one Monaco. Bundle everything else in.
@@ -9,6 +9,20 @@
 //   --line, --fg, --muted, --accent, --add, --del, --mod, --new); light and dark switch them.
 // When the folder's package.json has a build script, cuckcode runs `npm install` (when the
 // lockfile changed, or it never ran) and `npm run build` there before loading, whenever src/ is newer than the bundles.
+//
+// Reloading a plugin (the Plugins page, View › Reload Plugins) runs both sides' deactivate (5 s at
+// most; a throw is reported, and the reload goes on), then disposes everything the plugin
+// registered (each registration's Disposable) and its stylesheet, rebuilds it if it's stale, and
+// evaluates its bundles again. The plugins that require it, and those that require them, reload
+// with it, in dependency order. Agents' terminals, Run terminals and helper runs (runAgent) carry
+// on: a new version hears a run again with onAgentRun(id). An agent request only the old version
+// heard goes back to the agent's terminal. What the old version still calls afterwards gets
+// nowhere: invoke and runAgent reject, sendToAgent resolves false, registrations do nothing.
+// What the host can't see, deactivate undoes: timers, watchers, processes and servers the plugin
+// started, and what it did through the raw monaco object (a provider's IDisposable; a language
+// registered with monaco.languages.register stays until relaunch, as Monaco can't remove one).
+// Only the bundles are read again: a module the main side required from node_modules stays
+// cached until relaunch.
 import type * as Monaco from 'monaco-editor/editor/editor.api'
 import type { ComponentType, ReactNode } from 'react'
 import type { AgentPreset } from './agents'
@@ -19,6 +33,11 @@ export const MANIFEST = 'cuckcode-plugin.json'
 // The folder a plugin installed from url gets: git@host:me/cuckcode-thing.git -> cuckcode-thing
 export const folderName = (url: string): string =>
   url.trim().replace(/\/+$/, '').replace(/\.git$/, '').split(/[/:]/).pop()?.replace(/[^\w.-]/g, '-') ?? ''
+
+// What every registration returns, as onAgentRequest always has: the function that undoes it
+// (once; calling it again does nothing). A plugin only needs it to undo something itself: a
+// reload disposes whatever is left.
+export type Disposable = () => void
 
 export const HOST_MODULES = ['react', 'react/jsx-runtime', 'react-dom', 'monaco-editor/editor/editor.api'] as const
 
@@ -64,16 +83,19 @@ export interface PluginInfo {
 export interface LoadedPlugin {
   id: string
   name: string
+  path: string // its folder
+  requires: string[]
   commands: PluginCommand[]
   renderer: string | null // the bundle's code
   style: string | null
 }
 
 export interface MainHost {
-  // A function the renderer side calls with invoke(name, ...args).
-  handle: (name: string, fn: (...args: never[]) => unknown) => void
-  // Hands other plugins (activated later) an API; they get it with use(id).
-  provide: (api: unknown) => void
+  // A function the renderer side calls with invoke(name, ...args). Handling a name again replaces it.
+  handle: (name: string, fn: (...args: never[]) => unknown) => Disposable
+  // Hands other plugins (activated later) an API; they get it with use(id). A plugin that keeps
+  // what use returned is reloaded whenever the one it requires is.
+  provide: (api: unknown) => Disposable
   use: <T>(id: string) => T | undefined
   // The environment cuckcode's terminals get, for running tools.
   shellEnv: () => Record<string, string>
@@ -81,6 +103,8 @@ export interface MainHost {
 
 export interface MainPlugin {
   activate: (host: MainHost) => void | Promise<void>
+  // Before a reload: stop what the host can't see (timers, watchers, processes, servers).
+  deactivate?: () => void | Promise<void>
 }
 
 // Per-project data a plugin keeps, such as an index of the project. null: nothing for this project.
@@ -233,19 +257,20 @@ export interface RendererHost<T = unknown> {
   monaco: typeof Monaco
   // Calls a function the main side handles; rejects with what it threw, as its own message.
   invoke: <R>(name: string, ...args: unknown[]) => Promise<R>
-  provide: (api: unknown) => void
+  provide: (api: unknown) => Disposable
   use: <A>(id: string) => A | undefined
   // Token colors added to cuckcode's light and dark editor themes.
-  addThemeRules: (light: Monaco.editor.ITokenThemeRule[], dark: Monaco.editor.ITokenThemeRule[]) => void
-  projectData: (source: ProjectSource<T>) => void
+  addThemeRules: (light: Monaco.editor.ITokenThemeRule[], dark: Monaco.editor.ITokenThemeRule[]) => Disposable
+  // Registering it again replaces it.
+  projectData: (source: ProjectSource<T>) => Disposable
   // Registering a command's view again replaces it.
   view: {
-    (view: PluginView<T | null> & { when: When<T> }): void
-    (view: PluginView<T>): void
+    (view: PluginView<T | null> & { when: When<T> }): Disposable
+    (view: PluginView<T>): Disposable
   }
   panel: {
-    (panel: PluginPanel<T | null> & { when: When<T> }): void
-    (panel: PluginPanel<T>): void
+    (panel: PluginPanel<T | null> & { when: When<T> }): Disposable
+    (panel: PluginPanel<T>): Disposable
   }
   // Opens the view or panel for this command, as its button would, but never toggles it closed and
   // never asks: away from home it opens for the home opened last. false when it isn't offered
@@ -255,9 +280,11 @@ export interface RendererHost<T = unknown> {
   hide: (command: string) => void
   // A note in the corner, titled with the plugin's name. A failure (ok false) stays up longer.
   toast: (text: string, opts?: { ok?: boolean }) => void
-  onCommand: (id: string, fn: () => void) => void
-  // Called for each code editor, now and later; the disposable runs when it goes.
-  onEditor: (fn: (editor: Monaco.editor.ICodeEditor, ctx: EditorContext<T>) => Monaco.IDisposable | void) => void
+  // Registering a command again replaces its handler.
+  onCommand: (id: string, fn: () => void) => Disposable
+  // Called for each code editor, now and later; the disposable fn returns runs when the editor
+  // goes, or when this registration is disposed.
+  onEditor: (fn: (editor: Monaco.editor.ICodeEditor, ctx: EditorContext<T>) => Monaco.IDisposable | void) => Disposable
   // Types text into a project's agent that takes playground answers (the one in front there, else
   // the first), as if typed there: closes the view, shows the agent (starting it if needed, and
   // switching to its project's tab), pastes, and presses Enter unless submit is false. Resolves
@@ -280,15 +307,15 @@ export interface RendererHost<T = unknown> {
   // agent sent it; cuckcode doesn't read it. Every subscribed plugin hears each request; the
   // agent waits (its terminal shows no dialog) until one answers, or 5 minutes pass. With no
   // plugin subscribed, the agent asks in its terminal at once. A plugin that won't show a
-  // request should answer it null straight away. Returns the unsubscribe.
-  onAgentRequest: (fn: (request: AgentRequest) => void) => () => void
+  // request should answer it null straight away.
+  onAgentRequest: (fn: (request: AgentRequest) => void) => Disposable
   // Answers request id: output becomes the hook's stdout (a string as is, anything else as JSON),
   // and null lets the agent ask in its terminal as usual. Resolves false, and sends nothing,
   // when id is no longer pending (another plugin answered, it timed out, the agent stopped):
   // a late click can't answer the next prompt.
   answerAgent: (id: string, output: unknown | null) => Promise<boolean>
-  // Called with the id of each request that ended, however it ended. Returns the unsubscribe.
-  onAgentRequestEnd: (fn: (id: string) => void) => () => void
+  // Called with the id of each request that ended, however it ended.
+  onAgentRequestEnd: (fn: (id: string) => void) => Disposable
   // A helper run: the project's agent, headless, on one prompt, with nothing on screen. It runs
   // the run command (Settings › Agents; by default Claude Code's `claude -p` with stream-json)
   // under sh in project, with the login shell's PATH as cuckcode has it and none of the agents'
@@ -317,16 +344,16 @@ export interface RendererHost<T = unknown> {
   // stream-json ends): result, usage (its token counts as the agent names them), cost
   // (total_cost_usd) and, for thread and resume runs, session (its session_id). error says what
   // went wrong: the result line's is_error, a timeout, or the command's stderr on a failing exit.
-  // An ended run is kept for a while, so a page reopened later still hears how it went.
-  // Returns the unsubscribe.
-  onAgentRun: (id: string, on: AgentRunHandlers) => () => void
+  // An ended run is kept for a while, so a page reopened later (or the plugin, reloaded) still
+  // hears how it went.
+  onAgentRun: (id: string, on: AgentRunHandlers) => Disposable
   // Stops run id (SIGTERM to it and what it started, SIGKILL 3 s later); its end still arrives.
   stopAgentRun: (id: string) => void
   // A URL the page can load for a file on disk (images, video).
   mediaUrl: (abs: string) => string
   // An agent to start from in Settings › Agents › Add, beside the built-in ones.
-  agentPreset: (preset: AgentPreset) => void
-  agentBar: (item: AgentBarItem) => void
+  agentPreset: (preset: AgentPreset) => Disposable
+  agentBar: (item: AgentBarItem) => Disposable
   // cuckcode's scratchpad, for a view to show (it covers the Scratch section): the same notes,
   // kept in step as they're typed, saved the same way. actions go at the right of its title bar.
   Scratch: ComponentType<{ actions?: ReactNode }>
@@ -342,10 +369,12 @@ export interface RendererHost<T = unknown> {
   // Called when a playground slot's page changes (an agent wrote or touched it), in the tab in
   // front's project or in one a page away from home is showing: what lights the slot's dot in the
   // header, though this fires even while the page is showing. A page already there when the
-  // project opens doesn't count. Returns the unsubscribe.
-  onPlayground: (fn: (slot: number, project: string) => void) => () => void
+  // project opens doesn't count.
+  onPlayground: (fn: (slot: number, project: string) => void) => Disposable
 }
 
 export interface RendererPlugin {
   activate: (host: RendererHost) => void | Promise<void>
+  // Before a reload, and before the main side's: undo what the host can't see (see the top).
+  deactivate?: () => void | Promise<void>
 }

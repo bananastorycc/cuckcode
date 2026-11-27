@@ -210,7 +210,7 @@ const menu = (cmd: MenuCommand) => (): void => send('menu', cmd)
 
 // The menu shows only what's configured, so it's rebuilt when that changes.
 const menuKey = (s: Settings): string =>
-  JSON.stringify([s.readme, s.folders.enabled, s.playgrounds.map((p) => p.name), s.webPages.map((p) => p.name)])
+  JSON.stringify([s.readme, s.folders.enabled, s.playgrounds.map((p) => p.name), s.webPages.map((p) => p.name), s.plugins.length > 0])
 
 // Accelerators compare regardless of modifier order and case.
 const normal = (a: string): string => a.toLowerCase().replace('cmdorctrl', 'cmd').replace('command', 'cmd').split('+').sort().join('+')
@@ -317,6 +317,7 @@ function buildMenu(): void {
           ...(playgrounds.length ? [sep, ...playgrounds] : []),
           ...(webPages.length ? [sep, ...webPages] : []),
           ...(pluginItems.length ? [sep, ...pluginItems] : []),
+          ...(settings.plugins.length ? [{ label: 'Reload Plugins', click: menu({ type: 'reloadPlugins' }) }] : []),
           { type: 'separator' },
           ...tabs,
           // Shown for reference only: the renderer handles these.
@@ -528,16 +529,18 @@ function registerIpc(): void {
   ipcMain.handle('browse:list', (_e, dir: string) => browse(dir))
   ipcMain.handle('plugins:list', () => plugins.list())
   ipcMain.handle('plugins:renderers', () => plugins.renderers())
+  // The menu first: it decides which shortcuts the reloaded plugins' commands keep.
+  ipcMain.handle('plugins:reload', async (_e, path: string | null) => {
+    const ids = await plugins.reload(typeof path === 'string' ? path : null)
+    buildMenu()
+    return plugins.renderers(ids)
+  })
   ipcMain.handle('plugin:invoke', (_e, id: string, name: string, args: unknown[]) => plugins.invoke(id, name, args))
   ipcMain.handle('plugin:install', (_e, url: string) => plugins.install(url))
   ipcMain.handle('plugin:info', (_e, path: string, fetch: boolean) => plugins.info(path, fetch))
   ipcMain.handle('plugin:update', (_e, path: string) => plugins.update(path))
   ipcMain.handle('plugin:uninstall', async (_e, path: string) => {
     if (plugins.managed(path)) await shell.trashItem(path)
-  })
-  ipcMain.on('app:relaunch', () => {
-    relaunching = true
-    app.quit()
   })
   ipcMain.handle('config:export', async () => {
     const r = await dialog.showSaveDialog(win!, { defaultPath: join(app.getPath('documents'), 'cuckcode-config.json') })
@@ -610,7 +613,6 @@ function request<T>(channel: string, reply: string, fallback: T, ms: number, ...
 // Save unsaved edits, reap every shell and exit. Nothing goes to the network and nothing asks,
 // so the app is gone within a few seconds at most; never left running in the background.
 let quitting = false
-let relaunching = false
 app.on('before-quit', (e) => {
   if (quitting) return
   quitting = true
@@ -619,7 +621,7 @@ app.on('before-quit', (e) => {
   if (win && !win.isDestroyed()) win.hide()
   // Reopening the app meanwhile (Dock, Spotlight) only reaches this windowless instance, so
   // come back up once done rather than leave the click unanswered. Not in dev: no server to load.
-  let relaunch = relaunching
+  let relaunch = false
   if (app.isPackaged) {
     app.removeAllListeners('second-instance')
     app.on('second-instance', () => (relaunch = true))

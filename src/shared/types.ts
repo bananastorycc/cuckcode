@@ -267,6 +267,7 @@ export type MenuCommand =
   | { type: 'folders' }
   | { type: 'settings' }
   | { type: 'plugins' }
+  | { type: 'reloadPlugins' }
   | { type: 'plugin'; plugin: string; command: string }
 
 export type PaneDir = 'left' | 'right' | 'up' | 'down'
@@ -344,6 +345,10 @@ export interface Api {
   plugins: () => Promise<PluginStatus[]>
   // The loaded plugins' renderer sides, in activation order.
   pluginRenderers: () => Promise<LoadedPlugin[]>
+  // Reloads the plugin in folder path and the ones that require it, or every plugin as the
+  // settings list them (path null), without relaunching; resolves to the renderer sides it
+  // loaded, in activation order. The renderer unloads its sides of them first.
+  pluginReload: (path: string | null) => Promise<LoadedPlugin[]>
   pluginInvoke: (id: string, name: string, args: unknown[]) => Promise<unknown>
   // Clones a plugin's git repo into cuckcode's plugins folder; resolves to the folder, rejects
   // with git's error or when it isn't a plugin.
@@ -353,8 +358,6 @@ export interface Api {
   pluginUpdate: (path: string) => Promise<string>
   // Moves a clone cuckcode made to the Trash; a folder of your own is left alone.
   pluginUninstall: (path: string) => Promise<void>
-  // Quits (as ⌘Q does) and starts again, to apply plugin changes.
-  relaunch: () => void
   // The portable config file: written to / read from a file the user picks. Export resolves
   // false when cancelled; import to the new settings, or null when cancelled, and rejects on a bad file.
   exportConfig: () => Promise<boolean>

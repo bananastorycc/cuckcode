@@ -3,7 +3,7 @@ import { Download, FolderOpen, GitBranch, RefreshCw, RotateCcw, Trash2, X } from
 import type { PluginInfo, PluginStatus } from '../../../shared/plugin'
 import type { PluginRef } from '../../../shared/types'
 import { message, usePluginErrors } from '../errors'
-import { usePlugins } from '../plugins'
+import { reloadPlugins, usePlugins } from '../plugins'
 import { ask } from './Confirm'
 import { tildify } from './Header'
 import { Markdown } from './Readme'
@@ -18,23 +18,25 @@ const field = 'min-w-0 select-text rounded-sm border border-line bg-bg px-2 py-1
 const name = (path: string): string => path.slice(path.lastIndexOf('/') + 1)
 
 // Plugins are git repos: install one from its URL, update it with a pull (cuckcode also pulls
-// each one at launch), read its README here. Changes take effect on relaunch.
+// each one at launch), read its README here. Changes take effect on a reload: one plugin's, or all.
 export default function Plugins({ plugins, onChange, onClose }: Props): React.JSX.Element {
   const loaded = usePlugins()
   const errors = usePluginErrors()
-  const [launched, setLaunched] = useState<PluginStatus[] | null>(null)
+  const [statuses, setStatuses] = useState<PluginStatus[] | null>(null)
   const [infos, setInfos] = useState<Record<string, PluginInfo | null>>({})
   const [readmes, setReadmes] = useState<Record<string, { name: string; text: string } | null>>({})
   const [selected, setSelected] = useState<string | null>(plugins[0]?.path ?? null)
   const [url, setUrl] = useState('')
-  const [busy, setBusy] = useState<string | null>(null) // what's running: 'install', or a plugin's path
+  // What's running: 'install', 'reload' (all), `reload:<path>`, or a plugin's path (its update).
+  const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
-  // Pulled or installed since launch: the new code runs after a relaunch.
-  const [changed, setChanged] = useState(false)
+  // Pulled or installed since they last loaded: the new code runs after a reload.
+  const [changed, setChanged] = useState<Set<string>>(new Set())
 
+  // Again after every reload (from here or the View menu).
   useEffect(() => {
-    window.api.plugins().then(setLaunched, () => setLaunched([]))
-  }, [])
+    window.api.plugins().then(setStatuses, () => setStatuses([]))
+  }, [loaded])
 
   const check = (path: string, fetch: boolean): void => {
     window.api.pluginInfo(path, fetch).then((i) => setInfos((r) => ({ ...r, [path]: i })))
@@ -63,7 +65,7 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
     if (!plugins.some((p) => p.path === path)) onChange([...plugins, { path, ...(url ? { url } : {}), enabled: true }])
     else if (url) onChange(plugins.map((p) => (p.path === path ? { ...p, url } : p)))
     setSelected(path)
-    setChanged(true)
+    setChanged((c) => new Set(c).add(path))
     check(path, false)
   }
 
@@ -92,7 +94,7 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
     setError('')
     try {
       await window.api.pluginUpdate(path)
-      setChanged(true)
+      setChanged((c) => new Set(c).add(path))
       loadReadme(path)
     } catch (err) {
       setError(message(err))
@@ -116,9 +118,27 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
     onChange(plugins.filter((p) => p.path !== path))
   }
 
-  const status = (path: string): PluginStatus | undefined => launched?.find((s) => s.path === path)
-  const restart =
-    changed || (!!launched && JSON.stringify(launched.map((s) => [s.path, s.enabled])) !== JSON.stringify(plugins.map((p) => [p.path, p.enabled])))
+  // path null: all of them, as the list now is.
+  const reload = async (path: string | null): Promise<void> => {
+    setBusy(path === null ? 'reload' : `reload:${path}`)
+    setError('')
+    try {
+      await reloadPlugins(path)
+      setChanged((c) => (path === null ? new Set() : new Set([...c].filter((x) => x !== path))))
+      if (path) {
+        check(path, false)
+        loadReadme(path)
+      }
+    } catch (err) {
+      setError(message(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const status = (path: string): PluginStatus | undefined => statuses?.find((s) => s.path === path)
+  const pending =
+    changed.size > 0 || (!!statuses && JSON.stringify(statuses.map((s) => [s.path, s.enabled])) !== JSON.stringify(plugins.map((p) => [p.path, p.enabled])))
   const current = plugins.find((p) => p.path === selected) ?? null
   const info = current ? infos[current.path] : undefined
   const readme = current ? readmes[current.path] : undefined
@@ -148,14 +168,14 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
           <FolderOpen className="h-3.5 w-3.5" /> Add folder…
         </button>
       </div>
-      {(error || restart) && (
+      {(error || pending) && (
         <div className="flex shrink-0 flex-col gap-1 border-b border-line px-3 py-2">
           {error && <pre className="select-text whitespace-pre-wrap font-mono text-del">{error}</pre>}
-          {restart && (
+          {pending && (
             <div className="flex items-center gap-2 text-muted">
-              Changes take effect after a relaunch.
-              <button className="btn text-fg" onClick={() => window.api.relaunch()}>
-                <RotateCcw className="h-3.5 w-3.5" /> Relaunch
+              Changes take effect after a reload.
+              <button className="btn text-fg" disabled={!!busy} onClick={() => reload(null)} title="Reload every plugin; agents keep running">
+                <RotateCcw className={`h-3.5 w-3.5 ${busy === 'reload' ? 'animate-spin' : ''}`} /> Reload all
               </button>
             </div>
           )}
@@ -206,6 +226,16 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-fg">{status(current.path)?.name ?? name(current.path)}</span>
                 <div className="ml-auto flex items-center gap-1">
+                  {current.enabled && (
+                    <button
+                      className="btn"
+                      disabled={!!busy}
+                      onClick={() => reload(current.path)}
+                      title="Load it again (and the plugins that require it), rebuilding it if it changed; agents keep running"
+                    >
+                      <RotateCcw className={`h-3.5 w-3.5 ${busy === `reload:${current.path}` ? 'animate-spin' : ''}`} /> Reload
+                    </button>
+                  )}
                   {info?.remote && (
                     <button className="btn" disabled={!!busy || info.dirty} onClick={() => update(current.path)} title={info.dirty ? 'It has local changes' : 'git pull'}>
                       <RefreshCw className={`h-3.5 w-3.5 ${busy === current.path ? 'animate-spin' : ''}`} />
@@ -229,7 +259,7 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
                   {info.dirty && <span className="text-mod"> · local changes</span>}
                 </span>
               )}
-              {status(current.path)?.note && <span className="text-muted">At launch: {status(current.path)!.note}</span>}
+              {status(current.path)?.note && <span className="text-muted">Last load: {status(current.path)!.note}</span>}
               {status(current.path)?.error && <pre className="select-text whitespace-pre-wrap font-mono text-del">{status(current.path)!.error}</pre>}
               {(() => {
                 const id = status(current.path)?.id
@@ -237,7 +267,7 @@ export default function Plugins({ plugins, onChange, onClose }: Props): React.JS
                 if (!list?.length) return null
                 return (
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-muted">Last errors since launch (newest first; details in Toggle Developer Tools):</span>
+                    <span className="text-muted">Last errors since it loaded (newest first; details in Toggle Developer Tools):</span>
                     {list.map((e) => (
                       <pre key={e.text} className="select-text whitespace-pre-wrap font-mono text-del">
                         {new Date(e.last).toLocaleTimeString()} {e.text}

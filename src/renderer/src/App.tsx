@@ -44,9 +44,9 @@ import {
   type Section
 } from './layout'
 import { agentProject, offer, offeredAt, pageState, pluginOfPanel, remember, used, type Page } from './pages'
-import { pluginError } from './errors'
+import { message, pluginError } from './errors'
 import { isEmbedded, PageProject, playChanged, playKey, setPlay, setPlayHandlers } from './play'
-import { loadPlugins, runCommand, setCurrent, setOpenFile, setSaveAll, setSendToAgent, setShow, usePlugins, type Registered, type Send } from './plugins'
+import { loadPlugins, pluginNow, reloadPlugins, runCommand, setCurrent, setOpenFile, setSaveAll, setSendToAgent, setShow, usePlugins, type Registered, type Send } from './plugins'
 
 // What's shown: the README over the code pane, or a playground slot (from 1) or a plugin's
 // view (`plugin:<id>:<command>`) over the whole workspace.
@@ -217,7 +217,8 @@ export default function App(): React.JSX.Element {
 
   // Plugins' per-project data, by `${plugin}:${path}`: null where a plugin has nothing for the
   // project, which hides its view. Overlapping loads collapse into one rerun. Each load updates
-  // where the plugin is remembered to have data (its homes).
+  // where the plugin is remembered to have data (its homes). A load that a reload overtook is
+  // the old version's: it's dropped and run again by the new one.
   const plugins = usePlugins()
   const pluginsRef = useRef(plugins)
   pluginsRef.current = plugins
@@ -226,20 +227,35 @@ export default function App(): React.JSX.Element {
   const dataRef = useRef(data)
   dataRef.current = data
   const loading = useRef(new Map<string, boolean>())
-  const loadData = useCallback(async (p: Registered, path: string) => {
-    const key = `${p.id}:${path}`
+  const loadData = useCallback(async (id: string, path: string) => {
+    const key = `${id}:${path}`
     if (loading.current.has(key)) return void loading.current.set(key, true)
     do {
       loading.current.set(key, false)
+      const p = pluginNow(id)
+      const source = p?.source
+      if (!p || !source) break
       const r = await Promise.resolve()
-        .then(() => p.source!.load(path))
+        .then(() => source.load(path))
         .catch((err: unknown) => (pluginError(p, 'load', err), null))
+      if (pluginNow(id)?.source !== source) {
+        loading.current.set(key, true)
+        continue
+      }
       // Unchanged data keeps its identity, so views (a laid-out graph) don't redo their work.
       setData((x) => (key in x && JSON.stringify(x[key]) === JSON.stringify(r) ? x : { ...x, [key]: r }))
-      setPluginHomes((h) => remember(h, p.id, path, r !== null && r !== undefined))
+      setPluginHomes((h) => remember(h, id, path, r !== null && r !== undefined))
     } while (loading.current.get(key))
     loading.current.delete(key)
   }, [])
+  // A plugin reloaded (or gone): its old version's data goes, so the new one's pages never get it.
+  const regs = useRef(new Map<string, number>())
+  useEffect(() => {
+    const now = new Map(plugins.map((p) => [p.id, p.key]))
+    const stale = [...regs.current].filter(([id, key]) => now.get(id) !== key).map(([id]) => id)
+    regs.current = now
+    if (stale.length) setData((x) => Object.fromEntries(Object.entries(x).filter(([k]) => !stale.includes(k.slice(0, k.indexOf(':'))))))
+  }, [plugins])
   const dataFor = (id: string, project: string | null): unknown => (project ? (data[`${id}:${project}`] ?? null) : null)
   const dataOf = (id: string): unknown => dataFor(id, active)
   useEffect(() => {
@@ -296,7 +312,7 @@ export default function App(): React.JSX.Element {
   }, [active, refresh])
 
   useEffect(() => {
-    if (active) for (const p of plugins) if (p.source) loadData(p, active)
+    if (active) for (const p of plugins) if (p.source) loadData(p.id, active)
   }, [active, plugins, loadData])
 
   useEffect(() => {
@@ -315,7 +331,7 @@ export default function App(): React.JSX.Element {
         // every change; otherwise only for changes the plugin says could matter.
         for (const p of pluginsRef.current) {
           const d = dataRef.current[`${p.id}:${dir}`]
-          if (p.source && (front ? d !== null : d !== null && d !== undefined) && (p.source.relevant?.(paths) ?? true)) loadData(p, dir)
+          if (p.source && (front ? d !== null : d !== null && d !== undefined) && (p.source.relevant?.(paths) ?? true)) loadData(p.id, dir)
         }
         if (front) setTick((t) => t + 1)
       }),
@@ -533,7 +549,7 @@ export default function App(): React.JSX.Element {
     if (state === 'loading') return note(`Loading ${projectName(project)}…`)
     return (
       <PageProject.Provider value={project}>
-        <Quiet plugin={p} what={`panel ${panel.id}`} reset={`${active}\n${project}`} fallback={note(`${panel.title} hit an error (see Plugins).`)}>
+        <Quiet plugin={p} what={`panel ${panel.id}`} reset={`${p.key}\n${active}\n${project}`} fallback={note(`${panel.title} hit an error (see Plugins).`)}>
           {panel.render({ data: dataFor(p.id, project), ...pageProps(project, () => closePanel(id)) })}
         </Quiet>
       </PageProject.Provider>
@@ -563,7 +579,7 @@ export default function App(): React.JSX.Element {
     if (!active) return
     for (const { plugin, project } of awayPages) {
       visit(project)
-      if (plugin.source) loadData(plugin, project)
+      if (plugin.source) loadData(plugin.id, project)
     }
     for (const project of awayRef.current) checkPlay(project)
   }, [awayKey, active])
@@ -584,6 +600,16 @@ export default function App(): React.JSX.Element {
   const configuring = overlay === 'settings'
   const toggleSettings = (): void => setOverlay(configuring ? null : 'settings')
   const togglePlugins = (): void => setOverlay(overlay === 'plugins' ? null : 'plugins')
+  // View › Reload Plugins. What failed to load is on the Plugins page.
+  const reloadAll = (): void =>
+    void reloadPlugins(null).then(
+      async (n) => {
+        const failed = (await window.api.plugins().catch(() => [])).filter((s) => s.enabled && s.error)
+        const text = `Reloaded ${n} ${n === 1 ? 'plugin' : 'plugins'}.`
+        toast(!failed.length, 'Plugins', failed.length ? `${text} ${failed.map((s) => s.name ?? s.path).join(', ')} failed to load (see Plugins).` : text)
+      },
+      (err: unknown) => toast(false, 'Plugins', `Reload failed: ${message(err)}`)
+    )
 
   // Agents removed in settings take their terminals with them.
   const changeConfig = (next: Config): void => {
@@ -733,6 +759,7 @@ export default function App(): React.JSX.Element {
     else if (cmd.type === 'folders') toggleFolders()
     else if (cmd.type === 'settings') toggleSettings()
     else if (cmd.type === 'plugins') togglePlugins()
+    else if (cmd.type === 'reloadPlugins') reloadAll()
     else if (cmd.type === 'pane') focusPane(cmd.dir)
     else if (cmd.type === 'cycle' && active && bar.length > 1) {
       const n = bar.length
@@ -784,7 +811,7 @@ export default function App(): React.JSX.Element {
         {top &&
           plugins.flatMap((p) =>
             p.bar.map((Item, i) => (
-              <Quiet key={`${p.id}:${i}`} plugin={p} what="agent bar">
+              <Quiet key={`${p.key}:${i}`} plugin={p} what="agent bar">
                 <Item agent={top} />
               </Quiet>
             ))
@@ -1159,7 +1186,7 @@ export default function App(): React.JSX.Element {
           <div className="absolute inset-0 z-30">
             <PageProject.Provider value={viewProject}>
               <Quiet
-                key={`${pluginView.key}\n${viewProject ?? ''}`}
+                key={`${pluginView.key}\n${pluginView.plugin.key}\n${viewProject ?? ''}`}
                 plugin={pluginView.plugin}
                 what={`view ${pluginView.view.command}`}
                 reset={active}

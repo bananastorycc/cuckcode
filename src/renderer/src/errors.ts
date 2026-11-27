@@ -5,7 +5,7 @@ import { toast } from './components/Toasts'
 export const message = (err: unknown): string =>
   String((err as Error)?.message ?? err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 
-// What went wrong in a plugin's renderer side since launch, per plugin id, newest first: a throw
+// What went wrong in a plugin's renderer side since it last loaded, per plugin id, newest first: a throw
 // in one of its pages, hooks or handlers, a registration cuckcode refused. The Plugins page lists
 // them; each new one also toasts. Kept apart from the plugin registry so that recording one never
 // rerenders App, which would ask the page again and could throw again.
@@ -45,6 +45,14 @@ export function pluginError(plugin: { id: string; name: string }, where: string,
   if (!seen || now - seen.last >= RETOAST_MS) queueMicrotask(() => toast(false, plugin.name, text))
   const entry = seen ? { ...seen, count: seen.count + 1, last: now } : { text, count: 1, last: now }
   errors = { ...errors, [plugin.id]: [entry, ...list.filter((e) => e !== seen)].slice(0, MAX) }
+  notify()
+}
+
+// A reload starts the plugin's list afresh.
+export function clearErrors(id: string): void {
+  if (!(id in errors)) return
+  const { [id]: _, ...rest } = errors
+  errors = rest
   notify()
 }
 

@@ -61,11 +61,20 @@ function define(): void {
 }
 define()
 
-export function addThemeRules(light: monaco.editor.ITokenThemeRule[], dark: monaco.editor.ITokenThemeRule[]): void {
-  rules.light.push(...light)
-  rules.dark.push(...dark)
-  define()
-  setMonacoTheme(current)
+// Returns the undo, which takes out just these rules.
+export function addThemeRules(light: monaco.editor.ITokenThemeRule[], dark: monaco.editor.ITokenThemeRule[]): () => void {
+  const added = { light: [...light], dark: [...dark] }
+  const apply = (): void => {
+    define()
+    setMonacoTheme(current)
+  }
+  rules.light.push(...added.light)
+  rules.dark.push(...added.dark)
+  apply()
+  return () => {
+    for (const t of ['light', 'dark'] as const) rules[t] = rules[t].filter((r) => !added[t].includes(r))
+    apply()
+  }
 }
 
 export function setMonacoTheme(theme: Theme): void {

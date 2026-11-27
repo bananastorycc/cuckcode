@@ -2,6 +2,11 @@
 
 Every change to the app bumps the version here and in `package.json` (see Versioning in the README). The newest version comes first. The app shows the newest section's lines when it launches on a new version.
 
+## 1.60.0 — 2026-11-27
+
+- ✨ Plugins reload without a relaunch: Reload on the Plugins page for one (and the plugins that need it), or View › Reload Plugins for all of them. The plugin's views, panels, commands, editor hooks, colors and styles are taken out and come back from its new code, rebuilt when it changed. Your agents keep running, with their output. Changes on the Plugins page (turning one on or off, installing, updating, removing) apply with Reload all instead of a relaunch.
+- ✨ For plugin authors: every registration returns a disposable, and a plugin can export `deactivate()` to stop what it started before it reloads. The README says what a reload can't undo.
+
 ## 1.59.0 — 2026-11-27
 
 - ✨ When a plugin goes wrong in the window (a view, panel or title-bar item that crashes, a handler that throws, a view or panel it can't register), a note says so in the corner, and the Plugins page lists its last errors since launch. What a plugin's main side throws reaches it as its own message, without Electron's "Error invoking remote method" in front.

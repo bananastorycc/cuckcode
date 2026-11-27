@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import type { LoadedPlugin, MainHost, MainPlugin, PluginInfo, PluginManifest, PluginStatus } from '../shared/plugin'
+import type { Disposable, LoadedPlugin, MainHost, MainPlugin, PluginInfo, PluginManifest, PluginStatus } from '../shared/plugin'
 import { folderName, MANIFEST } from '../shared/plugin'
 import type { PluginRef } from '../shared/types'
 import { shellEnv } from './env'
@@ -14,26 +14,36 @@ import { syncToUpstream } from './pluginsync'
 // sync brought in, pull (fast-forward only, clean trees only; a clone of ours whose upstream was
 // force-pushed is realigned when none of its commits would be lost: pluginsync.ts), build if stale,
 // then activate main sides in dependency order. Everything is async; a broken plugin only reports its error.
+// A reload (reload()) does the same for one plugin and what requires it, or for all, without the pull.
 
 interface Plugin {
   dir: string
   manifest: PluginManifest
   handlers: Map<string, (...args: never[]) => unknown>
+  status: PluginStatus
+  module?: MainPlugin
+  // Unloaded: its host refuses what the old code still tries to register.
+  dead?: boolean
 }
 
-const statuses: PluginStatus[] = []
-const loaded: Plugin[] = []
+let statuses: PluginStatus[] = []
+let loaded: Plugin[] = []
 const apis = new Map<string, unknown>()
 // `${plugin}:${command}` whose accelerator the menu dropped, so the renderer doesn't show it as a hint.
 const dropped = new Set<string>()
 let ready: Promise<void> = new Promise(() => {}) // until start
+// Reloads, one at a time, after the launch's load.
+let queue: Promise<unknown> = ready
+let refsOf: () => PluginRef[] = () => []
 let dir = ''
+// How long a deactivate gets before the reload goes on without it.
+export const DEACTIVATE_MS = 5000
 
 export const setDir = (d: string): void => void (dir = d)
 // Installed by cuckcode, so removing it deletes the clone (to the Trash).
 export const managed = (path: string): boolean => !!dir && path.startsWith(`${dir}/`)
 
-const load = createRequire(__filename)
+const requireFrom = createRequire(__filename)
 
 // Rejects with the output's tail as the message, and all of it as `output`.
 function run(cmd: string, args: string[], cwd: string): Promise<void> {
@@ -122,15 +132,23 @@ async function manifest(dir: string): Promise<PluginManifest> {
 // Loads once `after` settles (the launch's config sync, which can bring new plugins), reading
 // the refs then.
 export function start(after: Promise<unknown>, refs: () => PluginRef[]): Promise<void> {
-  ready = after.then(() => loadAll(refs()))
+  refsOf = refs
+  ready = after.then(() => load(refs(), true))
+  queue = ready
   return ready
 }
 
 const exists = (p: string): Promise<boolean> => stat(p).then(() => true, () => false)
 
-async function loadAll(refs: PluginRef[]): Promise<void> {
-  const statusOf = new Map(refs.map((ref) => [ref, { path: ref.path, enabled: ref.enabled } as PluginStatus]))
-  statuses.push(...statusOf.values())
+// Loads refs; the plugins already loaded stay as they are, and count for requires. pull: the
+// launch's, which a reload skips. notes: what unloading each folder's old version had to say.
+async function load(refs: PluginRef[], pull: boolean, notes = new Map<string, string>()): Promise<void> {
+  const statusOf = new Map(refs.map((ref) => [ref, { path: ref.path, enabled: ref.enabled, ...(notes.get(ref.path) ? { note: notes.get(ref.path) } : {}) } as PluginStatus]))
+  for (const s of statusOf.values()) {
+    const i = statuses.findIndex((x) => x.path === s.path)
+    if (i < 0) statuses.push(s)
+    else statuses[i] = s
+  }
   // Installed on another machine: cloned here first, all at once.
   await Promise.all(
     refs
@@ -143,14 +161,14 @@ async function loadAll(refs: PluginRef[]): Promise<void> {
         )
       })
   )
-  const found: (Plugin & { status: PluginStatus })[] = []
+  const found: Plugin[] = []
   for (const ref of refs) {
     const status = statusOf.get(ref)!
     if (!ref.enabled || status.error) continue
     try {
       const m = await manifest(ref.path)
       Object.assign(status, { id: m.id, name: m.name })
-      if (found.some((p) => p.manifest.id === m.id)) throw new Error(`Another plugin is already ${m.id}`)
+      if ([...found, ...loaded].some((p) => p.manifest.id === m.id)) throw new Error(`Another plugin is already ${m.id}`)
       found.push({ dir: ref.path, manifest: m, handlers: new Map(), status })
     } catch (err) {
       status.error = (err as Error).message
@@ -158,9 +176,10 @@ async function loadAll(refs: PluginRef[]): Promise<void> {
   }
   await Promise.all(
     found.map(async (p) => {
-      p.status.note = (await pullQuietly(p.dir)) || p.status.note
+      const pulled = pull ? await pullQuietly(p.dir) : ''
+      p.status.note = pulled || p.status.note
       // A pull can change the manifest (new bundles, commands, requirements).
-      if (p.status.note) p.manifest = await manifest(p.dir).catch(() => p.manifest)
+      if (pulled) p.manifest = await manifest(p.dir).catch(() => p.manifest)
       await build(p.dir, p.manifest).then(
         (note) => note && (p.status.note = p.status.note ? `${p.status.note}. ${note}` : note),
         (err: Error) => (p.status.error = `Build failed: ${err.message}`)
@@ -178,42 +197,130 @@ async function loadAll(refs: PluginRef[]): Promise<void> {
       loaded.push(next)
     } catch (err) {
       next.status.error = (err as Error).message
+      // What it registered before it threw goes with it.
+      next.dead = true
+      next.handlers.clear()
+      apis.delete(next.manifest.id)
     }
   }
   for (const p of left) p.status.error ??= `Needs ${p.manifest.requires!.filter((r) => !loaded.some((l) => l.manifest.id === r)).join(', ')}`
 }
 
+// Undoes something once; a dead plugin's registrations do nothing.
+function disposable(p: Plugin, register: () => () => void): Disposable {
+  let undo: (() => void) | null = p.dead ? null : register()
+  return () => {
+    undo?.()
+    undo = null
+  }
+}
+
 async function activate(p: Plugin): Promise<void> {
   if (!p.manifest.main) return
   const file = join(p.dir, p.manifest.main)
-  delete load.cache[load.resolve(file)]
-  const mod = load(file) as MainPlugin
+  // A reload reads the bundle again.
+  delete requireFrom.cache[requireFrom.resolve(file)]
+  const mod = requireFrom(file) as MainPlugin
+  p.module = mod
+  const id = p.manifest.id
   const host: MainHost = {
-    handle: (name, fn) => p.handlers.set(name, fn),
-    provide: (api) => apis.set(p.manifest.id, api),
+    handle: (name, fn) =>
+      disposable(p, () => {
+        p.handlers.set(name, fn)
+        return () => void (p.handlers.get(name) === fn && p.handlers.delete(name))
+      }),
+    provide: (api) =>
+      disposable(p, () => {
+        apis.set(id, api)
+        return () => void (apis.get(id) === api && apis.delete(id))
+      }),
     use: <T>(id: string) => apis.get(id) as T | undefined,
     shellEnv
   }
   await mod.activate(host)
 }
 
+// Runs p's deactivate, then drops what it registered. Resolves to what went wrong, or ''.
+async function unload(p: Plugin): Promise<string> {
+  loaded = loaded.filter((x) => x !== p)
+  p.dead = true
+  let note = ''
+  let timer: NodeJS.Timeout | undefined
+  try {
+    const late = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error(`didn't finish in ${DEACTIVATE_MS / 1000} s`)), DEACTIVATE_MS)))
+    await Promise.race([Promise.resolve().then(() => p.module?.deactivate?.()), late])
+  } catch (err) {
+    note = `Its old version's deactivate failed: ${(err as Error)?.message ?? err}`
+  } finally {
+    clearTimeout(timer)
+  }
+  p.handlers.clear()
+  apis.delete(p.manifest.id)
+  for (const c of p.manifest.commands ?? []) dropped.delete(`${p.manifest.id}:${c.id}`)
+  return note
+}
+
+// Reloads the plugin in folder path, and the loaded ones that require it (and those that require
+// them), or with path null every plugin, as the settings now list them (so it also applies
+// plugins enabled, disabled, added or removed since). The ones it touches unload last-activated
+// first, then load as at launch, without the pull. Resolves to the ids it loaded, in activation order.
+export function reload(path: string | null): Promise<string[]> {
+  const run = queue.then(() => reloadNow(path))
+  queue = run.catch(() => {})
+  return run
+}
+
+async function reloadNow(path: string | null): Promise<string[]> {
+  const refs = refsOf()
+  let targets = refs
+  if (path !== null) {
+    const ref = refs.find((r) => r.path === path)
+    if (!ref) throw new Error(`${path} isn't one of your plugins`)
+    const ids = new Set([loaded.find((p) => p.dir === path)?.manifest.id ?? statuses.find((s) => s.path === path)?.id].filter((x): x is string => !!x))
+    for (let grew = true; grew; ) {
+      grew = false
+      for (const p of loaded)
+        if (!ids.has(p.manifest.id) && p.manifest.requires!.some((r) => ids.has(r))) {
+          ids.add(p.manifest.id)
+          grew = true
+        }
+    }
+    const dependent = (r: PluginRef): boolean => loaded.some((p) => p.dir === r.path && ids.has(p.manifest.id))
+    // One that couldn't load for want of another may load now.
+    const waiting = (r: PluginRef): boolean => r.enabled && !loaded.some((p) => p.dir === r.path) && !!statuses.find((s) => s.path === r.path)?.error?.startsWith('Needs ')
+    targets = refs.filter((r) => r === ref || dependent(r) || waiting(r))
+  }
+  const paths = new Set(targets.map((r) => r.path))
+  const going = loaded.filter((p) => path === null || paths.has(p.dir)).reverse()
+  const notes = new Map<string, string>()
+  for (const p of going) notes.set(p.dir, await unload(p))
+  if (path === null) statuses = []
+  const before = new Set(loaded)
+  await load(targets, false, notes)
+  return loaded.filter((p) => !before.has(p)).map((p) => p.manifest.id)
+}
+
 export async function list(): Promise<PluginStatus[]> {
-  await ready
+  await queue
   return statuses
 }
 
-// The renderer sides of the plugins whose main side loaded, in activation order.
-export async function renderers(): Promise<LoadedPlugin[]> {
+// The renderer sides of the plugins whose main side loaded (only ids', with ids), in activation order.
+export async function renderers(ids?: string[]): Promise<LoadedPlugin[]> {
   await ready
   const read = (dir: string, f?: string): Promise<string | null> => (f ? readFile(join(dir, f), 'utf8').catch(() => null) : Promise.resolve(null))
   return Promise.all(
-    loaded.map(async (p) => ({
-      id: p.manifest.id,
-      name: p.manifest.name,
-      commands: (p.manifest.commands ?? []).map((c) => (dropped.has(`${p.manifest.id}:${c.id}`) ? { ...c, accelerator: undefined } : c)),
-      renderer: await read(p.dir, p.manifest.renderer),
-      style: await read(p.dir, p.manifest.style)
-    }))
+    loaded
+      .filter((p) => !ids || ids.includes(p.manifest.id))
+      .map(async (p) => ({
+        id: p.manifest.id,
+        name: p.manifest.name,
+        path: p.dir,
+        requires: p.manifest.requires ?? [],
+        commands: (p.manifest.commands ?? []).map((c) => (dropped.has(`${p.manifest.id}:${c.id}`) ? { ...c, accelerator: undefined } : c)),
+        renderer: await read(p.dir, p.manifest.renderer),
+        style: await read(p.dir, p.manifest.style)
+      }))
   )
 }
 
@@ -230,7 +337,13 @@ export function dropShortcut(plugin: string, command: string, message: string): 
 
 export async function invoke(id: string, name: string, args: unknown[]): Promise<unknown> {
   await ready
-  const fn = loaded.find((p) => p.manifest.id === id)?.handlers.get(name)
+  const find = (): ((...args: never[]) => unknown) | undefined => loaded.find((p) => p.manifest.id === id)?.handlers.get(name)
+  // While id reloads, its new version may be on its way.
+  let fn = find()
+  if (!fn) {
+    await queue
+    fn = find()
+  }
   if (!fn) throw new Error(`${id} has no ${name}`)
   return (fn as (...a: unknown[]) => unknown)(...args)
 }
