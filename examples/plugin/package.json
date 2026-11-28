@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "An example cuckcode plugin: pin files from the file tree to a panel",
-  "license": "GPL-3.0-or-later",
+  "license": "MIT",
   "scripts": {
     "build": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON build.mjs",
     "typecheck": "tsc --noEmit",

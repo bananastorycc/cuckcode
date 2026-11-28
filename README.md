@@ -318,7 +318,7 @@ If the repo's `package.json` has a `build` script, cuckcode runs it whenever its
 
 ### Write a plugin
 
-[`examples/plugin/`](examples/plugin) is a small, complete plugin to start from. It adds a panel, Pinned, listing files you pin with **Pin / Unpin** in the file tree's right-click menu, each with its line count from the plugin's main side, counted again whenever the editor saves the file. The pins live in the plugin's `store`, so they come back after a reload or relaunch.
+[`examples/plugin/`](examples/plugin) is a small, complete plugin to start from. It adds a panel, Pinned, listing files you pin with **Pin / Unpin** in the file tree's right-click menu, each with its line count from the plugin's main side, counted again whenever the editor saves the file. The pins live in the plugin's `store`, so they come back after a reload or relaunch. Unlike the rest of cuckcode, the example is [MIT-licensed](examples/plugin/LICENSE), so you can copy it into your own plugin freely.
 
 - `cuckcode-plugin.json`: its id, name, bundles and one command, **Pinned Files** under View, which opens and closes the panel (as the panel's header button does).
 - `src/main.ts`: the main side, with one function the window calls through `invoke`.
